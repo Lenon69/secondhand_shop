@@ -7,8 +7,8 @@ use axum::{
     response::{IntoResponse, Response, Result},
     routing::{delete, get, patch, post},
 };
-use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
+use sqlx::{PgPool, Postgres, QueryBuilder};
 use std::net::SocketAddr;
 // use std::sync::Arc;
 use tokio::net::TcpListener;
@@ -23,6 +23,7 @@ pub mod filters;
 pub mod models;
 pub mod pagination;
 
+use filters::ListingParams;
 use models::{
     CreateProductPayload, Product, ProductCondition, ProductStatus, UpdateProductPayload,
 };
@@ -133,69 +134,6 @@ async fn root_handler() -> &'static str {
     "Witaj w backendzie sklepu second-hand!"
 }
 
-async fn list_products(
-    State(pool): State<PgPool>,
-    Query(pagination): Query<PaginationParams>,
-) -> Result<Json<PaginatedProductsResponse>, AppError> {
-    tracing::info!(
-        "Obsłużono zapytanie GET /api/products - pobieranie listy z paginacja: {:?}",
-        pagination
-    );
-
-    let limit = pagination.limit();
-    let offset = pagination.offset();
-
-    let total_items_result = sqlx::query_scalar::<_, i64>(
-        r#"
-            SELECT COUNT(*)
-            FROM products
-            WHERE status = $1
-        "#,
-    )
-    .bind(ProductStatus::Available)
-    .fetch_one(&pool)
-    .await;
-
-    let total_items = match total_items_result {
-        Ok(count) => count,
-        Err(e) => {
-            tracing::error!("Błąd bazy danych podczas liczenia produktów: {:?}", e);
-            return Err(AppError::SqlxError(e));
-        }
-    };
-
-    let products = sqlx::query_as::<_, Product>(
-        r#"
-            SELECT id, name, description, price, condition AS "condition: _", category AS "category: _", status AS "status: _", images
-            FROM products
-            WHERE status = $1
-            ORDER BY name
-            LIMIT $2 OFFSET $3
-        "#,
-    ).bind(ProductStatus::Available)
-    .bind(limit)
-    .bind(offset)
-    .fetch_all(&pool)
-    .await?;
-
-    let total_pages = if total_items == 0 {
-        0
-    } else {
-        (total_items as f64 / limit as f64).ceil() as i64
-    };
-    let current_page = (offset as f64 / limit as f64).floor() as i64 + 1;
-
-    let response = PaginatedProductsResponse {
-        total_items,
-        total_pages,
-        current_page,
-        per_page: limit,
-        data: products,
-    };
-
-    Ok(Json(response))
-}
-
 async fn get_product_details(
     State(pool): State<PgPool>,
     Path(product_id): Path<Uuid>,
@@ -229,6 +167,150 @@ async fn get_product_details(
             Err(AppError::SqlxError(e))
         }
     }
+}
+
+async fn list_products(
+    State(pool): State<PgPool>,
+    Query(params): Query<ListingParams>,
+) -> Result<Json<PaginatedProductsResponse>, AppError> {
+    tracing::info!(
+        "Obsłużono zapytanie GET /api/products z parametrami: {:?}",
+        params
+    );
+
+    let limit = params.limit();
+    let offset = params.offset();
+
+    // --- Budowanie zapytania COUNT ---
+    let mut count_builder: QueryBuilder<Postgres> =
+        QueryBuilder::new("SELECT COUNT(*) FROM products");
+    let mut count_added_where = false; // Użyj innej nazwy zmiennej lub zdefiniuj na nowo później
+
+    // Definicja domknięcia tylko dla tej sekcji
+    let mut append_where_or_and_count = |builder: &mut QueryBuilder<Postgres>| {
+        if !count_added_where {
+            builder.push(" WHERE ");
+            count_added_where = true;
+        } else {
+            builder.push(" AND ");
+        }
+    };
+
+    if let Some(category) = params.category() {
+        append_where_or_and_count(&mut count_builder);
+        count_builder.push("category = ").push_bind(category);
+    }
+    if let Some(condition) = params.condition() {
+        append_where_or_and_count(&mut count_builder);
+        count_builder.push("condition = ").push_bind(condition);
+    }
+
+    let status_to_filter = params.status().unwrap_or(ProductStatus::Available);
+    append_where_or_and_count(&mut count_builder);
+    // Poprawiona literówka i przekazanie przez referencję
+    count_builder.push("status = ").push_bind(&status_to_filter);
+
+    if let Some(price_min) = params.price_min() {
+        append_where_or_and_count(&mut count_builder);
+        count_builder.push("price >= ").push_bind(price_min);
+    }
+    if let Some(price_max) = params.price_max() {
+        append_where_or_and_count(&mut count_builder);
+        // Poprawiony brak spacji
+        count_builder.push("price <= ").push_bind(price_max);
+    }
+
+    // Wykonanie zapytania COUNT
+    let total_items_result = count_builder
+        .build_query_scalar::<i64>()
+        .fetch_one(&pool)
+        .await;
+
+    let total_items = match total_items_result {
+        Ok(count) => count,
+        Err(e) => {
+            tracing::error!(
+                "Błąd bazy danych podczas liczenia produktów (filtrowane): {:?}",
+                e
+            );
+            return Err(AppError::SqlxError(e));
+        }
+    };
+
+    // --- Budowanie zapytania o DANE ---
+    let mut data_builder: QueryBuilder<Postgres> = QueryBuilder::new(
+        r#"
+            SELECT id, name, description, price, condition AS "condition: _", category AS "category: _", status AS "status: _", images
+            FROM products
+        "#,
+    );
+    // Zdefiniuj na nowo flagę i domknięcie dla tej sekcji, aby uniknąć problemów z pożyczaniem
+    let mut data_added_where = false;
+    let mut append_where_or_and_data = |builder: &mut QueryBuilder<Postgres>| {
+        if !data_added_where {
+            builder.push(" WHERE ");
+            data_added_where = true;
+        } else {
+            builder.push(" AND ");
+        }
+    };
+
+    if let Some(category) = params.category() {
+        append_where_or_and_data(&mut data_builder);
+        data_builder.push("category = ").push_bind(category);
+    }
+    if let Some(condition) = params.condition() {
+        append_where_or_and_data(&mut data_builder);
+        // Poprawiona literówka
+        data_builder.push("condition = ").push_bind(condition);
+    }
+    append_where_or_and_data(&mut data_builder);
+    // Przekazanie przez referencję
+    data_builder.push("status = ").push_bind(&status_to_filter);
+
+    if let Some(price_min) = params.price_min() {
+        append_where_or_and_data(&mut data_builder);
+        data_builder.push("price >= ").push_bind(price_min);
+    }
+    if let Some(price_max) = params.price_max() {
+        append_where_or_and_data(&mut data_builder);
+        // Poprawiony brak spacji
+        data_builder.push("price <= ").push_bind(price_max);
+    }
+
+    // Reszta bez zmian (sortowanie, limit, offset, wykonanie, metadane, odpowiedź)
+    let sort_by_column = match params.sort_by() {
+        "price" => "price",
+        "name" | _ => "name",
+    };
+    let order_direction = params.order();
+
+    data_builder.push(format!(" ORDER BY {} {}", sort_by_column, order_direction));
+
+    data_builder.push(" LIMIT ").push_bind(limit);
+    data_builder.push(" OFFSET ").push_bind(offset);
+
+    let products = data_builder
+        .build_query_as::<Product>()
+        .fetch_all(&pool)
+        .await?;
+
+    let total_pages = if total_items == 0 {
+        0
+    } else {
+        (total_items as f64 / limit as f64).ceil() as i64
+    };
+    let current_page = (offset as f64 / limit as f64).floor() as i64 + 1;
+
+    let response = PaginatedProductsResponse {
+        total_items,
+        total_pages,
+        current_page,
+        per_page: limit,
+        data: products,
+    };
+
+    Ok(Json(response))
 }
 
 async fn create_product(
