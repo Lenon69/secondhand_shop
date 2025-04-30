@@ -19,6 +19,7 @@ use uuid::Uuid;
 use dotenvy::dotenv;
 use std::env;
 
+pub mod filters;
 pub mod models;
 pub mod pagination;
 
