@@ -62,3 +62,14 @@ pub struct CreateProductPayload {
     pub category: Category,
     pub images: Vec<String>,
 }
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateProductPayload {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub price: Option<i64>,
+    pub condition: Option<ProductCondition>,
+    pub category: Option<Category>,
+    pub status: Option<ProductStatus>,
+    pub images: Option<Vec<String>>,
+}
