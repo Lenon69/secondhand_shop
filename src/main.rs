@@ -5,7 +5,7 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response, Result},
-    routing::{delete, get, patch, post},
+    routing::get,
 };
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{PgPool, Postgres, QueryBuilder};
@@ -15,6 +15,7 @@ use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use uuid::Uuid;
+use validator::{Validate, ValidationErrors};
 
 use dotenvy::dotenv;
 use std::env;
@@ -24,10 +25,8 @@ pub mod models;
 pub mod pagination;
 
 use filters::ListingParams;
-use models::{
-    CreateProductPayload, Product, ProductCondition, ProductStatus, UpdateProductPayload,
-};
-use pagination::{PaginatedProductsResponse, PaginationParams};
+use models::{CreateProductPayload, Product, ProductStatus, UpdateProductPayload};
+use pagination::PaginatedProductsResponse;
 
 #[tokio::main]
 async fn main() {
@@ -66,7 +65,7 @@ async fn main() {
         .route("/", get(root_handler)) // Dodajemy prosty handler dla ścieżki "/"
         .route("/api/products", get(list_products).post(create_product))
         .route(
-            "/api/products/{:id}",
+            "/api/products/{id}",
             get(get_product_details)
                 .patch(update_product_partial)
                 .delete(delete_product),
@@ -97,25 +96,40 @@ async fn main() {
 enum AppError {
     SqlxError(sqlx::Error),
     NotFound,
+    ValidationError(ValidationErrors),
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, error_message) = match self {
+        let (status, error_body) = match self {
             AppError::SqlxError(sqlx_error) => {
                 tracing::error!("Błąd SQLx: {:?}", sqlx_error);
+
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    "Wystąpił wewnętrzny błąd serwera".to_string(),
+                    Json(serde_json::json!({ "error": "Wystąpił wewnętrzny błąd serwera" })),
                 )
             }
             AppError::NotFound => (
                 StatusCode::NOT_FOUND,
-                "Zasób nie został znaleziony".to_string(),
+                Json(serde_json::json!({ "error":  "Zasób nie został znaleziony"})),
             ),
+            AppError::ValidationError(validation_errors) => {
+                tracing::warn!("Błąd walidacji danych {:?}", validation_errors);
+                (
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    Json(serde_json::json!({ "errors": validation_errors })),
+                )
+            }
         };
 
-        (status, error_message).into_response()
+        (status, error_body).into_response()
+    }
+}
+
+impl From<ValidationErrors> for AppError {
+    fn from(err: ValidationErrors) -> Self {
+        AppError::ValidationError(err)
     }
 }
 
@@ -144,7 +158,7 @@ async fn get_product_details(
     );
 
     let product_result = sqlx::query_as::<_, Product>(
-        r#"SELECT id, name, description, price, condition AS "condition: _", category AS "category: _", status AS "status: _", images
+        r#"SELECT id, name, description, price, condition AS "condition: ProductCondition", category AS "category: _", status AS "status: _", images
            FROM products
            WHERE id = $1"#,
     )
@@ -240,7 +254,7 @@ async fn list_products(
     // --- Budowanie zapytania o DANE ---
     let mut data_builder: QueryBuilder<Postgres> = QueryBuilder::new(
         r#"
-            SELECT id, name, description, price, condition AS "condition: _", category AS "category: _", status AS "status: _", images
+            SELECT id, name, description, price, condition AS "condition: ProductCondition", category AS "category: _", status AS "status: _", images
             FROM products
         "#,
     );
@@ -317,6 +331,8 @@ async fn create_product(
     State(pool): State<PgPool>,
     Json(payload): Json<CreateProductPayload>,
 ) -> Result<(StatusCode, Json<Product>), AppError> {
+    payload.validate()?;
+
     tracing::info!("Obsłużono zapytanie POST /api/products - tworzenie produktu");
 
     let new_id = Uuid::new_v4();
@@ -326,7 +342,7 @@ async fn create_product(
         r#"
             INSERT INTO products (id, name, description, price, condition, category, status, images)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING id, name, description, price, condition AS "condition: _", category AS "category: _", status AS "status: _", images
+            RETURNING id, name, description, price, condition AS "condition: ProductCondition", category AS "category: _", status AS "status: _", images
         "#,
     ).bind(new_id)
     .bind(&payload.name)
@@ -349,6 +365,8 @@ async fn update_product_partial(
     Path(product_id): Path<Uuid>,
     Json(payload): Json<UpdateProductPayload>,
 ) -> Result<Json<Product>, AppError> {
+    payload.validate()?;
+
     tracing::info!(
         "Obsłużono zapytanie PATCH /api/products/{} - aktualizacja: {:?}",
         product_id,
@@ -357,7 +375,7 @@ async fn update_product_partial(
 
     let mut existing_product = sqlx::query_as::<_, Product>(
         r#"
-            SELECT id, name, description, price, condition AS "condition: _", category AS "category: _", status AS "status: _", images
+            SELECT id, name, description, price, condition AS "condition: ProductCondition", category AS "category: _", status AS "status: _", images
             FROM products
             WHERE id = $1"#,
     ).bind(product_id)
@@ -400,7 +418,7 @@ async fn update_product_partial(
             UPDATE products
             SET name = $1, description = $2, price = $3, condition = $4, category = $5, status = $6, images = $7
             WHERE id = $8
-            RETURNING id, name, description, price, condition AS "condition: _", category AS "category: _", status AS "status: _", images
+            RETURNING id, name, description, price, condition AS "condition: ProductCondition", category AS "category: _", status AS "status: _", images
         "#).bind(&existing_product.name)
         .bind(&existing_product.description)
         .bind(&existing_product.price)
