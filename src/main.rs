@@ -20,13 +20,19 @@ use validator::{Validate, ValidationErrors};
 use dotenvy::dotenv;
 use std::env;
 
+pub mod auth;
+pub mod auth_models;
+pub mod errors;
 pub mod filters;
+pub mod handlers;
 pub mod models;
 pub mod pagination;
+pub mod state;
 
 use filters::ListingParams;
 use models::{CreateProductPayload, Product, ProductStatus, UpdateProductPayload};
 use pagination::PaginatedProductsResponse;
+use state::AppState;
 
 #[tokio::main]
 async fn main() {
@@ -60,6 +66,19 @@ async fn main() {
         }
     };
 
+    // --- Konfiguracja JWT ---
+    let jwt_secret = env::var("JWT_SECRET").expect("JWT_SECRET must be set");
+    let jwt_expiration_hours = env::var("JWT_EXPIRATION_HOURS")
+        .unwrap_or_else(|_| "1".to_string())
+        .parse::<i64>()
+        .expect("JWT_EXPIRATION_HOURS must be set");
+
+    let app_state = AppState {
+        db_pool: pool,
+        jwt_secret,
+        jwt_expiration_hours,
+    };
+
     // Definicja routingu aplikacji
     let app = Router::new()
         .route("/", get(root_handler)) // Dodajemy prosty handler dla ścieżki "/"
@@ -70,6 +89,8 @@ async fn main() {
                 .patch(update_product_partial)
                 .delete(delete_product),
         )
+        .route("/api/auth/register", post(register_handler))
+        .route("/api/auth/login", post(login_handler))
         .layer(TraceLayer::new_for_http())
         .with_state(pool); // Dodajemy middleware do logowania każdego zapytania HTTP
 

@@ -89,3 +89,42 @@ pub struct UpdateProductPayload {
     #[validate(length(min = 1, message = "Należy dodać przynajmniej jeden URL obrazka"))]
     pub images: Option<Vec<String>>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type)]
+#[sqlx(type_name = "user_role", rename_all = "lowercase")]
+pub enum Role {
+    Admin,
+    Customer,
+}
+
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct User {
+    pub id: Uuid,
+
+    #[sqlx(rename = "email")]
+    pub email: String,
+
+    #[sqlx(rename = "password_hash")]
+    #[serde(skip_serializing)]
+    pub password_hash: String,
+
+    #[sqlx(rename = "role")]
+    pub role: Role,
+}
+
+#[derive(Debug, Serialize)]
+pub struct UserPublic {
+    pub id: Uuid,
+    pub email: String,
+    pub role: Role,
+}
+
+impl From<User> for UserPublic {
+    fn from(user: User) -> Self {
+        UserPublic {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+        }
+    }
+}
