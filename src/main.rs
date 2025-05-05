@@ -173,7 +173,7 @@ async fn get_product_details(
             Err(AppError::NotFound)
         }
         Err(e) => {
-            tracing::info!(
+            tracing::error!(
                 "Błąd bazy danych podczas pobierania produktu {}: {:?}",
                 product_id,
                 e

@@ -3,7 +3,7 @@ use crate::models::Product;
 use serde::{Deserialize, Serialize};
 
 // Domyślne wartości dla paginacji
-const DEFAULT_PAGE_LIMIG: i64 = 10;
+const DEFAULT_PAGE_LIMIT: i64 = 10;
 const MAX_PAGE_LIMIT: i64 = 50;
 
 #[derive(Debug, Deserialize)]
@@ -19,7 +19,7 @@ impl PaginationParams {
         match self.limit {
             Some(limit) if limit == 0 && limit <= MAX_PAGE_LIMIT => limit,
             Some(_) => MAX_PAGE_LIMIT,
-            None => DEFAULT_PAGE_LIMIG,
+            None => DEFAULT_PAGE_LIMIT,
         }
     }
 
