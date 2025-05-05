@@ -158,7 +158,7 @@ async fn get_product_details(
     );
 
     let product_result = sqlx::query_as::<_, Product>(
-        r#"SELECT id, name, description, price, condition AS "condition: ProductCondition", category AS "category: _", status AS "status: _", images
+        r#"SELECT id, name, description, price, condition, category, status, images
            FROM products
            WHERE id = $1"#,
     )
@@ -254,7 +254,7 @@ async fn list_products(
     // --- Budowanie zapytania o DANE ---
     let mut data_builder: QueryBuilder<Postgres> = QueryBuilder::new(
         r#"
-            SELECT id, name, description, price, condition AS "condition: ProductCondition", category AS "category: _", status AS "status: _", images
+            SELECT id, name, description, price, condition, category, status, images
             FROM products
         "#,
     );
@@ -342,9 +342,10 @@ async fn create_product(
         r#"
             INSERT INTO products (id, name, description, price, condition, category, status, images)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING id, name, description, price, condition AS "condition: ProductCondition", category AS "category: _", status AS "status: _", images
+            RETURNING id, name, description, price, condition , category, status , images
         "#,
-    ).bind(new_id)
+    )
+    .bind(new_id)
     .bind(&payload.name)
     .bind(&payload.description)
     .bind(&payload.price)
@@ -375,22 +376,27 @@ async fn update_product_partial(
 
     let mut existing_product = sqlx::query_as::<_, Product>(
         r#"
-            SELECT id, name, description, price, condition AS "condition: ProductCondition", category AS "category: _", status AS "status: _", images
+            SELECT id, name, description, price, condition, category, status, images
             FROM products
             WHERE id = $1"#,
-    ).bind(product_id)
+    )
+    .bind(product_id)
     .fetch_one(&pool)
     .await
     .map_err(|err| match err {
-            sqlx::Error::RowNotFound => {
-                tracing::warn!("PATCH: Nie znaleziono produktu o ID: {}", product_id);
-                AppError::NotFound
-            }
-            _ => {
-                tracing::error!("PATCH: Błąd bazy danych podczas pobierania produktu {}: {:?}", product_id, err);
-                AppError::SqlxError(err)
-            }
-        })?;
+        sqlx::Error::RowNotFound => {
+            tracing::warn!("PATCH: Nie znaleziono produktu o ID: {}", product_id);
+            AppError::NotFound
+        }
+        _ => {
+            tracing::error!(
+                "PATCH: Błąd bazy danych podczas pobierania produktu {}: {:?}",
+                product_id,
+                err
+            );
+            AppError::SqlxError(err)
+        }
+    })?;
 
     if let Some(name) = payload.name {
         existing_product.name = name;
@@ -418,7 +424,7 @@ async fn update_product_partial(
             UPDATE products
             SET name = $1, description = $2, price = $3, condition = $4, category = $5, status = $6, images = $7
             WHERE id = $8
-            RETURNING id, name, description, price, condition AS "condition: ProductCondition", category AS "category: _", status AS "status: _", images
+            RETURNING id, name, description, price, condition, category, status, images
         "#).bind(&existing_product.name)
         .bind(&existing_product.description)
         .bind(&existing_product.price)
