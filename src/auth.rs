@@ -24,7 +24,7 @@ pub fn hash_password(password: &str) -> Result<String, AppError> {
 // Funkcja do weryfikacji hasła
 pub fn verify_password(hashed_password: &str, password: &str) -> Result<bool, AppError> {
     let parsed_hash =
-        PasswordHash::new(hashed_password).map_err(|_| AppError::InvalidCredentials)?;
+        PasswordHash::new(hashed_password).map_err(|_| AppError::InvalidLoginCredentials)?;
 
     Ok(Argon2::default()
         .verify_password(password.as_bytes(), &parsed_hash)
@@ -66,6 +66,6 @@ pub fn verify_jwt(token: &str, secret: &str) -> Result<TokenData<TokenClaims>, A
     )
     .map_err(|e| match e.kind() {
         jsonwebtoken::errors::ErrorKind::ExpiredSignature => AppError::TokenExpired,
-        _ => AppError::InvalidToken,
+        _ => AppError::InvalidToken("Dekodowanie nie przebiegło pomyślnie".to_string()),
     })
 }

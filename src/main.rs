@@ -86,6 +86,7 @@ async fn main() {
         )
         .route("/api/auth/register", post(register_handler))
         .route("/api/auth/login", post(login_handler))
+        .route("/api/me", get(protected_route_handler))
         .layer(TraceLayer::new_for_http())
         .with_state(app_state); // Dodajemy middleware do logowania każdego zapytania HTTP
 

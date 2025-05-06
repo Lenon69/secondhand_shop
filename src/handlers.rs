@@ -1,9 +1,10 @@
 // src/handlers.rs
+use axum::Json;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    response::Json,
 };
+use serde_json::{Value, json};
 use sqlx::{Postgres, QueryBuilder};
 
 use crate::errors::AppError;
@@ -15,7 +16,7 @@ use crate::{
     state::AppState,
 };
 use crate::{
-    auth_models::{LoginPayload, RegistrationPayload},
+    auth_models::{LoginPayload, RegistrationPayload, TokenClaims},
     models::ProductStatus,
 };
 use uuid::Uuid;
@@ -376,7 +377,9 @@ pub async fn register_handler(
     .await?;
 
     if existing_user.is_some() {
-        return Err(AppError::EmailAlreadyExists);
+        return Err(AppError::EmailAlreadyExists(
+            "Email już istnieje".to_string(),
+        ));
     }
 
     // Hashuj hasło
@@ -416,11 +419,11 @@ pub async fn login_handler(
     .bind(&payload.email)
     .fetch_optional(&app_state.db_pool)
     .await?
-    .ok_or(AppError::InvalidCredentials)?;
+    .ok_or(AppError::InvalidLoginCredentials)?;
 
     // Zweryfikuj hasło
     if !verify_password(&user.password_hash, &payload.password)? {
-        return Err(AppError::InvalidCredentials);
+        return Err(AppError::InvalidLoginCredentials);
     }
 
     // Wygeneruj token JWT
@@ -435,4 +438,13 @@ pub async fn login_handler(
 
     // Zwróć token w odpowiedzi JSON
     Ok(Json(serde_json::json!({ "token": token })))
+}
+
+pub async fn protected_route_handler(claims: TokenClaims) -> Result<Json<Value>, AppError> {
+    Ok(Json(
+        json!({ "message": "Gratulacje! Masz dostęp do chronionego zasobu.",
+            "user_id": claims.sub,
+            "user_role": claims.role,
+            "expires_at": claims.exp }),
+    ))
 }
