@@ -1,12 +1,11 @@
 // src/auth.rs
-use crate::AppError;
 pub use crate::auth_models::{Role, TokenClaims};
 use crate::errors::AppError;
 use argon2::Argon2;
 use argon2::password_hash::{
     PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng,
 };
-use chrono::{Duration, Utc, format};
+use chrono::{Duration, Utc};
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, TokenData, Validation, decode, encode};
 use uuid::Uuid;
 
@@ -45,7 +44,7 @@ pub fn create_jwt(
     let claims = TokenClaims {
         sub: user_id,
         role,
-        exp: expiration_hours.timestamp(),
+        exp: expiration_time.timestamp(),
         iat: now.timestamp(),
     };
 
@@ -56,12 +55,17 @@ pub fn create_jwt(
     )
     .map_err(|e| AppError::InternalServerError(format!("Błąd podczas tworzenia JWT: {}", e)))
 }
-
 // Funkcja do weryfikacji JWT
-pub fn verify_jwt(token: &str, secret: &str) -> Result<TokenData<TokenClaims>, AppError) {
-    decode::<TokenClaims>(token, &DecodingKey::from_secret(secret.as_ref()),&Validation::default()).map_err(|e|match e.kind()) {
+
+// Funkcja do weryfikacji JWT (przyda się później w middleware)
+pub fn verify_jwt(token: &str, secret: &str) -> Result<TokenData<TokenClaims>, AppError> {
+    decode::<TokenClaims>(
+        token,
+        &DecodingKey::from_secret(secret.as_ref()),
+        &Validation::default(), // Domyślna walidacja sprawdza m.in. 'exp'
+    )
+    .map_err(|e| match e.kind() {
         jsonwebtoken::errors::ErrorKind::ExpiredSignature => AppError::TokenExpired,
         _ => AppError::InvalidToken,
     })
 }
-

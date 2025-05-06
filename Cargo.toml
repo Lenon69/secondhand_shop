@@ -7,7 +7,8 @@ edition = "2024"
 argon2 = "0.5.3"
 axum = "0.8.3"
 axum-server = { version = "0.7.2", features = ["tokio-rustls", "rustls", "rustls-pemfile"] }
-chrono = "0.4.41"
+axum-extra = { version = "0.10.1", features = ["typed-header"] }
+chrono = { version = "0.4.41", features = ["serde"] }
 dotenvy = "0.15.7"
 jsonwebtoken = "9.3.1"
 rand = "0.9.1"

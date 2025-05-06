@@ -1,6 +1,6 @@
 // src/auth_models.rs
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
@@ -24,6 +24,7 @@ pub struct LoginPayload {
     pub password: String,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
 pub struct TokenClaims {
     pub sub: Uuid,
     pub role: Role,

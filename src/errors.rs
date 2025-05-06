@@ -3,10 +3,8 @@ use axum::{
     response::{IntoResponse, Json, Response},
 };
 
-use jsonwebtoken::Validation;
 use serde_json::json;
-use sqlx::types::Json;
-use validator::{Validate, ValidationErrors};
+use validator::ValidationErrors;
 
 #[derive(Debug)]
 pub enum AppError {
@@ -15,18 +13,18 @@ pub enum AppError {
     ValidationError(ValidationErrors),
     InvalidCredentials,
     EmailAlreadyExists,
-    InvalidToken,
-    MissingToken,
+    InvalidToken(String),
+    MissingToken(String),
     TokenExpired,
     UnauthorizedAccess,
-    InterenalServerError(String),
+    InternalServerError(String),
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, error_body) = match self {
             AppError::SqlxError(sqlx_error) => {
-                tracing::error!("Błąd SQLx: {:?}");
+                tracing::error!("Błąd SQLx: {:?}", sqlx_error);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     json!({"error": "Wystąpił wewnętrzny błąd serwera (baza danych)"}),
@@ -51,7 +49,7 @@ impl IntoResponse for AppError {
                 StatusCode::CONFLICT,
                 json!({"error": "Użytkownik o podanym adresie email już istnieje"}),
             ),
-            AppError::InvalidToken | AppError::MissingToken => (
+            AppError::InvalidToken(_) | AppError::MissingToken(_) => (
                 StatusCode::UNAUTHORIZED,
                 json!({"error": "Nieprawidłowy lub brakujący token uwierzytelniający"}),
             ),
@@ -63,7 +61,7 @@ impl IntoResponse for AppError {
                 StatusCode::FORBIDDEN,
                 json!({"error": "Brak uprawnień do wykonania tej akcji"}),
             ),
-            AppError::InterenalServerError(_) => {
+            AppError::InternalServerError(message) => {
                 tracing::error!("Wewnętrzny błąd serwera: {}", message);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
@@ -79,13 +77,19 @@ impl IntoResponse for AppError {
 // Konwersja dla operatora '?'
 impl From<sqlx::Error> for AppError {
     fn from(err: sqlx::Error) -> Self {
+        // Można tu dodać logikę mapowania konkretnych błędów sqlx
+        // np. unikalności na EmailAlreadyExists, jeśli to możliwe i sensowne
         match err {
-            sqlx::Error::Database(database_error) if database_error.is_unique_violation() =>
-                tracing::warn!("Naruszenie ograniczenia unikalności: {:?}", database_error);
-                AppError::InterenalServerError("Naruszenie unikalności danych".to_string())
-            } 
-            sqlx::Error::RowNotFound => AppError::NotFound,
-            _ => AppError::SqlxError(err)
+            sqlx::Error::Database(db_err) if db_err.is_unique_violation() => {
+                // To może być zbyt ogólne, jeśli masz inne ograniczenia UNIQUE
+                // Lepiej sprawdzać konkretny constraint jeśli to konieczne
+                tracing::warn!("Naruszenie ograniczenia unikalności: {:?}", db_err);
+                // Zwracamy bardziej ogólny błąd, bo nie wiemy, które pole naruszyło unikalność
+                // W handlerze register sprawdzamy email jawnie, co jest lepsze
+                AppError::InternalServerError("Naruszenie unikalności danych".to_string())
+            }
+            sqlx::Error::RowNotFound => AppError::NotFound, // Mapuj RowNotFound na NotFound
+            _ => AppError::SqlxError(err),
         }
     }
 }
@@ -93,7 +97,6 @@ impl From<sqlx::Error> for AppError {
 impl From<ValidationErrors> for AppError {
     fn from(err: ValidationErrors) -> Self {
         AppError::ValidationError(err)
-        
     }
 }
 
@@ -101,9 +104,7 @@ impl From<jsonwebtoken::errors::Error> for AppError {
     fn from(err: jsonwebtoken::errors::Error) -> Self {
         match err.kind() {
             jsonwebtoken::errors::ErrorKind::ExpiredSignature => AppError::TokenExpired,
-            _ => AppError::InvalidToken, 
+            _ => AppError::InvalidToken("Nieprawidłowy token".to_string()),
         }
     }
 }
-
-

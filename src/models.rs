@@ -1,4 +1,5 @@
 // src/models.rs
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::Type;
 use uuid::Uuid;
@@ -100,16 +101,15 @@ pub enum Role {
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct User {
     pub id: Uuid,
-
     #[sqlx(rename = "email")]
     pub email: String,
-
     #[sqlx(rename = "password_hash")]
     #[serde(skip_serializing)]
     pub password_hash: String,
-
     #[sqlx(rename = "role")]
     pub role: Role,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize)]
@@ -117,6 +117,8 @@ pub struct UserPublic {
     pub id: Uuid,
     pub email: String,
     pub role: Role,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 impl From<User> for UserPublic {
@@ -125,6 +127,8 @@ impl From<User> for UserPublic {
             id: user.id,
             email: user.email,
             role: user.role,
+            created_at: user.created_at,
+            updated_at: user.updated_at,
         }
     }
 }
