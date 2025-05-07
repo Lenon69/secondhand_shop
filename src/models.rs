@@ -164,10 +164,10 @@ pub struct Order {
     pub total_price: i64,
 
     #[validate(length(min = 1, max = 255))]
-    pub shipping_addres_line1: String,
+    pub shipping_address_line1: String,
 
     #[validate(length(max = 255))]
-    pub shipping_addres_line2: String,
+    pub shipping_address_line2: String,
 
     #[validate(length(min = 1, max = 100))]
     pub shipping_city: String,

@@ -1,27 +1,24 @@
-use argon2::password_hash::Error;
 // src/handlers.rs
 use axum::Json;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
 };
-use rand::seq::IndexedRandom;
 use serde_json::{Value, json};
 use sqlx::{Postgres, QueryBuilder};
 
 use crate::errors::AppError;
 use crate::filters::ListingParams;
-use crate::models::{CreateProductPayload, Product, UpdateProductPayload, User, UserPublic};
+use crate::models::{CreateProductPayload, Product, Role, UpdateProductPayload, User, UserPublic};
 use crate::pagination::PaginatedProductsResponse;
 use crate::{
     auth::{create_jwt, hash_password, verify_password},
     state::AppState,
 };
 use crate::{
-    auth_models::{LoginPayload, RegistrationPayload, Role, TokenClaims},
-    models::{CreateOrderPayload, Order, OrderItem, OrderStatus, ProductStatus},
+    auth_models::{LoginPayload, RegistrationPayload, TokenClaims},
+    models::{CreateOrderPayload, Order, OrderStatus, ProductStatus},
 };
-use sqlx::Acquire;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -478,7 +475,7 @@ pub async fn create_order_handler(
     claims: TokenClaims,
     Json(payload): Json<CreateOrderPayload>,
 ) -> Result<(StatusCode, Json<Order>), AppError> {
-    payload.validate();
+    payload.validate()?;
 
     // Pobieranie ID użytkownika
     let user_id = claims.sub;
@@ -559,9 +556,9 @@ pub async fn create_order_handler(
     let initial_status = OrderStatus::Pending;
     let order = sqlx::query_as::<_, Order>(
         r#"
-            INSERT INTO orders (user_id, status, total_price, shipping_addres_line1, shipping_address_line2, shipping_city, shipping_postal_code, shipping_country)
+            INSERT INTO orders (user_id, status, total_price, shipping_address_line1, shipping_address_line2, shipping_city, shipping_postal_code, shipping_country)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING id, user_id, order_date, status, total_price, shipping_addres_line1, shipping_addres_line2, shipping_city, shipping_postal_code, shipping_country, created_at, updated_at
+            RETURNING id, user_id, order_date, status, total_price, shipping_address_line1, shipping_address_line2, shipping_city, shipping_postal_code, shipping_country, created_at, updated_at
             "#,
     ).bind(user_id)
     .bind(initial_status)
