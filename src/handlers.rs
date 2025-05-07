@@ -1,9 +1,11 @@
+use argon2::password_hash::Error;
 // src/handlers.rs
 use axum::Json;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
 };
+use rand::seq::IndexedRandom;
 use serde_json::{Value, json};
 use sqlx::{Postgres, QueryBuilder};
 
@@ -17,8 +19,9 @@ use crate::{
 };
 use crate::{
     auth_models::{LoginPayload, RegistrationPayload, Role, TokenClaims},
-    models::ProductStatus,
+    models::{CreateOrderPayload, Order, OrderItem, OrderStatus, ProductStatus},
 };
+use sqlx::Acquire;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -468,4 +471,152 @@ pub async fn protected_route_handler(claims: TokenClaims) -> Result<Json<Value>,
             "user_role": claims.role,
             "expires_at": claims.exp }),
     ))
+}
+
+pub async fn create_order_handler(
+    State(app_state): State<AppState>,
+    claims: TokenClaims,
+    Json(payload): Json<CreateOrderPayload>,
+) -> Result<(StatusCode, Json<Order>), AppError> {
+    payload.validate();
+
+    // Pobieranie ID użytkownika
+    let user_id = claims.sub;
+
+    // Rozpoczęcie transakcji bazodanowej
+    let mut tx = app_state.db_pool.begin().await.map_err(|e| {
+        tracing::error!("Nie można rozpocząć transakcji: {}", e);
+        AppError::InternalServerError("Nie można przetworzyć zamówienia".to_string())
+    })?;
+
+    // Walidacja i pobranie szczegółów produktów z BLOKADĄ ('FOR UPDATE)
+    // Zapobiega to sytuacji, w której dwóch użytkowników jednocześnie
+    // próbuje kupić ten sam unikalny produkt.
+    let mut total_price: i64 = 0;
+    let mut products_to_order: Vec<(Uuid, i64)> = Vec::with_capacity(payload.product_ids.len());
+
+    // Sprawdzanie duplikatów ID produktów w zamówieniu
+    let unique_product_ids = payload
+        .product_ids
+        .iter()
+        .cloned()
+        .collect::<std::collections::HashSet<_>>();
+
+    if unique_product_ids.len() != payload.product_ids.len() {
+        return Err(AppError::UnprocessableEntity(
+            "Zamówienie zawiera zduplikowane produkty".to_string(),
+        ));
+    }
+
+    for product_id in unique_product_ids {
+        // Używamy `tx` zamiast `app_state.db_pool` do operacji wewnątrz transakcji
+        // Dodajemy `FOR UPDATE` aby zablokować wiersz na czas transakcji
+        let product = sqlx::query_as::<_, Product>(
+            r#"
+            SELECT id, name, description, price, condition, category, status, images
+            FROM products
+            WHERE id = $1 FOR UPDATE
+        "#,
+        )
+        .bind(product_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        // Sprawdzanie czy produkt jest dostępny
+        match product {
+            Some(p) => {
+                if p.status != ProductStatus::Available {
+                    tracing::warn!(
+                        "Próba zamówienia niedostępnego produktu: product_id={}, status={:?}",
+                        product_id,
+                        p.status
+                    );
+                    return Err(AppError::NotFound);
+                }
+
+                products_to_order.push((p.id, p.price));
+                total_price += p.price;
+            }
+            None => {
+                tracing::warn!(
+                    "Próba zamówienia nieistniejącego produktu: product_id={}",
+                    product_id
+                );
+                return Err(AppError::NotFound);
+            }
+        }
+    }
+
+    // Obliczanie czy cena zamówienia nie jest ujemna
+    if total_price < 0 {
+        tracing::error!("Obliczono ujemną cenę całkowitą: {}", total_price);
+        return Err(AppError::InternalServerError(
+            "Błąd podczas obliczania ceny zamówienia".to_string(),
+        ));
+    }
+
+    // Wstawianie rekordu do tabeli 'orders'
+    let initial_status = OrderStatus::Pending;
+    let order = sqlx::query_as::<_, Order>(
+        r#"
+            INSERT INTO orders (user_id, status, total_price, shipping_addres_line1, shipping_address_line2, shipping_city, shipping_postal_code, shipping_country)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING id, user_id, order_date, status, total_price, shipping_addres_line1, shipping_addres_line2, shipping_city, shipping_postal_code, shipping_country, created_at, updated_at
+            "#,
+    ).bind(user_id)
+    .bind(initial_status)
+    .bind(total_price)
+    .bind(&payload.shipping_address_line1)
+    .bind(payload.shipping_address_line2.as_deref())
+    .bind(&payload.shipping_city)
+    .bind(&payload.shipping_postal_code)
+    .bind(&payload.shipping_country)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    //Wstawianie rekordów do tabeli 'order_items'
+    for (product_id, price_at_purchase) in &products_to_order {
+        sqlx::query(
+            r#"
+                INSERT INTO order_items (order_id, product_id, price_at_purchase)
+                VALUES ($1, $2, $3)
+        "#,
+        )
+        .bind(order.id)
+        .bind(product_id)
+        .bind(price_at_purchase)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    // Aktualizacja statusu zamówionych produktów na 'Sold'
+    // Przygotowanie listy ID do użycia w klauzuli WHERE IN
+    let product_ids_to_update: Vec<Uuid> =
+        products_to_order.iter().map(|(id, _price)| *id).collect();
+
+    sqlx::query(
+        r#"
+            UPDATE products
+            SET status = $1
+            WHERE id = ANY($2)
+        "#,
+    )
+    .bind(ProductStatus::Sold)
+    .bind(&product_ids_to_update)
+    .execute(&mut *tx)
+    .await?;
+
+    // Zatwierdzenie transakcji
+    tx.commit().await.map_err(|e| {
+        tracing::error!("Nie można zatwierdzić transakcji: {}", e);
+        AppError::InternalServerError("Nie można sfinalizować zamówienia.".to_string())
+    })?;
+
+    tracing::info!(
+        "Utworzono nowe zamówienie: order_id={}, user_id={}",
+        order.id,
+        user_id
+    );
+
+    Ok((StatusCode::CREATED, Json(order)))
 }

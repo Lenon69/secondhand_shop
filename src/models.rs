@@ -132,3 +132,85 @@ impl From<User> for UserPublic {
         }
     }
 }
+
+/// Status zamówienia
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type)]
+#[sqlx(type_name = "order_status_enum")]
+#[sqlx(rename_all = "lowercase")]
+pub enum OrderStatus {
+    Pending,    // Oczekujące (np. na płatność)
+    Processing, // W trakcie realizacji
+    Shipped,    // Wysłane
+    Delivered,  // Dostarczone
+    Cancelled,  // Anulowane
+}
+
+/// Reprezentuje pojedyńczą pozycję w zamówieniu
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct OrderItem {
+    pub id: Uuid,
+    pub order_id: Uuid,
+    pub product_id: Uuid,
+    pub price_at_purchase: i64,
+}
+
+/// Reprezentuje zamówienie
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, Validate)]
+pub struct Order {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub order_date: DateTime<Utc>,
+    pub status: OrderStatus,
+    pub total_price: i64,
+
+    #[validate(length(min = 1, max = 255))]
+    pub shipping_addres_line1: String,
+
+    #[validate(length(max = 255))]
+    pub shipping_addres_line2: String,
+
+    #[validate(length(min = 1, max = 100))]
+    pub shipping_city: String,
+
+    #[validate(length(min = 1, max = 20))]
+    pub shipping_postal_code: String,
+
+    #[validate(length(min = 1, max = 100))]
+    pub shipping_country: String,
+
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+// --- STRUKTURY PAYLOAD DLA HANDLERÓW ZAMÓWIEŃ ---
+
+/// Reprezentuje pojedyńczy produkt w payloadzie tworzenia zamówienia
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct CreateOrderPayload {
+    #[validate(length(
+        min = 1,
+        message = "Zamówienie musi zawierać co najmniej jeden produkt"
+    ))]
+    pub product_ids: Vec<Uuid>,
+
+    #[validate(length(min = 1, max = 255, message = "Linia adresu wysyłki jest wymagana"))]
+    pub shipping_address_line1: String,
+
+    #[validate(length(max = 255))]
+    pub shipping_address_line2: Option<String>,
+
+    #[validate(length(min = 1, max = 100, message = "Miasto wysyłki jest wymagane"))]
+    pub shipping_city: String,
+
+    #[validate(length(min = 1, max = 20, message = "Kod pocztowy wysyłki jest wymagany"))]
+    pub shipping_postal_code: String,
+
+    #[validate(length(min = 1, max = 100, message = "Kraj wysyłki jest wymagany"))]
+    pub shipping_country: String,
+}
+
+/// Payload do aktualizacji statusu zamówienia
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct UpdateOrderStatusPayload {
+    pub status: OrderStatus,
+}
