@@ -77,12 +77,15 @@ async fn main() {
     // Definicja routingu aplikacji
     let app = Router::new()
         .route("/", get(root_handler)) // Dodajemy prosty handler dla ścieżki "/"
-        .route("/api/products", get(list_products).post(create_product))
+        .route(
+            "/api/products",
+            get(list_products).post(create_product_handler),
+        )
         .route(
             "/api/products/{id}",
             get(get_product_details)
-                .patch(update_product_partial)
-                .delete(delete_product),
+                .patch(update_product_partial_handler)
+                .delete(delete_product_handler),
         )
         .route("/api/auth/register", post(register_handler))
         .route("/api/auth/login", post(login_handler))

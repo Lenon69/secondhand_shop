@@ -7,6 +7,7 @@ use serde_json::json;
 use thiserror::Error;
 use validator::ValidationErrors;
 
+#[allow(dead_code)]
 #[derive(Debug, Error)]
 pub enum AppError {
     #[error("Błąd SQLx: {0}")]

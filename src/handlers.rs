@@ -16,7 +16,7 @@ use crate::{
     state::AppState,
 };
 use crate::{
-    auth_models::{LoginPayload, RegistrationPayload, TokenClaims},
+    auth_models::{LoginPayload, RegistrationPayload, Role, TokenClaims},
     models::ProductStatus,
 };
 use uuid::Uuid;
@@ -202,11 +202,18 @@ pub async fn list_products(
     Ok(Json(response))
 }
 
-pub async fn create_product(
+pub async fn create_product_handler(
     State(app_state): State<AppState>,
+    claims: TokenClaims,
     Json(payload): Json<CreateProductPayload>,
 ) -> Result<(StatusCode, Json<Product>), AppError> {
     payload.validate()?;
+
+    if claims.role != Role::Admin {
+        return Err(AppError::UnauthorizedAccess(
+            "Tylko administrator może dodawać produkty".to_string(),
+        ));
+    }
 
     tracing::info!("Obsłużono zapytanie POST /api/products - tworzenie produktu");
 
@@ -236,12 +243,19 @@ pub async fn create_product(
     Ok((StatusCode::CREATED, Json(created_product)))
 }
 
-pub async fn update_product_partial(
+pub async fn update_product_partial_handler(
     State(app_state): State<AppState>,
     Path(product_id): Path<Uuid>,
+    claims: TokenClaims,
     Json(payload): Json<UpdateProductPayload>,
 ) -> Result<Json<Product>, AppError> {
     payload.validate()?;
+
+    if claims.role != Role::Admin {
+        return Err(AppError::UnauthorizedAccess(
+            "Tylko administrator może aktualizować produkty".to_string(),
+        ));
+    }
 
     tracing::info!(
         "Obsłużono zapytanie PATCH /api/products/{} - aktualizacja: {:?}",
@@ -316,11 +330,18 @@ pub async fn update_product_partial(
     Ok(Json(updated_product))
 }
 
-pub async fn delete_product(
+pub async fn delete_product_handler(
     State(app_state): State<AppState>,
     Path(product_id): Path<Uuid>,
+    claims: TokenClaims,
 ) -> Result<StatusCode, AppError> {
     tracing::info!("Obsłużono zapytanie DELETE /api/products/{}", product_id);
+
+    if claims.role != Role::Admin {
+        return Err(AppError::UnauthorizedAccess(
+            "Tylko administrator może usuwać produkty".to_string(),
+        ));
+    }
 
     let result = sqlx::query(
         r#"
