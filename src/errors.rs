@@ -1,4 +1,5 @@
 use axum::{
+    extract::multipart::MultipartError,
     http::StatusCode,
     response::{IntoResponse, Json, Response},
 };
@@ -125,5 +126,12 @@ impl From<jsonwebtoken::errors::Error> for AppError {
             jsonwebtoken::errors::ErrorKind::ExpiredSignature => AppError::TokenExpired,
             _ => AppError::InvalidToken("Token JWT jest nieprawidłowy lub uszkodzony".to_string()),
         }
+    }
+}
+
+impl From<MultipartError> for AppError {
+    fn from(err: MultipartError) -> Self {
+        tracing::error!("Błąd przetwarzania Multipart: {:?}", err);
+        AppError::UnprocessableEntity(format!("Błąd przetwarzania danych formularza: {}", err))
     }
 }

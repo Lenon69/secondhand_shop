@@ -59,6 +59,7 @@ pub struct Product {
     pub images: Vec<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct CreateProductPayload {
     #[validate(length(min = 1, max = 255, message = "Nazwa musi mieć od 1 do 255 znaków"))]

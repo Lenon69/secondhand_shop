@@ -65,7 +65,7 @@ async fn main() {
     let cloudinary_config = CloudinaryConfig {
         cloud_name: env::var("CLOUDINARY_CLOUD_NAME").expect("CLOUDINARY_CLOUD_NAME must be set"),
         api_key: env::var("CLOUDINARY_API_KEY").expect("CLOUDINARY_API_KEY must be set"),
-        api_secret: env::var("CLOUDIANRY_API_SECRET").expect("CLOUDINARY_API_SECRET must be set"),
+        api_secret: env::var("CLOUDINARY_API_SECRET").expect("CLOUDINARY_API_SECRET must be set"),
     };
 
     // --- Konfiguracja JWT ---

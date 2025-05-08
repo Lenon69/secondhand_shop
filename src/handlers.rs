@@ -10,8 +10,8 @@ use sqlx::{Postgres, QueryBuilder};
 use crate::errors::AppError;
 use crate::filters::ListingParams;
 use crate::models::{
-    CreateProductPayload, OrderDetailsResponse, OrderItem, Product, Role, UpdateOrderStatusPayload,
-    UpdateProductPayload, User, UserPublic,
+    Category, OrderDetailsResponse, OrderItem, Product, ProductCondition, Role,
+    UpdateOrderStatusPayload, UpdateProductPayload, User, UserPublic,
 };
 use crate::pagination::PaginatedProductsResponse;
 use crate::{
@@ -211,10 +211,9 @@ pub async fn list_products(
 pub async fn create_product_handler(
     State(app_state): State<AppState>,
     claims: TokenClaims,
-    Json(payload): Json<CreateProductPayload>,
+    mut multipart: Multipart,
 ) -> Result<(StatusCode, Json<Product>), AppError> {
-    payload.validate()?;
-
+    // Sprawdzanie roli admina
     if claims.role != Role::Admin {
         return Err(AppError::UnauthorizedAccess(
             "Tylko administrator może dodawać produkty".to_string(),
@@ -223,30 +222,134 @@ pub async fn create_product_handler(
 
     tracing::info!("Obsłużono zapytanie POST /api/products - tworzenie produktu");
 
-    let new_id = Uuid::new_v4();
-    let default_status = ProductStatus::Available;
+    // Przetwarzanie danych multipart
+    let mut text_fields: HashMap<String, String> = HashMap::new();
+    let mut image_bytes: Option<Vec<u8>> = None;
+    let mut image_filename: String = "unknown_file".to_string();
 
-    let created_product = sqlx::query_as::<_, Product>(
+    while let Some(field) = multipart.next_field().await? {
+        let field_name = match field.name() {
+            Some(name) => name.to_string(),
+            None => continue,
+        };
+
+        if field_name == "image_file" {
+            if let Some(filename) = field.file_name() {
+                image_filename = filename.to_string();
+            }
+            image_bytes = Some(field.bytes().await?.to_vec());
+            tracing::info!(
+                "Odebrano plik: {}, rozmiar: {} bajtów",
+                image_filename,
+                image_bytes.as_ref().map_or(0, |v| v.len())
+            );
+        } else {
+            let value = field.text().await?;
+            text_fields.insert(field_name, value);
+        }
+    }
+
+    // Walidacja i ekstrakcja pól tekstowych
+    let name = text_fields
+        .get("name")
+        .ok_or_else(|| AppError::UnprocessableEntity("Brak pola 'name'.".to_string()))?
+        .clone();
+    let description = text_fields
+        .get("description")
+        .ok_or_else(|| AppError::UnprocessableEntity("Brak pola 'description'".to_string()))?
+        .clone();
+    let price_str = text_fields
+        .get("price")
+        .ok_or_else(|| AppError::UnprocessableEntity("Brak pola 'price'.".to_string()))?
+        .clone();
+    let condition_str = text_fields
+        .get("condition")
+        .ok_or_else(|| AppError::UnprocessableEntity("Brak pola 'condition'.".to_string()))?
+        .clone();
+    let category_str = text_fields
+        .get("category")
+        .ok_or_else(|| AppError::UnprocessableEntity("Brak pola 'category'.".to_string()))?
+        .clone();
+
+    // Prasowanie i walidacja typów
+    let price: i64 = price_str.parse().map_err(|_| {
+        AppError::UnprocessableEntity("Pole 'price' musi być liczbą całkowitą".to_string())
+    })?;
+    let condition = ProductCondition::from_str(&condition_str).map_err(|_| {
+        AppError::UnprocessableEntity(format!(
+            "Nieprawidłowa wartość pola 'condition': {}",
+            condition_str
+        ))
+    })?;
+    let category = Category::from_str(&category_str).map_err(|_| {
+        AppError::UnprocessableEntity(format!(
+            "Nieprawidłowa wartość pola 'category': {}",
+            category_str
+        ))
+    })?;
+
+    if name.is_empty() || name.len() > 255 {
+        return Err(AppError::UnprocessableEntity(
+            "Nieprawidłowa długość pola 'name'".to_string(),
+        ));
+    }
+    if description.len() > 5000 {
+        return Err(AppError::UnprocessableEntity(
+            "Pole 'description' jest za długie".to_string(),
+        ));
+    }
+    if price < 0 {
+        return Err(AppError::UnprocessableEntity(
+            "Cena nie może być ujemna".to_string(),
+        ));
+    }
+
+    // Sprwadzenie czy plik został przesłany i rozpakowanie Option
+    let image_bytes_vec = image_bytes.ok_or_else(|| {
+        AppError::UnprocessableEntity("Brak pliku obrazu ('image_file')".to_string())
+    })?;
+
+    // Sprawdzenie czy plik nie jest pusty
+    if image_bytes_vec.is_empty() {
+        return Err(AppError::UnprocessableEntity(
+            "Przesłany plik obrazu jest pusty".to_string(),
+        ));
+    }
+
+    // Wysłanie obrazu do Cloudinary
+    let image_url = upload_image_to_cloudinary(
+        image_bytes_vec,
+        image_filename,
+        &app_state.cloudinary_config,
+    )
+    .await?;
+    tracing::info!("Obraz przesłany do Cloudinary, URL: {}", image_url);
+
+    // Zapis produktu do bazy danych
+    let new_product_id = Uuid::new_v4();
+    let product_status = ProductStatus::Available;
+
+    let new_product_db = sqlx::query_as::<_, Product>(
         r#"
             INSERT INTO products (id, name, description, price, condition, category, status, images)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING id, name, description, price, condition , category, status , images
         "#,
     )
-    .bind(new_id)
-    .bind(&payload.name)
-    .bind(&payload.description)
-    .bind(&payload.price)
-    .bind(&payload.condition)
-    .bind(&payload.category)
-    .bind(default_status)
-    .bind(&payload.images)
+    .bind(new_product_id)
+    .bind(&name)
+    .bind(&description)
+    .bind(price)
+    .bind(condition)
+    .bind(category)
+    .bind(product_status)
+    .bind(vec![image_url])
     .fetch_one(&app_state.db_pool)
     .await?;
 
-    tracing::info!("Utworzono produkt o ID: {}", new_id);
+    tracing::info!("Utworzono produkt o ID: {}", new_product_id);
 
-    Ok((StatusCode::CREATED, Json(created_product)))
+    Ok((StatusCode::CREATED, Json(new_product_db)))
 }
 
 pub async fn update_product_partial_handler(
