@@ -1,7 +1,7 @@
 // src/handlers.rs
 use axum::Json;
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Multipart, Path, Query, State},
     http::StatusCode,
 };
 use serde_json::{Value, json};
@@ -9,16 +9,22 @@ use sqlx::{Postgres, QueryBuilder};
 
 use crate::errors::AppError;
 use crate::filters::ListingParams;
-use crate::models::{CreateProductPayload, Product, Role, UpdateProductPayload, User, UserPublic};
+use crate::models::{
+    CreateProductPayload, OrderDetailsResponse, OrderItem, Product, Role, UpdateOrderStatusPayload,
+    UpdateProductPayload, User, UserPublic,
+};
 use crate::pagination::PaginatedProductsResponse;
 use crate::{
     auth::{create_jwt, hash_password, verify_password},
+    cloudinary::upload_image_to_cloudinary,
     state::AppState,
 };
 use crate::{
     auth_models::{LoginPayload, RegistrationPayload, TokenClaims},
     models::{CreateOrderPayload, Order, OrderStatus, ProductStatus},
 };
+use std::collections::HashMap;
+use std::str::FromStr;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -616,4 +622,159 @@ pub async fn create_order_handler(
     );
 
     Ok((StatusCode::CREATED, Json(order)))
+}
+
+pub async fn list_orders_handler(
+    State(app_state): State<AppState>,
+    claims: TokenClaims,
+) -> Result<Json<Vec<Order>>, AppError> {
+    let user_id = claims.sub;
+    let user_role = claims.role;
+
+    let orders: Vec<Order>;
+
+    if user_role == Role::Admin {
+        //Admin widzi wszystkie zamówienia
+        orders = sqlx::query_as::<_, Order>(
+            r#"
+                SELECT id, user_id, order_date, status, total_price, shipping_address_line1, shipping_address_line2, shipping_city, shipping_postal_code, shipping_country, created_at, updated_at
+                FROM orders
+                ORDER BY order_date DESC
+                "#
+        ).fetch_all(&app_state.db_pool).await?;
+        tracing::info!("Admin {} pobrał listę wszystkich zamówień", user_id);
+    } else {
+        //Customer widzi tylko swoje zamówienia {
+        orders = sqlx::query_as::<_, Order>(
+            r#"
+                SELECT id, user_id, order_date, status, total_price, shipping_address_line1, shipping_address_line2, shipping_city, shipping_postal_code, shipping_country, created_at, updated_at
+                FROM orders
+                WHERE user_id = $1
+                ORDER BY order_date DESC
+            "#,
+        )
+        .bind(user_id)
+        .fetch_all(&app_state.db_pool).await?;
+        tracing::info!("Użytkownik {} pobrał listę swoich zamówień", user_id);
+    }
+
+    Ok(Json(orders))
+}
+
+pub async fn get_order_details_handler(
+    State(app_state): State<AppState>,
+    claims: TokenClaims,
+    Path(order_id): Path<Uuid>,
+) -> Result<Json<OrderDetailsResponse>, AppError> {
+    let user_id = claims.sub;
+    let user_role = claims.role;
+
+    // Pobieranie zamówienia
+    let order = sqlx::query_as::<_, Order>(r#"
+            SELECT id, user_id, order_date, status, total_price, shipping_address_line1, shipping_address_line2, shipping_city, shipping_postal_code, shipping_country, created_at, updated_at
+            FROM orders
+            WHERE id = $1
+        "#).bind(order_id).fetch_optional(&app_state.db_pool).await?;
+
+    // Sprawdzanie czy zamówienie istnieje
+    let order = match order {
+        Some(o) => o,
+        None => {
+            tracing::warn!(
+                "Nie znaleziono zamówienia o ID: {} dla użytkownika {}",
+                order_id,
+                user_id
+            );
+            return Err(AppError::NotFound);
+        }
+    };
+
+    // Autoryzacja
+    if user_role != Role::Admin && order.user_id != user_id {
+        tracing::warn!(
+            "Nieautoryzowany dostęp do zamówienia: order_id={}, user_id={}, user_role={:?}",
+            order_id,
+            user_id,
+            user_role
+        );
+        return Err(AppError::UnauthorizedAccess(
+            "Nie masz uprawnień do tego zamówienia".to_string(),
+        ));
+    }
+
+    // Pobierz pozycję zamówienia
+    let items = sqlx::query_as::<_, OrderItem>(
+        r#"
+            SELECT id, order_id, product_id, price_at_purchase
+            FROM order_items
+            WHERE order_id = $1
+        "#,
+    )
+    .bind(order_id)
+    .fetch_all(&app_state.db_pool)
+    .await?;
+
+    // Skonstruuj odpowiedź
+    let response = OrderDetailsResponse { order, items };
+
+    tracing::info!(
+        "Pobrano szczegóły zamówienia: order_id={}, user_id={}",
+        order_id,
+        user_id
+    );
+
+    Ok(Json(response))
+}
+
+pub async fn update_order_status_handler(
+    State(app_state): State<AppState>,
+    claims: TokenClaims,
+    Path(order_id): Path<Uuid>,
+    Json(payload): Json<UpdateOrderStatusPayload>,
+) -> Result<Json<Order>, AppError> {
+    let user_id = claims.sub;
+    let user_role = claims.role;
+
+    if user_role != Role::Admin {
+        tracing::warn!(
+            "Nieautoryzowana prośba zmiany statusu zamówienia: order_id={}, user_id={}, user_role={:?}",
+            order_id,
+            user_id,
+            user_role
+        );
+        return Err(AppError::UnauthorizedAccess(
+            "Tylko administrator może zmieniać status zamówienia".to_string(),
+        ));
+    }
+
+    // Aktualizacja statusu w bazie danych
+    let updated_order = sqlx::query_as::<_, Order>(r#"
+            UPDATE orders
+            SET status = $1, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $2
+            RETURNING id, user_id, order_date, status, total_price, shipping_address_line1, shipping_address_line2, shipping_city, shipping_postal_code, shipping_country, created_at, updated_at
+        "#).bind(&payload.status)
+        .bind(order_id)
+        .fetch_optional(&app_state.db_pool)
+        .await?;
+
+    // Sprawdzenie czy zamówienie zostało znalezione i zaktualizowane
+    match updated_order {
+        Some(order) => {
+            tracing::info!(
+                "Zaktualizowano status zamówienia: order_id={}, nowy_status={:?}, admin_id={}",
+                order_id,
+                payload.status,
+                user_id
+            );
+            Ok(Json(order))
+        }
+        None => {
+            tracing::warn!(
+                "Nie znaleziono zamówienia do aktualizacji statusu: order_id={}",
+                order_id
+            );
+            Err(AppError::NotFound)
+        }
+    }
 }

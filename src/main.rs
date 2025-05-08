@@ -16,6 +16,7 @@ use std::env;
 // Deklaracje modułów
 mod auth; // dla src/auth.rs
 mod auth_models; // dla src/auth_models.rs
+mod cloudinary; // dla src/cloudinary.rs
 mod errors; // dla src/errors.rs
 mod filters; // dla src/filters.rs
 mod handlers; // dla src/handlers.rs
@@ -26,7 +27,7 @@ mod state; // dla src/state.rs // dla src/middleware.rs
 
 // Importy z własnych modułów
 use crate::handlers::*;
-use crate::state::AppState;
+use crate::state::{AppState, CloudinaryConfig};
 
 #[tokio::main]
 async fn main() {
@@ -60,6 +61,13 @@ async fn main() {
         }
     };
 
+    // --- Konfiguracja Cloudinary ---
+    let cloudinary_config = CloudinaryConfig {
+        cloud_name: env::var("CLOUDINARY_CLOUD_NAME").expect("CLOUDINARY_CLOUD_NAME must be set"),
+        api_key: env::var("CLOUDINARY_API_KEY").expect("CLOUDINARY_API_KEY must be set"),
+        api_secret: env::var("CLOUDIANRY_API_SECRET").expect("CLOUDINARY_API_SECRET must be set"),
+    };
+
     // --- Konfiguracja JWT ---
     let jwt_secret = env::var("JWT_SECRET").expect("JWT_SECRET must be set");
     let jwt_expiration_hours = env::var("JWT_EXPIRATION_HOURS")
@@ -72,6 +80,7 @@ async fn main() {
         db_pool: pool,
         jwt_secret,
         jwt_expiration_hours,
+        cloudinary_config,
     };
 
     // Definicja routingu aplikacji
@@ -90,7 +99,14 @@ async fn main() {
         .route("/api/auth/register", post(register_handler))
         .route("/api/auth/login", post(login_handler))
         .route("/api/me", get(protected_route_handler))
-        .route("/api/orders", post(create_order_handler))
+        .route(
+            "/api/orders",
+            post(create_order_handler).get(list_orders_handler),
+        )
+        .route(
+            "/api/orders/{order_id}",
+            get(get_order_details_handler).patch(update_order_status_handler),
+        )
         .layer(TraceLayer::new_for_http())
         .with_state(app_state); // Dodajemy middleware do logowania każdego zapytania HTTP
 
