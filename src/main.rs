@@ -2,6 +2,7 @@
 
 use axum::{
     Router,
+    extract::DefaultBodyLimit,
     routing::{get, post},
 };
 use sqlx::postgres::PgPoolOptions;
@@ -108,6 +109,7 @@ async fn main() {
             get(get_order_details_handler).patch(update_order_status_handler),
         )
         .layer(TraceLayer::new_for_http())
+        .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
         .with_state(app_state); // Dodajemy middleware do logowania każdego zapytania HTTP
 
     // Adres i port, na którym serwer będzie nasłuchiwał

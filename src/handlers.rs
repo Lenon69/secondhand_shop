@@ -23,7 +23,9 @@ use crate::{
     auth_models::{LoginPayload, RegistrationPayload, TokenClaims},
     models::{CreateOrderPayload, Order, OrderStatus, ProductStatus},
 };
+use futures::future::try_join_all;
 use std::collections::HashMap;
+use std::fmt::format;
 use std::str::FromStr;
 use uuid::Uuid;
 use validator::Validate;
@@ -224,28 +226,65 @@ pub async fn create_product_handler(
 
     // Przetwarzanie danych multipart
     let mut text_fields: HashMap<String, String> = HashMap::new();
-    let mut image_bytes: Option<Vec<u8>> = None;
-    let mut image_filename: String = "unknown_file".to_string();
+    let mut image_uploads: Vec<(String, Vec<u8>)> = Vec::new();
 
     while let Some(field) = multipart.next_field().await? {
         let field_name = match field.name() {
             Some(name) => name.to_string(),
-            None => continue,
+            None => {
+                tracing::warn!("Odebrano pole multipart bez nazwy, pomijam");
+                continue;
+            }
         };
 
-        if field_name == "image_file" {
-            if let Some(filename) = field.file_name() {
-                image_filename = filename.to_string();
+        let original_filename_opt = field.file_name().map(|s| s.to_string());
+
+        tracing::info!(
+            "Przetwarzanie pola: name={}, filename='{:?}'",
+            field_name,
+            original_filename_opt
+        );
+
+        if field_name.starts_with("image_file_") {
+            let filename = original_filename_opt.unwrap_or_else(|| format!("{}.jpg", field_name));
+
+            // Odczytywanie bajtów pola (zwraca Result)
+            match field.bytes().await {
+                Ok(bytes) => {
+                    if !bytes.is_empty() {
+                        image_uploads.push((filename.clone(), bytes.to_vec()));
+                        tracing::info!(
+                            "Dodano plik do image_uploads: {}, rozmiar: {} bajtów",
+                            filename,
+                            bytes.len()
+                        )
+                    } else {
+                        tracing::warn!(
+                            "Odebrano puste pole pliku (po odczytaniu bajtów): {}",
+                            filename
+                        );
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Błąd odczytu bajtów z pola pliku '{}': {:?}", field_name, e);
+                    return Err(AppError::from(e));
+                }
             }
-            image_bytes = Some(field.bytes().await?.to_vec());
-            tracing::info!(
-                "Odebrano plik: {}, rozmiar: {} bajtów",
-                image_filename,
-                image_bytes.as_ref().map_or(0, |v| v.len())
-            );
         } else {
-            let value = field.text().await?;
-            text_fields.insert(field_name, value);
+            match field.text().await {
+                Ok(value) => {
+                    text_fields.insert(field_name.clone(), value);
+                    tracing::info!(
+                        "Dodano pole tekstowe: name={}, value='{}'",
+                        field_name,
+                        text_fields.get(&field_name).unwrap_or(&"".to_string()),
+                    );
+                }
+                Err(e) => {
+                    tracing::error!("Błąd odczytu tekstu z pola '{}': {:?}", field_name, e);
+                    return Err(AppError::from(e));
+                }
+            }
         }
     }
 
@@ -270,6 +309,13 @@ pub async fn create_product_handler(
         .get("category")
         .ok_or_else(|| AppError::UnprocessableEntity("Brak pola 'category'.".to_string()))?
         .clone();
+
+    // Sprawdzenie czy przynajmniej jeden plik został przesłany
+    if image_uploads.is_empty() {
+        return Err(AppError::UnprocessableEntity(
+            "Należy przesłac conajmniej jeden plik obrazu ('image_file)".to_string(),
+        ));
+    }
 
     // Prasowanie i walidacja typów
     let price: i64 = price_str.parse().map_err(|_| {
@@ -304,26 +350,20 @@ pub async fn create_product_handler(
         ));
     }
 
-    // Sprwadzenie czy plik został przesłany i rozpakowanie Option
-    let image_bytes_vec = image_bytes.ok_or_else(|| {
-        AppError::UnprocessableEntity("Brak pliku obrazu ('image_file')".to_string())
-    })?;
-
-    // Sprawdzenie czy plik nie jest pusty
-    if image_bytes_vec.is_empty() {
-        return Err(AppError::UnprocessableEntity(
-            "Przesłany plik obrazu jest pusty".to_string(),
-        ));
+    // Wysyłąnie obrazów do Cloudinary równolegle
+    let mut image_upload_futures = Vec::new();
+    for (filename, bytes) in image_uploads {
+        let config_clone = app_state.cloudinary_config.clone();
+        image_upload_futures
+            .push(async move { upload_image_to_cloudinary(bytes, filename, &config_clone).await });
     }
 
-    // Wysłanie obrazu do Cloudinary
-    let image_url = upload_image_to_cloudinary(
-        image_bytes_vec,
-        image_filename,
-        &app_state.cloudinary_config,
-    )
-    .await?;
-    tracing::info!("Obraz przesłany do Cloudinary, URL: {}", image_url);
+    // Czekanie na zakończenie wszystkich operacji upload
+    let cloudinary_urls: Vec<String> = try_join_all(image_upload_futures).await?;
+    tracing::info!(
+        "Wszystkie obrazy przesłane do Cloudinary, URL'e: {:?}",
+        cloudinary_urls
+    );
 
     // Zapis produktu do bazy danych
     let new_product_id = Uuid::new_v4();
@@ -343,7 +383,7 @@ pub async fn create_product_handler(
     .bind(condition)
     .bind(category)
     .bind(product_status)
-    .bind(vec![image_url])
+    .bind(&cloudinary_urls)
     .fetch_one(&app_state.db_pool)
     .await?;
 
