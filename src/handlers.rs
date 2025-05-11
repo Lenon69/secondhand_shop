@@ -7,11 +7,12 @@ use axum::{
 use serde_json::{Value, json};
 use sqlx::{Postgres, QueryBuilder};
 
+use crate::cloudinary::{delete_image_from_cloudinary, extract_public_id_from_url};
 use crate::errors::AppError;
 use crate::filters::ListingParams;
 use crate::models::{
     Category, OrderDetailsResponse, OrderItem, Product, ProductCondition, Role,
-    UpdateOrderStatusPayload, UpdateProductPayload, User, UserPublic,
+    UpdateOrderStatusPayload, User, UserPublic,
 };
 use crate::pagination::PaginatedProductsResponse;
 use crate::{
@@ -25,7 +26,6 @@ use crate::{
 };
 use futures::future::try_join_all;
 use std::collections::HashMap;
-use std::fmt::format;
 use std::str::FromStr;
 use uuid::Uuid;
 use validator::Validate;
@@ -113,7 +113,6 @@ pub async fn list_products(
     }
     if let Some(price_max) = params.price_max() {
         append_where_or_and_count(&mut count_builder);
-        // Poprawiony brak spacji
         count_builder.push("price <= ").push_bind(price_max);
     }
 
@@ -158,11 +157,9 @@ pub async fn list_products(
     }
     if let Some(condition) = params.condition() {
         append_where_or_and_data(&mut data_builder);
-        // Poprawiona literówka
         data_builder.push("condition = ").push_bind(condition);
     }
     append_where_or_and_data(&mut data_builder);
-    // Przekazanie przez referencję
     data_builder.push("status = ").push_bind(&status_to_filter);
 
     if let Some(price_min) = params.price_min() {
@@ -171,11 +168,9 @@ pub async fn list_products(
     }
     if let Some(price_max) = params.price_max() {
         append_where_or_and_data(&mut data_builder);
-        // Poprawiony brak spacji
         data_builder.push("price <= ").push_bind(price_max);
     }
 
-    // Reszta bez zmian (sortowanie, limit, offset, wykonanie, metadane, odpowiedź)
     let sort_by_column = match params.sort_by() {
         "price" => "price",
         "name" | _ => "name",
@@ -396,10 +391,8 @@ pub async fn update_product_partial_handler(
     State(app_state): State<AppState>,
     Path(product_id): Path<Uuid>,
     claims: TokenClaims,
-    Json(payload): Json<UpdateProductPayload>,
+    mut multipart: Multipart,
 ) -> Result<Json<Product>, AppError> {
-    payload.validate()?;
-
     if claims.role != Role::Admin {
         return Err(AppError::UnauthorizedAccess(
             "Tylko administrator może aktualizować produkty".to_string(),
@@ -407,16 +400,14 @@ pub async fn update_product_partial_handler(
     }
 
     tracing::info!(
-        "Obsłużono zapytanie PATCH /api/products/{} - aktualizacja: {:?}",
+        "Obsłużono zapytanie PATCH /api/products/{} - aktualizacja: (multipart)",
         product_id,
-        payload
     );
 
+    // Pobierz istniejący produkt z bazy
     let mut existing_product = sqlx::query_as::<_, Product>(
         r#"
-            SELECT id, name, description, price, condition, category, status, images
-            FROM products
-            WHERE id = $1"#,
+            SELECT * FROM products WHERE id = $1 FOR UPDATE"#,
     )
     .bind(product_id)
     .fetch_one(&app_state.db_pool)
@@ -436,33 +427,163 @@ pub async fn update_product_partial_handler(
         }
     })?;
 
-    if let Some(name) = payload.name {
-        existing_product.name = name;
+    // Przetwarzanie danych multipart
+    let mut text_fields: HashMap<String, String> = HashMap::new();
+    let mut new_image_uploads: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut urls_to_delete_str: Option<String> = None;
+
+    while let Some(field) = multipart.next_field().await? {
+        let field_name = match field.name() {
+            Some(name) => name.to_string(),
+            None => {
+                tracing::warn!("Odebrano pole multipart bez nazwy w update, pomijam.");
+                continue;
+            }
+        };
+
+        let original_filename_opt = field.file_name().map(|s| s.to_string());
+        tracing::info!(
+            "Aktualizacja produktu - Przetwarzanie pola: name='{}', filename='{:?}'",
+            field_name,
+            original_filename_opt
+        );
+
+        if field_name.starts_with("image_file_") {
+            // Nowe pliki do wgrania
+            let filename = original_filename_opt.unwrap_or_else(|| format!("{}.jpg", field_name));
+            let bytes = field.bytes().await?; // Używamy '?' - wymaga From<MultipartError>
+            if !bytes.is_empty() {
+                new_image_uploads.push((filename.clone(), bytes.to_vec()));
+                tracing::info!(
+                    "Aktualizacja produktu - Dodano plik do wgrania: {}, rozmiar: {} bajtów",
+                    filename,
+                    bytes.len()
+                );
+            } else {
+                tracing::warn!(
+                    "Aktualizacja produktu - Odebrano puste pole pliku: {}",
+                    filename
+                );
+            }
+        } else if field_name == "urls_to_delete" {
+            // Lista URL-i do usunięcia (jako JSON string)
+            urls_to_delete_str = Some(field.text().await?); // Używamy '?'
+            tracing::info!("Aktualizacja produktu - Odebrano urls_to_delete");
+        } else {
+            // Inne pola tekstowe (name, description, etc.)
+            let value = field.text().await?; // Używamy '?'
+            text_fields.insert(field_name.clone(), value);
+            tracing::info!(
+                "Aktualizacja produktu - Odebrano pole tekstowe: name='{}', value='{}'",
+                field_name,
+                text_fields.get(&field_name).unwrap_or(&"".to_string())
+            );
+        }
     }
-    if let Some(description) = payload.description {
-        existing_product.description = description;
+
+    if let Some(name) = text_fields.get("name") {
+        existing_product.name = name.clone();
     }
-    if let Some(price) = payload.price {
-        existing_product.price = price;
+    if let Some(description) = text_fields.get("description") {
+        existing_product.description = description.clone();
     }
-    if let Some(condition) = payload.condition {
-        existing_product.condition = condition;
+    if let Some(price) = text_fields.get("price") {
+        existing_product.price = price
+            .parse()
+            .map_err(|_| AppError::UnprocessableEntity("Nieprawidłowy format ceny".to_string()))?;
     }
-    if let Some(category) = payload.category {
-        existing_product.category = category;
+    if let Some(condition) = text_fields.get("condition") {
+        existing_product.condition = ProductCondition::from_str(&condition).map_err(|_| {
+            AppError::UnprocessableEntity("Nieprawidłowy stan produktu".to_string())
+        })?;
     }
-    if let Some(status) = payload.status {
-        existing_product.status = status;
+    if let Some(category) = text_fields.get("category") {
+        existing_product.category = Category::from_str(&category).map_err(|_| {
+            AppError::UnprocessableEntity("Nieprawidłowa kategoria produktu".to_string())
+        })?;
     }
-    if let Some(images) = payload.images {
-        existing_product.images = images;
+    if let Some(status) = text_fields.get("status") {
+        existing_product.status = ProductStatus::from_str(&status).map_err(|_| {
+            AppError::UnprocessableEntity("Nieprawidłowy status produktu".to_string())
+        })?;
     }
+
+    // Przetwarzanie obrazków do usunięcia
+    let mut current_image_urls = existing_product.images.clone(); // Klonujemy, aby móc modyfikować
+    if let Some(json_str) = urls_to_delete_str {
+        match serde_json::from_str::<Vec<String>>(&json_str) {
+            Ok(parsed_urls_to_delete) => {
+                let mut delete_futures = Vec::new();
+                tracing::debug!(
+                    "URL-e do usunięcia (po parsowaniu JSON): {:?}",
+                    parsed_urls_to_delete,
+                );
+                for url_to_delete in parsed_urls_to_delete {
+                    let url_to_delete_clone = url_to_delete.clone();
+                    if let Some(public_id) = extract_public_id_from_url(
+                        &url_to_delete,
+                        &app_state.cloudinary_config.cloud_name,
+                    ) {
+                        let config_clone = app_state.cloudinary_config.clone();
+                        delete_futures.push(async move {
+                            tracing::info!("Próba usunięcia obrazka z Cloudinary, public_id: '{}' (z URL: '{}')", public_id, url_to_delete_clone);
+                            delete_image_from_cloudinary(&public_id, &config_clone).await
+                        });
+                        // Usuń URL z listy bieżących obrazków produktu
+                        current_image_urls.retain(|url| url != &url_to_delete);
+                    } else {
+                        tracing::warn!(
+                            "Nie można wyodrębnić public_id z URL do usunięcia: {}",
+                            url_to_delete
+                        );
+                    }
+                }
+                // Czekanie na zakończenie operacji usuwania z Cloudinary
+                if !delete_futures.is_empty() {
+                    try_join_all(delete_futures).await.map_err(|e| {
+                        tracing::error!("Błąd podczas usuwania obrazków z Cloudinary: {:?}", e);
+                        AppError::InternalServerError(format!(
+                            "Częściowy błąd usuwania obrazków. Oryginalny błąd: {:?}",
+                            e
+                        ))
+                    })?;
+                }
+            }
+            Err(e) => {
+                tracing::error!("Błąd parsowania JSON dla urls_to_delete: {}", e);
+                return Err(AppError::UnprocessableEntity(
+                    "Nieprawidłowy format listy URL-i do usunięcia.".to_string(),
+                ));
+            }
+        }
+    }
+
+    // Wgrywanie nowych obrazków i dodawanie ich URL
+    if !new_image_uploads.is_empty() {
+        let mut upload_futures = Vec::new();
+        for (filename, bytes) in new_image_uploads {
+            let config_clone = app_state.cloudinary_config.clone();
+            upload_futures.push(async move {
+                upload_image_to_cloudinary(bytes, filename, &config_clone).await
+            });
+        }
+        let new_cloudinary_urls: Vec<String> = try_join_all(upload_futures).await?;
+        current_image_urls.extend(new_cloudinary_urls);
+    }
+
+    // Walidacja
+    if current_image_urls.is_empty() {
+        return Err(AppError::UnprocessableEntity(
+            "Produkt musi mieć przynajmniej jeden obrazek".to_string(),
+        ));
+    }
+    existing_product.images = current_image_urls;
 
     let updated_product = sqlx::query_as::<_, Product>(r#"
             UPDATE products
             SET name = $1, description = $2, price = $3, condition = $4, category = $5, status = $6, images = $7
             WHERE id = $8
-            RETURNING id, name, description, price, condition, category, status, images
+            RETURNING *
         "#).bind(&existing_product.name)
         .bind(&existing_product.description)
         .bind(&existing_product.price)
@@ -504,7 +625,7 @@ pub async fn delete_product_handler(
 
     match result {
         Ok(query_result) => {
-            //Sprawdź ile wierszy zostało usuniętych
+            // Sprawdzanie ile wierszy zostało usuniętych
             if query_result.rows_affected() == 0 {
                 tracing::warn!(
                     "DELETE: Nie znaleziono produktu do usunięcia o ID {}",
@@ -534,7 +655,7 @@ pub async fn register_handler(
 ) -> Result<(StatusCode, Json<UserPublic>), AppError> {
     payload.validate()?;
 
-    //Sprawdź czy użytkownik istnieje
+    // Sprawdzanie czy użytkownik istnieje
     let existing_user: Option<User> = sqlx::query_as(
         r#"
             SELECT id, email, password_hash, role, created_at, updated_at
@@ -552,10 +673,10 @@ pub async fn register_handler(
         ));
     }
 
-    // Hashuj hasło
+    // Hash hasła
     let password_hash = hash_password(&payload.password)?;
 
-    // Wstaw nowego użytkownika (domyślnie rola Customer)
+    // Wstawianie nowego użytkownika (domyślnie rola Customer)
     let new_user = sqlx::query_as::<_, User>(
         r#"INSERT INTO users (email, password_hash)
                 VALUES ($1, $2)
@@ -568,7 +689,6 @@ pub async fn register_handler(
 
     tracing::info!("Zarejestrowano nowego użytkownika: {}", new_user.email);
 
-    //Zwróć dane publiczne użytkownika
     Ok((StatusCode::CREATED, Json(new_user.into())))
 }
 
@@ -578,7 +698,7 @@ pub async fn login_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     payload.validate()?;
 
-    // Znajdź użytkownika po emailu
+    // Znajdywanie użytkownika po emailu
     let user = sqlx::query_as::<_, User>(
         r#"
             SELECT id, email, password_hash, role, created_at, updated_at
@@ -591,7 +711,7 @@ pub async fn login_handler(
     .await?
     .ok_or(AppError::InvalidLoginCredentials)?;
 
-    // Zweryfikuj hasło
+    // Weryfikacja hasła
     if !verify_password(&user.password_hash, &payload.password)? {
         return Err(AppError::InvalidLoginCredentials);
     }

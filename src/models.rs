@@ -77,25 +77,6 @@ pub struct CreateProductPayload {
     pub images: Vec<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Validate)]
-pub struct UpdateProductPayload {
-    #[validate(length(min = 1, max = 255, message = "Nazwa musi mieć od 1 do 255 znaków"))]
-    pub name: Option<String>,
-
-    #[validate(length(max = 5000, message = "Opis nie może przekraczać 5000 znaków"))]
-    pub description: Option<String>,
-
-    #[validate(range(min = 0, message = "Cena nie może być ujemna"))]
-    pub price: Option<i64>,
-
-    pub condition: Option<ProductCondition>,
-    pub category: Option<Category>,
-    pub status: Option<ProductStatus>,
-
-    #[validate(length(min = 1, message = "Należy dodać przynajmniej jeden URL obrazka"))]
-    pub images: Option<Vec<String>>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type)]
 #[sqlx(type_name = "user_role", rename_all = "lowercase")]
 pub enum Role {
