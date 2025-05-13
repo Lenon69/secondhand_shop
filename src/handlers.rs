@@ -11,7 +11,8 @@ use crate::cloudinary::{delete_image_from_cloudinary, extract_public_id_from_url
 use crate::errors::AppError;
 use crate::filters::ListingParams;
 use crate::models::{
-    Category, OrderDetailsResponse, OrderItem, Product, ProductCondition, Role,
+    AddProductToCartPayload, CartDetailsResponse, CartItem, CartItemPublic, Category,
+    OrderDetailsResponse, OrderItem, Product, ProductCondition, Role, ShoppingCart,
     UpdateOrderStatusPayload, User, UserPublic,
 };
 use crate::pagination::PaginatedProductsResponse;

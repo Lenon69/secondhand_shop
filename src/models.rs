@@ -1,7 +1,7 @@
 // src/models.rs
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::Type;
+use sqlx::{Database, Type};
 use strum_macros::EnumString;
 use uuid::Uuid;
 use validator::Validate;
@@ -207,4 +207,47 @@ pub struct OrderDetailsResponse {
     #[serde(flatten)]
     pub order: Order,
     pub items: Vec<OrderItem>,
+}
+
+// --- STRUKTURY DLA KOSZYKA ZAKUPÓW ---
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct ShoppingCart {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct CartItem {
+    pub id: Uuid,
+    pub cart_id: Uuid,
+    pub product_id: Uuid,
+    pub added_at: Uuid,
+}
+
+// --- STRUKTURY PAYLOAD DLA HANDLERÓW KOSZYKA ---
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct AddProductToCartPayload {
+    #[validate(required(message = "ID produktu jest wymagane"))]
+    pub product_id: Uuid,
+}
+
+// --- STRUKTURY ODPOWIEDZI API DLA KOSZYKA ---
+// Do wyświetlania pozycji koszyka wraz z danymi produktu
+#[derive(Debug, Serialize)]
+pub struct CartItemPublic {
+    pub cart_item_id: Uuid,
+    #[serde(flatten)]
+    pub product: Product,
+    pub added_at: DateTime<Utc>,
+}
+
+pub struct CartDetailsResponse {
+    pub cart_id: Uuid,
+    pub user_id: Uuid,
+    pub items: Vec<CartItemPublic>,
+    pub total_items: usize,
+    pub total_prize: i64,
+    pub updated_at: DateTime<Utc>,
 }
