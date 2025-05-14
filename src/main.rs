@@ -108,6 +108,7 @@ async fn main() {
             "/api/orders/{order_id}",
             get(get_order_details_handler).patch(update_order_status_handler),
         )
+        .route("/api/cart/items", post(add_item_to_cart_handler))
         .layer(TraceLayer::new_for_http())
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
         .with_state(app_state); // Dodajemy middleware do logowania każdego zapytania HTTP

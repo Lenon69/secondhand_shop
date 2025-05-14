@@ -10,11 +10,7 @@ use sqlx::{Postgres, QueryBuilder};
 use crate::cloudinary::{delete_image_from_cloudinary, extract_public_id_from_url};
 use crate::errors::AppError;
 use crate::filters::ListingParams;
-use crate::models::{
-    AddProductToCartPayload, CartDetailsResponse, CartItem, CartItemPublic, Category,
-    OrderDetailsResponse, OrderItem, Product, ProductCondition, Role, ShoppingCart,
-    UpdateOrderStatusPayload, User, UserPublic,
-};
+use crate::models::*;
 use crate::pagination::PaginatedProductsResponse;
 use crate::{
     auth::{create_jwt, hash_password, verify_password},
@@ -1041,4 +1037,161 @@ pub async fn update_order_status_handler(
             Err(AppError::NotFound)
         }
     }
+}
+
+pub async fn add_item_to_cart_handler(
+    State(app_state): State<AppState>,
+    claims: TokenClaims,
+    Json(payload): Json<AddProductToCartPayload>,
+) -> Result<Json<CartDetailsResponse>, AppError> {
+    let user_id = claims.sub;
+
+    // Rozpocznij trasnakcje
+    let mut tx = app_state.db_pool.begin().await.map_err(|e| {
+        tracing::error!("Nie można rozpocząć transakcji (koszyk): {}", e);
+        AppError::InternalServerError("Błąd serwera przy dodawaniu do koszyka".to_string())
+    })?;
+
+    // Znajdź lub utwórz koszyk dla użytkownika
+    let cart = match sqlx::query_as::<_, ShoppingCart>(
+        r#"
+            SELECT *
+            FROM shopping_carts
+            WHERE user_id = $1
+            FOR UPDATE
+        "#,
+    )
+    .bind(user_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    {
+        Some(existing_product) => existing_product,
+        None => {
+            sqlx::query_as::<_, ShoppingCart>(
+                r#"
+                    INSERT INTO shopping_carts (user_id)
+                    VALUES ($1)
+                    RETURNING *
+                "#,
+            )
+            .bind(user_id)
+            .fetch_one(&mut *tx)
+            .await?
+        }
+    };
+
+    // Sprawdź czy produkt istnieje i jest dostępny (z blokadą FOR UPDATE)
+    let product_to_add = sqlx::query_as::<_, Product>(
+        r#"
+            SELECT *
+            FROM products
+            WHERE id = $1
+            FOR UPDATE
+        "#,
+    )
+    .bind(payload.product_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    match product_to_add {
+        Some(product) => {
+            if product.status != ProductStatus::Available {
+                tracing::warn!(
+                    "Użytkownik {} próbował dodać niedostępny produkt {} do koszyka {}",
+                    user_id,
+                    payload.product_id,
+                    cart.id
+                );
+                return Err(AppError::NotFound);
+            }
+            // Dodaj produkt do cart_items
+            sqlx::query(
+                r#"
+                    INSERT INTO cart_items (cart_id, product_id)
+                    VALUES ($1, $2)
+                    ON CONFLICT (cart_id, product_id) DO NOTHING
+                "#,
+            )
+            .bind(cart.id)
+            .bind(payload.product_id)
+            .execute(&mut *tx)
+            .await?;
+            tracing::info!(
+                "Product {} został dodany do koszyka {} dla użytkownika {}",
+                payload.product_id,
+                cart.id,
+                user_id
+            );
+        }
+        None => {
+            tracing::warn!(
+                "Użytkownik {}, próbował dodać nieistniejący produkt {} do koszyka {}",
+                user_id,
+                payload.product_id,
+                cart.id
+            );
+            return Err(AppError::NotFound);
+        }
+    }
+
+    // Pobierz zaaktualizowaną zawartość koszyka do zwrócenia (już w ramach transkacji)
+    let items_db = sqlx::query_as::<_, CartItem>(
+        r#"
+            SELECT *
+            FROM cart_items
+            WHERE cart_id = $1
+            ORDER BY added_at DESC"
+        "#,
+    )
+    .bind(cart.id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let mut cart_items_public: Vec<CartItemPublic> = Vec::new();
+    let mut current_total_price: i64 = 0;
+
+    for item_db in items_db {
+        let product = sqlx::query_as::<_, Product>(
+            r#"
+                SELECT *
+                FROM products
+                WHERE id = $1
+            "#,
+        )
+        .bind(item_db.product_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                "Błąd pobierania produktu dla pozycji koszyka: {:?}, produkt_id: {:?}",
+                e,
+                item_db.product_id
+            );
+            AppError::InternalServerError("Błąd przy konstruowaniu odpowiedzi koszyka".to_string())
+        })?;
+
+        current_total_price += product.price;
+        cart_items_public.push(CartItemPublic {
+            cart_item_id: item_db.id,
+            product,
+            added_at: item_db.added_at,
+        });
+    }
+
+    // Zatwierdź tranksację
+    tx.commit().await.map_err(|e| {
+        tracing::error!("Nie można zatwierdzić transakcji (koszyk): {}", e);
+        AppError::InternalServerError("Błąd serwera przy zapisywaniu koszyka.".to_string())
+    })?;
+
+    let response_cart = CartDetailsResponse {
+        cart_id: cart.id,
+        user_id: cart.user_id,
+        total_items: cart_items_public.len(),
+        items: cart_items_public,
+        total_price: current_total_price,
+        updated_at: cart.updated_at,
+    };
+
+    Ok(Json(response_cart))
 }

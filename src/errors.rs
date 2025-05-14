@@ -94,32 +94,6 @@ impl IntoResponse for AppError {
     }
 }
 
-// Konwersja dla operatora '?'
-// impl From<sqlx::Error> for AppError {
-//     fn from(err: sqlx::Error) -> Self {
-//         // Można tu dodać logikę mapowania konkretnych błędów sqlx
-//         // np. unikalności na EmailAlreadyExists, jeśli to możliwe i sensowne
-//         match err {
-//             sqlx::Error::Database(db_err) if db_err.is_unique_violation() => {
-//                 // To może być zbyt ogólne, jeśli masz inne ograniczenia UNIQUE
-//                 // Lepiej sprawdzać konkretny constraint jeśli to konieczne
-//                 tracing::warn!("Naruszenie ograniczenia unikalności: {:?}", db_err);
-//                 // Zwracamy bardziej ogólny błąd, bo nie wiemy, które pole naruszyło unikalność
-//                 // W handlerze register sprawdzamy email jawnie, co jest lepsze
-//                 AppError::InternalServerError("Naruszenie unikalności danych".to_string())
-//             }
-//             sqlx::Error::RowNotFound => AppError::NotFound, // Mapuj RowNotFound na NotFound
-//             _ => AppError::SqlxError(err),
-//         }
-//     }
-// }
-
-// impl From<ValidationErrors> for AppError {
-//     fn from(err: ValidationErrors) -> Self {
-//         AppError::ValidationError(err)
-//     }
-// }
-
 impl From<jsonwebtoken::errors::Error> for AppError {
     fn from(err: jsonwebtoken::errors::Error) -> Self {
         match err.kind() {

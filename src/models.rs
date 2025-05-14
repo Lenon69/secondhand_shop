@@ -1,7 +1,7 @@
 // src/models.rs
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{Database, Type};
+use sqlx::Type;
 use strum_macros::EnumString;
 use uuid::Uuid;
 use validator::Validate;
@@ -223,13 +223,12 @@ pub struct CartItem {
     pub id: Uuid,
     pub cart_id: Uuid,
     pub product_id: Uuid,
-    pub added_at: Uuid,
+    pub added_at: DateTime<Utc>,
 }
 
 // --- STRUKTURY PAYLOAD DLA HANDLERÓW KOSZYKA ---
-#[derive(Debug, Clone, Deserialize, Validate)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct AddProductToCartPayload {
-    #[validate(required(message = "ID produktu jest wymagane"))]
     pub product_id: Uuid,
 }
 
@@ -243,11 +242,12 @@ pub struct CartItemPublic {
     pub added_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Serialize)]
 pub struct CartDetailsResponse {
     pub cart_id: Uuid,
     pub user_id: Uuid,
     pub items: Vec<CartItemPublic>,
     pub total_items: usize,
-    pub total_prize: i64,
+    pub total_price: i64,
     pub updated_at: DateTime<Utc>,
 }
