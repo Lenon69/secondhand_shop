@@ -1140,7 +1140,7 @@ pub async fn add_item_to_cart_handler(
             SELECT *
             FROM cart_items
             WHERE cart_id = $1
-            ORDER BY added_at DESC"
+            ORDER BY added_at DESC
         "#,
     )
     .bind(cart.id)
