@@ -3,7 +3,7 @@
 use axum::{
     Router,
     extract::DefaultBodyLimit,
-    routing::{get, post},
+    routing::{delete, get, post},
 };
 use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
@@ -111,7 +111,10 @@ async fn main() {
         )
         .route("/api/cart/items", post(add_item_to_cart_handler))
         .route("/api/cart", get(get_cart_handler))
-        .route("/api/cart/items", post(add_item_to_cart_handler))
+        .route(
+            "/api/cart/items/{product_id}",
+            delete(remove_item_from_cart_handler),
+        )
         .layer(TraceLayer::new_for_http())
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
         .with_state(app_state); // Dodajemy middleware do logowania każdego zapytania HTTP

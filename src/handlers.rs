@@ -1253,3 +1253,92 @@ pub async fn get_cart_handler(
         }
     }
 }
+
+pub async fn remove_item_from_cart_handler(
+    State(app_state): State<AppState>,
+    claims: TokenClaims,
+    Path(product_id_to_remove): Path<Uuid>, // ID produktu do usunięcia
+) -> Result<Json<CartDetailsResponse>, AppError> {
+    // Zwracamy zaktualizowany koszyk
+    let user_id = claims.sub;
+    tracing::info!(
+        "Użytkownik {} żąda usunięcia produktu {} ze swojego koszyka",
+        user_id,
+        product_id_to_remove
+    );
+
+    // 1. Rozpocznij transakcję
+    let mut tx = app_state.db_pool.begin().await.map_err(|e| {
+        tracing::error!("Nie można rozpocząć transakcji (usuwanie z koszyka): {}", e);
+        AppError::InternalServerError("Błąd serwera przy usuwaniu z koszyka.".to_string())
+    })?;
+
+    // 2. Znajdź koszyk użytkownika
+    let cart = match sqlx::query_as::<_, ShoppingCart>(
+        "SELECT * FROM shopping_carts WHERE user_id = $1 FOR UPDATE", // FOR UPDATE, bo modyfikujemy jego zawartość
+    )
+    .bind(user_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    {
+        Some(existing_cart) => existing_cart,
+        None => {
+            tracing::warn!(
+                "Użytkownik {} próbował usunąć produkt, ale nie ma koszyka.",
+                user_id
+            );
+            // Jeśli nie ma koszyka, to nie ma z czego usuwać.
+            return Err(AppError::NotFound); // Można zwrócić NotFound, że koszyk nie istnieje
+        }
+    };
+
+    // 3. Usuń produkt z cart_items
+    let delete_result = sqlx::query(
+        r#"
+            DELETE FROM cart_items
+            WHERE cart_id = $1 AND product_id = $2
+        "#,
+    )
+    .bind(cart.id)
+    .bind(product_id_to_remove)
+    .execute(&mut *tx)
+    .await?;
+
+    if delete_result.rows_affected() == 0 {
+        // Produktu nie było w koszyku lub produkt_id niepoprawne
+        // Możemy to zignorować (operacja idempotentna) lub zwrócić błąd/informację
+        tracing::warn!(
+            "Produkt {} nie został znaleziony w koszyku {} użytkownika {} do usunięcia (lub już usunięty).",
+            product_id_to_remove,
+            cart.id,
+            user_id
+        );
+        // Jeśli produkt nie został znaleziony w koszyku, nie ma potrzeby zwracać błędu,
+        // po prostu koszyk się nie zmienił pod tym względem.
+        // Ale jeśli chcemy być ścisli, to produkt, który chciano usunąć, nie został znaleziony.
+        // Można by zwrócić NotFound, ale to może być mylące.
+        // Na razie kontynuujemy i zwrócimy aktualny stan koszyka.
+    } else {
+        tracing::info!(
+            "Produkt {} usunięty z koszyka {} dla użytkownika {}",
+            product_id_to_remove,
+            cart.id,
+            user_id
+        );
+    }
+
+    // 4. Pobierz i zwróć zaktualizowaną zawartość koszyka
+    // Używamy funkcji pomocniczej, którą stworzyliśmy
+    let cart_details = build_cart_details_response(&cart, &mut *tx).await?;
+
+    // 5. Zatwierdź transakcję
+    tx.commit().await.map_err(|e| {
+        tracing::error!(
+            "Nie można zatwierdzić transakcji (usuwanie z koszyka): {}",
+            e
+        );
+        AppError::InternalServerError("Błąd serwera przy aktualizacji koszyka.".to_string())
+    })?;
+
+    Ok(Json(cart_details))
+}
