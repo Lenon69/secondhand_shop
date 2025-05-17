@@ -17,14 +17,15 @@ use std::env;
 // Deklaracje modułów
 mod auth; // dla src/auth.rs
 mod auth_models; // dla src/auth_models.rs
+mod cart_utils; // dla src/cart_utils.rs
 mod cloudinary; // dla src/cloudinary.rs
 mod errors; // dla src/errors.rs
 mod filters; // dla src/filters.rs
 mod handlers; // dla src/handlers.rs
-mod middleware;
+mod middleware; // dla src/middleware.rs
 mod models; // dla src/models.rs
 mod pagination; // dla src/pagination.rs
-mod state; // dla src/state.rs // dla src/middleware.rs
+mod state; // dla src/state.rs 
 
 // Importy z własnych modułów
 use crate::handlers::*;
@@ -108,6 +109,8 @@ async fn main() {
             "/api/orders/{order_id}",
             get(get_order_details_handler).patch(update_order_status_handler),
         )
+        .route("/api/cart/items", post(add_item_to_cart_handler))
+        .route("/api/cart", get(get_cart_handler))
         .route("/api/cart/items", post(add_item_to_cart_handler))
         .layer(TraceLayer::new_for_http())
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024))

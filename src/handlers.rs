@@ -7,6 +7,7 @@ use axum::{
 use serde_json::{Value, json};
 use sqlx::{Postgres, QueryBuilder};
 
+use crate::cart_utils::build_cart_details_response;
 use crate::cloudinary::{delete_image_from_cloudinary, extract_public_id_from_url};
 use crate::errors::AppError;
 use crate::filters::ListingParams;
@@ -1043,7 +1044,7 @@ pub async fn add_item_to_cart_handler(
     State(app_state): State<AppState>,
     claims: TokenClaims,
     Json(payload): Json<AddProductToCartPayload>,
-) -> Result<Json<CartDetailsResponse>, AppError> {
+) -> Result<(StatusCode, Json<CartDetailsResponse>), AppError> {
     let user_id = claims.sub;
 
     // Rozpocznij trasnakcje
@@ -1184,14 +1185,62 @@ pub async fn add_item_to_cart_handler(
         AppError::InternalServerError("Błąd serwera przy zapisywaniu koszyka.".to_string())
     })?;
 
-    let response_cart = CartDetailsResponse {
-        cart_id: cart.id,
-        user_id: cart.user_id,
-        total_items: cart_items_public.len(),
-        items: cart_items_public,
-        total_price: current_total_price,
-        updated_at: cart.updated_at,
-    };
+    let mut conn_after_commit = app_state.db_pool.acquire().await.map_err(|e| {
+        tracing::error!("Nie można uzyskać połączenia z puli po transakcji: {}", e);
+        AppError::InternalServerError("Błąd serwera".to_string())
+    })?;
 
-    Ok(Json(response_cart))
+    let final_cart = sqlx::query_as::<_, ShoppingCart>(
+        r#"
+            SELECT *
+            FROM shopping_carts
+            WHERE user_id = $1
+        "#,
+    )
+    .bind(user_id)
+    .fetch_one(&mut *conn_after_commit)
+    .await?;
+
+    let response_cart_details =
+        build_cart_details_response(&final_cart, &mut conn_after_commit).await?;
+
+    Ok((StatusCode::OK, Json(response_cart_details)))
+}
+
+pub async fn get_cart_handler(
+    State(app_state): State<AppState>,
+    claims: TokenClaims,
+) -> Result<Json<CartDetailsResponse>, AppError> {
+    let user_id = claims.sub;
+    tracing::info!("Użytkownik {} żąda zawartości swojego koszyka", user_id);
+
+    // Pobieramy połączenie z puli, aby przekazać je do funkcji pomocniczej.
+    let mut conn = app_state.db_pool.acquire().await.map_err(|e| {
+        tracing::error!("Nie można uzyskać połączenia z puli: {}", e);
+        AppError::InternalServerError("Błąd serwera".to_string())
+    })?;
+
+    // Znajdź koszyk użytkownika
+    let cart_optional = sqlx::query_as::<_, ShoppingCart>(
+        r#"
+            SELECT *
+            FROM shopping_carts
+            WHERE user_id = $1
+        "#,
+    )
+    .bind(user_id)
+    .fetch_optional(&mut *conn)
+    .await?;
+
+    match cart_optional {
+        Some(cart) => {
+            //Koszyk istnieje, zbuduj odpowiedź
+            let cart_details = build_cart_details_response(&cart, &mut *conn).await?;
+            Ok(Json(cart_details))
+        }
+        None => {
+            tracing::info!("Użytkownik {} nie ma jeszcze koszyka", user_id);
+            Err(AppError::NotFound)
+        }
+    }
 }
