@@ -116,7 +116,7 @@ async fn main() {
             delete(remove_item_from_cart_handler),
         )
         .layer(TraceLayer::new_for_http())
-        .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
+        .layer(DefaultBodyLimit::max(100 * 1024 * 1024))
         .with_state(app_state); // Dodajemy middleware do logowania każdego zapytania HTTP
 
     // Adres i port, na którym serwer będzie nasłuchiwał

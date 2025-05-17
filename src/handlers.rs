@@ -21,7 +21,7 @@ use crate::{
 };
 use crate::{
     auth_models::{LoginPayload, RegistrationPayload, TokenClaims},
-    models::{CreateOrderPayload, Order, OrderStatus, ProductStatus},
+    models::{CreateOrderFromCartPayload, Order, OrderStatus, ProductStatus},
 };
 use futures::future::try_join_all;
 use std::collections::HashMap;
@@ -741,94 +741,134 @@ pub async fn protected_route_handler(claims: TokenClaims) -> Result<Json<Value>,
 pub async fn create_order_handler(
     State(app_state): State<AppState>,
     claims: TokenClaims,
-    Json(payload): Json<CreateOrderPayload>,
-) -> Result<(StatusCode, Json<Order>), AppError> {
-    payload.validate()?;
+    Json(payload): Json<CreateOrderFromCartPayload>, // <-- ZMIENIONY PAYLOAD
+) -> Result<(StatusCode, Json<OrderDetailsResponse>), AppError> {
+    // Zwracamy OrderDetailsResponse dla spójności
+    payload.validate()?; // Walidacja danych adresowych
 
-    // Pobieranie ID użytkownika
     let user_id = claims.sub;
+    tracing::info!(
+        "Użytkownik {} próbuje złożyć zamówienie na podstawie koszyka.",
+        user_id
+    );
 
-    // Rozpoczęcie transakcji bazodanowej
+    // Rozpocznij transakcję
     let mut tx = app_state.db_pool.begin().await.map_err(|e| {
-        tracing::error!("Nie można rozpocząć transakcji: {}", e);
-        AppError::InternalServerError("Nie można przetworzyć zamówienia".to_string())
+        tracing::error!(
+            "Nie można rozpocząć transakcji (tworzenie zamówienia): {}",
+            e
+        );
+        AppError::InternalServerError("Błąd serwera podczas tworzenia zamówienia.".to_string())
     })?;
 
-    // Walidacja i pobranie szczegółów produktów z BLOKADĄ ('FOR UPDATE)
-    // Zapobiega to sytuacji, w której dwóch użytkowników jednocześnie
-    // próbuje kupić ten sam unikalny produkt.
-    let mut total_price: i64 = 0;
-    let mut products_to_order: Vec<(Uuid, i64)> = Vec::with_capacity(payload.product_ids.len());
+    // 1. Znajdź koszyk użytkownika i jego pozycje (z blokadą)
+    let cart = match sqlx::query_as::<_, ShoppingCart>(
+        "SELECT * FROM shopping_carts WHERE user_id = $1 FOR UPDATE",
+    )
+    .bind(user_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    {
+        Some(c) => c,
+        None => {
+            tracing::warn!(
+                "Użytkownik {} próbował złożyć zamówienie, ale nie ma koszyka.",
+                user_id
+            );
+            return Err(AppError::UnprocessableEntity(
+                "Twój koszyk nie został znaleziony lub jest pusty.".to_string(),
+            ));
+        }
+    };
 
-    // Sprawdzanie duplikatów ID produktów w zamówieniu
-    let unique_product_ids = payload
-        .product_ids
-        .iter()
-        .cloned()
-        .collect::<std::collections::HashSet<_>>();
+    let cart_items_db = sqlx::query_as::<_, CartItem>(
+        "SELECT * FROM cart_items WHERE cart_id = $1 FOR UPDATE", // Blokujemy pozycje koszyka
+    )
+    .bind(cart.id)
+    .fetch_all(&mut *tx)
+    .await?;
 
-    if unique_product_ids.len() != payload.product_ids.len() {
+    if cart_items_db.is_empty() {
+        tracing::warn!(
+            "Użytkownik {} próbował złożyć zamówienie z pustym koszykiem (cart_id: {}).",
+            user_id,
+            cart.id
+        );
         return Err(AppError::UnprocessableEntity(
-            "Zamówienie zawiera zduplikowane produkty".to_string(),
+            "Twój koszyk jest pusty.".to_string(),
         ));
     }
 
-    for product_id in unique_product_ids {
-        // Używamy `tx` zamiast `app_state.db_pool` do operacji wewnątrz transakcji
-        // Dodajemy `FOR UPDATE` aby zablokować wiersz na czas transakcji
+    // 2. Przetwórz pozycje z koszyka: sprawdź produkty, zbierz dane do OrderItem
+    let mut order_items_to_create: Vec<(Uuid, i64)> = Vec::with_capacity(cart_items_db.len()); // (product_id, price_at_purchase)
+    let mut total_price: i64 = 0;
+    let mut product_ids_to_mark_sold: Vec<Uuid> = Vec::new();
+
+    for cart_item in &cart_items_db {
+        // Iterujemy po referencjach
         let product = sqlx::query_as::<_, Product>(
-            r#"
-            SELECT id, name, description, price, condition, category, status, images
-            FROM products
-            WHERE id = $1 FOR UPDATE
-        "#,
+            "SELECT * FROM products WHERE id = $1 FOR UPDATE", // Blokujemy produkt
         )
-        .bind(product_id)
-        .fetch_optional(&mut *tx)
+        .bind(cart_item.product_id)
+        .fetch_optional(&mut *tx) // Produkt mógł zostać usunięty przez admina w międzyczasie
         .await?;
 
-        // Sprawdzanie czy produkt jest dostępny
         match product {
             Some(p) => {
                 if p.status != ProductStatus::Available {
                     tracing::warn!(
-                        "Próba zamówienia niedostępnego produktu: product_id={}, status={:?}",
-                        product_id,
+                        "Produkt {} (ID: {}) w koszyku użytkownika {} jest już niedostępny (status: {:?}).",
+                        p.name,
+                        p.id,
+                        user_id,
                         p.status
                     );
-                    return Err(AppError::NotFound);
+                    // Można rozważyć usunięcie tej pozycji z koszyka i poinformowanie użytkownika,
+                    // lub po prostu przerwanie tworzenia zamówienia.
+                    return Err(AppError::UnprocessableEntity(format!(
+                        "Produkt '{}' w Twoim koszyku stał się niedostępny. Usuń go z koszyka i spróbuj ponownie.",
+                        p.name
+                    )));
                 }
-
-                products_to_order.push((p.id, p.price));
+                order_items_to_create.push((p.id, p.price)); // Zapisujemy aktualną cenę jako price_at_purchase
                 total_price += p.price;
+                product_ids_to_mark_sold.push(p.id);
             }
             None => {
-                tracing::warn!(
-                    "Próba zamówienia nieistniejącego produktu: product_id={}",
-                    product_id
+                // Produkt został usunięty z bazy, podczas gdy był w koszyku.
+                // Usuń tę pozycję z koszyka (dla czystości) i poinformuj użytkownika.
+                tracing::error!(
+                    "Produkt o ID {} (z koszyka użytkownika {}) nie został znaleziony w bazie. Usuwam z koszyka.",
+                    cart_item.product_id,
+                    user_id
                 );
-                return Err(AppError::NotFound);
+                sqlx::query("DELETE FROM cart_items WHERE id = $1")
+                    .bind(cart_item.id)
+                    .execute(&mut *tx)
+                    .await?; // Ignorujemy błąd, jeśli usunięcie się nie powiedzie, główny problem to brak produktu
+                return Err(AppError::UnprocessableEntity(
+                    "Jeden z produktów w Twoim koszyku został usunięty ze sklepu. Odśwież koszyk i spróbuj ponownie.".to_string()
+                ));
             }
         }
     }
 
-    // Obliczanie czy cena zamówienia nie jest ujemna
-    if total_price < 0 {
-        tracing::error!("Obliczono ujemną cenę całkowitą: {}", total_price);
-        return Err(AppError::InternalServerError(
-            "Błąd podczas obliczania ceny zamówienia".to_string(),
-        ));
-    }
-
-    // Wstawianie rekordu do tabeli 'orders'
-    let initial_status = OrderStatus::Pending;
+    // 3. Wstaw rekord do tabeli `orders`
+    let initial_status = OrderStatus::Pending; // Początkowy status
     let order = sqlx::query_as::<_, Order>(
+        // Zwracamy pełny obiekt Order
         r#"
-            INSERT INTO orders (user_id, status, total_price, shipping_address_line1, shipping_address_line2, shipping_city, shipping_postal_code, shipping_country)
+            INSERT INTO orders (user_id, status, total_price,
+                                shipping_address_line1, shipping_address_line2,
+                                shipping_city, shipping_postal_code, shipping_country)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING id, user_id, order_date, status, total_price, shipping_address_line1, shipping_address_line2, shipping_city, shipping_postal_code, shipping_country, created_at, updated_at
-            "#,
-    ).bind(user_id)
+            RETURNING id, user_id, order_date, status, total_price,
+                      shipping_address_line1, shipping_address_line2,
+                      shipping_city, shipping_postal_code, shipping_country,
+                      created_at, updated_at
+        "#,
+    )
+    .bind(user_id)
     .bind(initial_status)
     .bind(total_price)
     .bind(&payload.shipping_address_line1)
@@ -839,51 +879,94 @@ pub async fn create_order_handler(
     .fetch_one(&mut *tx)
     .await?;
 
-    //Wstawianie rekordów do tabeli 'order_items'
-    for (product_id, price_at_purchase) in &products_to_order {
-        sqlx::query(
+    // 4. Wstaw rekordy do tabeli `order_items`
+    let mut created_order_items_db: Vec<OrderItem> =
+        Vec::with_capacity(order_items_to_create.len());
+    for (product_id, price_at_purchase) in order_items_to_create {
+        let oi = sqlx::query_as::<_, OrderItem>(
             r#"
                 INSERT INTO order_items (order_id, product_id, price_at_purchase)
                 VALUES ($1, $2, $3)
-        "#,
+                RETURNING id, order_id, product_id, price_at_purchase -- Nie mamy added_at w OrderItem
+            "#, // W strukturze OrderItem nie ma added_at, jeśli tak zdefiniowałeś
         )
         .bind(order.id)
         .bind(product_id)
         .bind(price_at_purchase)
+        .fetch_one(&mut *tx)
+        .await?;
+        created_order_items_db.push(oi);
+    }
+
+    // 5. Wyczyść koszyk użytkownika (usuń wszystkie pozycje z cart_items dla tego cart_id)
+    let deleted_cart_items = sqlx::query("DELETE FROM cart_items WHERE cart_id = $1")
+        .bind(cart.id)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+    tracing::info!(
+        "Wyczyszczono {} pozycji z koszyka {} dla użytkownika {}",
+        deleted_cart_items,
+        cart.id,
+        user_id
+    );
+    // Można też zaktualizować `updated_at` w `shopping_carts` lub poczekać na trigger, jeśli jest
+
+    // 6. Zaktualizuj status zamówionych produktów na 'Sold'
+    if !product_ids_to_mark_sold.is_empty() {
+        sqlx::query(
+            r#"
+                UPDATE products
+                SET status = $1
+                WHERE id = ANY($2)
+            "#,
+        )
+        .bind(ProductStatus::Sold)
+        .bind(&product_ids_to_mark_sold)
         .execute(&mut *tx)
         .await?;
     }
 
-    // Aktualizacja statusu zamówionych produktów na 'Sold'
-    // Przygotowanie listy ID do użycia w klauzuli WHERE IN
-    let product_ids_to_update: Vec<Uuid> =
-        products_to_order.iter().map(|(id, _price)| *id).collect();
-
-    sqlx::query(
-        r#"
-            UPDATE products
-            SET status = $1
-            WHERE id = ANY($2)
-        "#,
-    )
-    .bind(ProductStatus::Sold)
-    .bind(&product_ids_to_update)
-    .execute(&mut *tx)
-    .await?;
-
-    // Zatwierdzenie transakcji
+    // 7. Zatwierdź transakcję
     tx.commit().await.map_err(|e| {
-        tracing::error!("Nie można zatwierdzić transakcji: {}", e);
-        AppError::InternalServerError("Nie można sfinalizować zamówienia.".to_string())
+        tracing::error!(
+            "Nie można zatwierdzić transakcji (tworzenie zamówienia): {}",
+            e
+        );
+        AppError::InternalServerError("Błąd serwera podczas finalizowania zamówienia.".to_string())
     })?;
 
     tracing::info!(
-        "Utworzono nowe zamówienie: order_id={}, user_id={}",
+        "Utworzono nowe zamówienie ID: {} na podstawie koszyka dla użytkownika {}",
         order.id,
         user_id
     );
 
-    Ok((StatusCode::CREATED, Json(order)))
+    // 8. Przygotuj odpowiedź OrderDetailsResponse
+    let mut order_items_details_public: Vec<OrderItemDetailsPublic> =
+        Vec::with_capacity(created_order_items_db.len());
+    for item_db in created_order_items_db {
+        let product = sqlx::query_as::<_, Product>(
+            // Potrzebujemy produktu do CartItemPublic
+            "SELECT * FROM products WHERE id = $1",
+        )
+        .bind(item_db.product_id)
+        .fetch_one(&app_state.db_pool) // Poza transakcją, bo już zatwierdzona
+        .await?;
+
+        order_items_details_public.push(OrderItemDetailsPublic {
+            order_item_id: item_db.id,
+            product,
+            price_at_purchase: item_db.price_at_purchase,
+        });
+    }
+
+    let response = OrderDetailsResponse {
+        order, // To jest obiekt Order zwrócony z INSERT INTO orders
+        items: order_items_details_public,
+    };
+
+    Ok((StatusCode::CREATED, Json(response)))
 }
 
 pub async fn list_orders_handler(
@@ -931,19 +1014,26 @@ pub async fn get_order_details_handler(
     let user_id = claims.sub;
     let user_role = claims.role;
 
-    // Pobieranie zamówienia
-    let order = sqlx::query_as::<_, Order>(r#"
-            SELECT id, user_id, order_date, status, total_price, shipping_address_line1, shipping_address_line2, shipping_city, shipping_postal_code, shipping_country, created_at, updated_at
+    // 1. Pobieranie zamówienia
+    let order_optional = sqlx::query_as::<_, Order>(
+        r#"
+            SELECT id, user_id, order_date, status, total_price,
+                   shipping_address_line1, shipping_address_line2,
+                   shipping_city, shipping_postal_code, shipping_country,
+                   created_at, updated_at
             FROM orders
             WHERE id = $1
-        "#).bind(order_id).fetch_optional(&app_state.db_pool).await?;
+        "#,
+    )
+    .bind(order_id)
+    .fetch_optional(&app_state.db_pool)
+    .await?;
 
-    // Sprawdzanie czy zamówienie istnieje
-    let order = match order {
+    let order = match order_optional {
         Some(o) => o,
         None => {
             tracing::warn!(
-                "Nie znaleziono zamówienia o ID: {} dla użytkownika {}",
+                "Nie znaleziono zamówienia o ID: {} (żądane przez user_id: {})",
                 order_id,
                 user_id
             );
@@ -951,7 +1041,7 @@ pub async fn get_order_details_handler(
         }
     };
 
-    // Autoryzacja
+    // 2. Autoryzacja
     if user_role != Role::Admin && order.user_id != user_id {
         tracing::warn!(
             "Nieautoryzowany dostęp do zamówienia: order_id={}, user_id={}, user_role={:?}",
@@ -962,10 +1052,11 @@ pub async fn get_order_details_handler(
         return Err(AppError::UnauthorizedAccess(
             "Nie masz uprawnień do tego zamówienia".to_string(),
         ));
+        // Lub return Err(AppError::NotFound); jeśli chcesz ukryć istnienie zamówienia
     }
 
-    // Pobierz pozycję zamówienia
-    let items = sqlx::query_as::<_, OrderItem>(
+    // 3. Pobierz pozycje zamówienia (order_items) z bazy
+    let order_items_db = sqlx::query_as::<_, OrderItem>(
         r#"
             SELECT id, order_id, product_id, price_at_purchase
             FROM order_items
@@ -976,15 +1067,50 @@ pub async fn get_order_details_handler(
     .fetch_all(&app_state.db_pool)
     .await?;
 
-    // Skonstruuj odpowiedź
-    let response = OrderDetailsResponse { order, items };
+    // 4. Dla każdej pozycji zamówienia, pobierz pełne dane produktu i stwórz OrderItemDetailsPublic
+    let mut items_details_public: Vec<OrderItemDetailsPublic> =
+        Vec::with_capacity(order_items_db.len());
+
+    for item_db in order_items_db {
+        // item_db jest typu OrderItem
+        let product = sqlx::query_as::<_, Product>(
+            r#"
+                SELECT id, name, description, price, condition, category, status, images
+                FROM products
+                WHERE id = $1
+            "#,
+        )
+        .bind(item_db.product_id)
+        .fetch_one(&app_state.db_pool) // Zakładamy, że produkt musi istnieć, jeśli jest w order_items
+        .await
+        .map_err(|e| {
+            // Ten błąd byłby poważny - oznaczałby niespójność danych (pozycja zamówienia
+            // odwołuje się do nieistniejącego produktu)
+            tracing::error!(
+                "Krytyczny błąd: Produkt (ID: {}) dla pozycji zamówienia (ID: {}) nie został znaleziony. OrderID: {}. Błąd: {:?}",
+                item_db.product_id, item_db.id, order_id, e
+            );
+            AppError::InternalServerError("Wystąpił błąd podczas pobierania szczegółów produktu dla zamówienia.".to_string())
+        })?;
+
+        items_details_public.push(OrderItemDetailsPublic {
+            order_item_id: item_db.id, // ID z tabeli order_items
+            product,                   // Pełne dane produktu
+            price_at_purchase: item_db.price_at_purchase,
+        });
+    }
+
+    // 5. Skonstruuj odpowiedź
+    let response = OrderDetailsResponse {
+        order,                       // Obiekt Order
+        items: items_details_public, // Teraz jest to Vec<OrderItemDetailsPublic>
+    };
 
     tracing::info!(
         "Pobrano szczegóły zamówienia: order_id={}, user_id={}",
         order_id,
         user_id
     );
-
     Ok(Json(response))
 }
 

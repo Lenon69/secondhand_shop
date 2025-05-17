@@ -59,24 +59,6 @@ pub struct Product {
     pub images: Vec<String>,
 }
 
-#[allow(dead_code)]
-#[derive(Debug, Clone, Deserialize, Validate)]
-pub struct CreateProductPayload {
-    #[validate(length(min = 1, max = 255, message = "Nazwa musi mieć od 1 do 255 znaków"))]
-    pub name: String,
-
-    #[validate(length(max = 5000, message = "Opis nie może przekraczać 5000 znaków"))]
-    pub description: String,
-
-    #[validate(range(min = 0, message = "Cena nie może być ujemna"))]
-    pub price: i64,
-
-    pub condition: ProductCondition,
-    pub category: Category,
-    #[validate(length(min = 1, message = "Należy dodać przynajmniej jeden URL obrazka"))]
-    pub images: Vec<String>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type)]
 #[sqlx(type_name = "user_role", rename_all = "lowercase")]
 pub enum Role {
@@ -132,7 +114,7 @@ pub enum OrderStatus {
 }
 
 /// Reprezentuje pojedyńczą pozycję w zamówieniu
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, Validate)]
 pub struct OrderItem {
     pub id: Uuid,
     pub order_id: Uuid,
@@ -172,13 +154,7 @@ pub struct Order {
 
 /// Reprezentuje pojedyńczy produkt w payloadzie tworzenia zamówienia
 #[derive(Debug, Clone, Deserialize, Validate)]
-pub struct CreateOrderPayload {
-    #[validate(length(
-        min = 1,
-        message = "Zamówienie musi zawierać co najmniej jeden produkt"
-    ))]
-    pub product_ids: Vec<Uuid>,
-
+pub struct CreateOrderFromCartPayload {
     #[validate(length(min = 1, max = 255, message = "Linia adresu wysyłki jest wymagana"))]
     pub shipping_address_line1: String,
 
@@ -203,10 +179,18 @@ pub struct UpdateOrderStatusPayload {
 }
 
 #[derive(Debug, Serialize)]
+pub struct OrderItemDetailsPublic {
+    pub order_item_id: Uuid,
+    #[serde(flatten)]
+    pub product: Product,
+    pub price_at_purchase: i64,
+}
+
+#[derive(Debug, Serialize)]
 pub struct OrderDetailsResponse {
     #[serde(flatten)]
     pub order: Order,
-    pub items: Vec<OrderItem>,
+    pub items: Vec<OrderItemDetailsPublic>,
 }
 
 // --- STRUKTURY DLA KOSZYKA ZAKUPÓW ---
