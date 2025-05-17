@@ -4,6 +4,7 @@ use axum::{
     extract::{Multipart, Path, Query, State},
     http::StatusCode,
 };
+use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
 use sqlx::{Postgres, QueryBuilder};
 
@@ -1047,7 +1048,7 @@ pub async fn add_item_to_cart_handler(
 ) -> Result<(StatusCode, Json<CartDetailsResponse>), AppError> {
     let user_id = claims.sub;
 
-    // Rozpocznij trasnakcje
+    // Rozpocznij transakcję
     let mut tx = app_state.db_pool.begin().await.map_err(|e| {
         tracing::error!("Nie można rozpocząć transakcji (koszyk): {}", e);
         AppError::InternalServerError("Błąd serwera przy dodawaniu do koszyka".to_string())
@@ -1056,55 +1057,57 @@ pub async fn add_item_to_cart_handler(
     // Znajdź lub utwórz koszyk dla użytkownika
     let cart = match sqlx::query_as::<_, ShoppingCart>(
         r#"
-            SELECT *
+            SELECT id, user_id, created_at, updated_at
             FROM shopping_carts
             WHERE user_id = $1
             FOR UPDATE
         "#,
     )
     .bind(user_id)
-    .fetch_optional(&mut *tx)
+    .fetch_optional(&mut *tx) // Używamy &mut *tx dla typu &mut PgConnection
     .await?
     {
-        Some(existing_product) => existing_product,
+        Some(existing_cart) => existing_cart,
         None => {
             sqlx::query_as::<_, ShoppingCart>(
                 r#"
                     INSERT INTO shopping_carts (user_id)
                     VALUES ($1)
-                    RETURNING *
+                    RETURNING id, user_id, created_at, updated_at
                 "#,
             )
             .bind(user_id)
-            .fetch_one(&mut *tx)
+            .fetch_one(&mut *tx) // Używamy &mut *tx
             .await?
         }
     };
 
     // Sprawdź czy produkt istnieje i jest dostępny (z blokadą FOR UPDATE)
-    let product_to_add = sqlx::query_as::<_, Product>(
+    let product_to_add_opt = sqlx::query_as::<_, Product>(
         r#"
-            SELECT *
+            SELECT id, name, description, price, condition, category, status, images
             FROM products
             WHERE id = $1
             FOR UPDATE
         "#,
     )
     .bind(payload.product_id)
-    .fetch_optional(&mut *tx)
+    .fetch_optional(&mut *tx) // Używamy &mut *tx
     .await?;
 
-    match product_to_add {
+    match product_to_add_opt {
         Some(product) => {
             if product.status != ProductStatus::Available {
                 tracing::warn!(
-                    "Użytkownik {} próbował dodać niedostępny produkt {} do koszyka {}",
+                    "Użytkownik {} próbował dodać niedostępny produkt {} (status: {:?}) do koszyka {}",
                     user_id,
                     payload.product_id,
+                    product.status, // Dodano logowanie statusu produktu
                     cart.id
                 );
-                return Err(AppError::NotFound);
+                return Err(AppError::NotFound); // Lub bardziej specyficzny błąd, np. "Produkt niedostępny"
             }
+
             // Dodaj produkt do cart_items
             sqlx::query(
                 r#"
@@ -1114,11 +1117,11 @@ pub async fn add_item_to_cart_handler(
                 "#,
             )
             .bind(cart.id)
-            .bind(payload.product_id)
-            .execute(&mut *tx)
+            .bind(payload.product_id) // Lub product.id
+            .execute(&mut *tx) // Używamy &mut *tx
             .await?;
             tracing::info!(
-                "Product {} został dodany do koszyka {} dla użytkownika {}",
+                "Produkt {} dodany (lub już był) w koszyku {} dla użytkownika {}",
                 payload.product_id,
                 cart.id,
                 user_id
@@ -1126,7 +1129,7 @@ pub async fn add_item_to_cart_handler(
         }
         None => {
             tracing::warn!(
-                "Użytkownik {}, próbował dodać nieistniejący produkt {} do koszyka {}",
+                "Użytkownik {} próbował dodać nieistniejący produkt {} do koszyka {}",
                 user_id,
                 payload.product_id,
                 cart.id
@@ -1135,32 +1138,33 @@ pub async fn add_item_to_cart_handler(
         }
     }
 
-    // Pobierz zaaktualizowaną zawartość koszyka do zwrócenia (już w ramach transkacji)
+    // Pobierz zaktualizowaną zawartość koszyka do zwrócenia (nadal w ramach transakcji)
+    // Jest to potrzebne, aby obliczyć total_price i zebrać listę items.
     let items_db = sqlx::query_as::<_, CartItem>(
         r#"
-            SELECT *
+            SELECT id, cart_id, product_id, added_at
             FROM cart_items
             WHERE cart_id = $1
-            ORDER BY added_at DESC
-        "#,
+            ORDER BY added_at ASC
+        "#, // Zmieniono DESC na ASC dla spójności (kolejność dodawania)
     )
     .bind(cart.id)
-    .fetch_all(&mut *tx)
+    .fetch_all(&mut *tx) // Używamy &mut *tx
     .await?;
 
-    let mut cart_items_public: Vec<CartItemPublic> = Vec::new();
+    let mut cart_items_public: Vec<CartItemPublic> = Vec::with_capacity(items_db.len());
     let mut current_total_price: i64 = 0;
 
     for item_db in items_db {
         let product = sqlx::query_as::<_, Product>(
             r#"
-                SELECT *
+                SELECT id, name, description, price, condition, category, status, images
                 FROM products
                 WHERE id = $1
-            "#,
+            "#, // FOR UPDATE nie jest tu konieczne, bo produkt był blokowany wcześniej
         )
         .bind(item_db.product_id)
-        .fetch_one(&mut *tx)
+        .fetch_one(&mut *tx) // Nadal używamy &mut *tx
         .await
         .map_err(|e| {
             tracing::error!(
@@ -1168,7 +1172,9 @@ pub async fn add_item_to_cart_handler(
                 e,
                 item_db.product_id
             );
-            AppError::InternalServerError("Błąd przy konstruowaniu odpowiedzi koszyka".to_string())
+            AppError::InternalServerError(
+                "Błąd przy konstruowaniu odpowiedzi koszyka (produkt zniknął?).".to_string(),
+            )
         })?;
 
         current_total_price += product.price;
@@ -1179,32 +1185,35 @@ pub async fn add_item_to_cart_handler(
         });
     }
 
-    // Zatwierdź tranksację
+    // Zatwierdź transakcję
     tx.commit().await.map_err(|e| {
         tracing::error!("Nie można zatwierdzić transakcji (koszyk): {}", e);
         AppError::InternalServerError("Błąd serwera przy zapisywaniu koszyka.".to_string())
     })?;
 
-    let mut conn_after_commit = app_state.db_pool.acquire().await.map_err(|e| {
-        tracing::error!("Nie można uzyskać połączenia z puli po transakcji: {}", e);
-        AppError::InternalServerError("Błąd serwera".to_string())
-    })?;
-
-    let final_cart = sqlx::query_as::<_, ShoppingCart>(
-        r#"
-            SELECT *
-            FROM shopping_carts
-            WHERE user_id = $1
-        "#,
+    // Po zatwierdzeniu transakcji pobieramy najświeższy updated_at dla koszyka,
+    // ponieważ trigger mógł go zaktualizować.
+    let final_cart_updated_at = sqlx::query_scalar::<_, DateTime<Utc>>(
+        "SELECT updated_at FROM shopping_carts WHERE id = $1",
     )
-    .bind(user_id)
-    .fetch_one(&mut *conn_after_commit)
-    .await?;
+    .bind(cart.id) // Używamy cart.id, który mamy z początku funkcji
+    .fetch_one(&app_state.db_pool) // Wykonujemy zapytanie na puli, bo transakcja jest zakończona
+    .await
+    .unwrap_or_else(|e| {
+        tracing::warn!("Nie udało się pobrać zaktualizowanego updated_at dla koszyka {}: {}. Używam starej wartości.", cart.id, e);
+        cart.updated_at // Fallback do wartości sprzed commitu, jeśli odczyt zawiedzie
+    });
 
-    let response_cart_details =
-        build_cart_details_response(&final_cart, &mut conn_after_commit).await?;
+    let response_cart = CartDetailsResponse {
+        cart_id: cart.id,
+        user_id: cart.user_id, // cart.user_id jest poprawne, user_id z claims to to samo
+        total_items: cart_items_public.len(), // Poprawne użycie długości wektora
+        items: cart_items_public,
+        total_price: current_total_price,
+        updated_at: final_cart_updated_at, // Używamy świeżo pobranej (lub fallback) wartości
+    };
 
-    Ok((StatusCode::OK, Json(response_cart_details)))
+    Ok((StatusCode::OK, Json(response_cart)))
 }
 
 pub async fn get_cart_handler(
