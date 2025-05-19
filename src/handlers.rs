@@ -31,7 +31,7 @@ use validator::Validate;
 
 pub async fn root_handler() -> &'static str {
     tracing::info!("Obsłużono zapytanie do /");
-    "Witaj w backendzie sklepu second-hand!"
+    "Witaj na stronie MegJoni"
 }
 
 pub async fn get_product_details(
