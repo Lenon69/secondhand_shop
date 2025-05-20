@@ -2097,6 +2097,7 @@ dependencies = [
  "futures",
  "hex",
  "jsonwebtoken",
+ "once_cell",
  "rand 0.9.1",
  "reqwest",
  "rustls",

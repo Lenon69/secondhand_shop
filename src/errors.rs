@@ -46,6 +46,9 @@ pub enum AppError {
 
     #[error("Wewnętrzny błąd serwera")]
     InternalServerError(String),
+
+    #[error("Niepoprawny nagłówek")]
+    BadRequest(String),
 }
 
 impl IntoResponse for AppError {
@@ -78,15 +81,16 @@ impl IntoResponse for AppError {
                 StatusCode::UNAUTHORIZED,
                 "Nieprawidłowe dane logowania".to_string(),
             ),
-            AppError::MissingToken(message) => (StatusCode::UNAUTHORIZED, message), // NOWA obsługa
+            AppError::MissingToken(message) => (StatusCode::UNAUTHORIZED, message),
             AppError::TokenExpired => (StatusCode::UNAUTHORIZED, "Token wygasł".to_string()),
-            AppError::InvalidToken(message) => (StatusCode::UNAUTHORIZED, message), // ZAKTUALIZOWANA obsługa
+            AppError::InvalidToken(message) => (StatusCode::UNAUTHORIZED, message),
             AppError::PasswordHashingError => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Błąd podczas przetwarzania hasła".to_string(),
             ),
             AppError::UnauthorizedAccess(message) => (StatusCode::FORBIDDEN, message),
             AppError::InternalServerError(message) => (StatusCode::INTERNAL_SERVER_ERROR, message),
+            AppError::BadRequest(message) => (StatusCode::BAD_REQUEST, message),
         };
 
         let body = Json(json!({ "error": error_message }));
