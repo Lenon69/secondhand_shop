@@ -1,12 +1,14 @@
 // src/handlers.rs
 use axum::Json;
 use axum::{
-    extract::{Multipart, Path, Query, State},
-    http::StatusCode,
+    extract::{Multipart, Path, Query, State, TypedHeader},
+    http::{HeaderMap, StatusCode},
 };
+use axum_extra::TypedHeader;
+use axum_extra::headers::Header;
 use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
-use sqlx::{Postgres, QueryBuilder};
+use sqlx::{Acquire, Postgres, QueryBuilder};
 
 use crate::cart_utils::build_cart_details_response;
 use crate::cloudinary::{delete_image_from_cloudinary, extract_public_id_from_url};
@@ -35,8 +37,7 @@ pub async fn root_handler() -> &'static str {
 }
 
 pub async fn get_product_details(
-    State(app_state): State<AppState>, // Zmień na AppState
-    Path(product_id): Path<Uuid>,
+    State(app_state): State<AppState>, // Zmień na AppState    Path(product_id): Path<Uuid>,
 ) -> Result<Json<Product>, AppError> {
     // ... (logika bez zmian, użyj app_state.db_pool) ...
     let product_result = sqlx::query_as::<_, Product>(
@@ -1467,4 +1468,346 @@ pub async fn remove_item_from_cart_handler(
     })?;
 
     Ok(Json(cart_details))
+}
+
+#[derive(Debug, Clone)]
+pub struct XGuestCartId(Uuid);
+
+impl Header for XGuestCartId {
+    fn name() -> &'static axum::http::HeaderName {
+        static NAME: once_cell::sync::Lazy<axum::http::HeaderName> =
+            once_cell::sync::Lazy::new(|| axum::http::HeaderName::from_static("x-guest-cart-id"));
+        &NAME
+    }
+
+    fn decode<'i, I>(values: &mut I) -> Result<Self, axum_extra::headers::Error>
+    where
+        Self: Sized,
+        I: Iterator<Item = &'i axum::http::HeaderValue>,
+    {
+        let value = values
+            .next()
+            .ok_or_else(axum_extra::headers::Error::invalid)?;
+        let uuid = Uuid::parse_str(
+            value
+                .to_str()
+                .map_err(|_| axum_extra::headers::Error::invalid())?,
+        )
+        .map_err(|_| axum_extra::headers::Error::invalid())?;
+        Ok(XGuestCartId(uuid))
+    }
+
+    fn encode<E: Extend<axum::http::HeaderValue>>(&self, values: &mut E) {
+        let s = self.0.to_string();
+        let value = axum::http::HeaderValue::from_str(&s).unwrap_or_else(|_| {
+            panic!(
+                "XGuestCartId to_string() produced invalid header value: {}",
+                s
+            )
+        });
+        values.extend(std::iter::once(value));
+    }
+}
+
+// POST /api/guest-cart/items
+pub async fn add_item_to_guest_cart(
+    State(app_state): State<AppState>,
+    guest_cart_id_header: Option<TypedHeader<XGuestCartId>>,
+    Json(payload): Json<AddProductToCartPayload>,
+) -> Result<impl IntoResponse, AppError> {
+    let mut tx = app_state.db_pool.begin().await?;
+    let product_id = payload.product_id;
+
+    let guest_cart_uuid: Uuid;
+    let cart: ShoppingCart;
+
+    if let Some(TypedHeader(XGuestCartId(id))) = guest_cart_id_header {
+        if let Some(existing_cart) = sqlx::query_as::<_, ShoppingCart>(
+            r#"
+            SELECT id, user_id, guest_session_id, created_at, updated_at
+            FROM shopping_carts
+            WHERE guest_session_id = $1
+            "#,
+        )
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?
+        {
+            cart = existing_cart;
+            guest_cart_uuid = id;
+        } else {
+            cart = sqlx::query_as::<_, ShoppingCart>(
+                r#"
+                    INSERT INTO shopping_carts (guest_session_id)
+                    VALUES ($1)
+                    RETURNING id, user_id, guest_session_id, created_at, updated_at"
+                "#,
+            )
+            .bind(new_id)
+            .fetch_one(&mut *tx)
+            .await?;
+            guest_cart_uuid = new_id;
+        }
+    } else {
+        let new_id = Uuid::new_v4();
+        cart = sqlx::query_as::<_, ShoppingCart>(
+            r#"
+                INSERT INTO shopping_carts (guest_session_id)
+                VALUES ($1)
+                RETURNING id, user_id, guest_session_id, created_at, updated_at
+            "#,
+        )
+        .bind(new_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        guest_cart_uuid = new_id;
+    }
+
+    // Dodaj produkt do koszyka (logika podobna do add_item_to_cart_handler dla zalogowanych)
+    let existing_item =
+        sqlx::query("SELECT id FROM cart_items WHERE cart_id = $1 AND product_id = $2")
+            .bind(cart.id)
+            .bind(product_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+
+    if existing_item.is_none() {
+        sqlx::query::<_, CartItem>("INSERT INTO cart_items (cart_id, product_id) VALUES ($1, $2)")
+            .bind(cart.id)
+            .bind(product_id)
+            .execute(&mut *tx)
+            .await?;
+    }
+    // Zaktualizuj updated_at w koszyku
+    let updated_cart = sqlx::query_as::<_, ShoppingCart>(
+        r#"
+        UPDATE shopping_carts SET updated_at = NOW()
+        WHERE id = $1
+        RETURNING id, user_id, guest_session_id, created_at, updated_at"#,
+    )
+    .bind(cart.id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let cart_details_response = build_cart_details_response(&updated_cart, &mut tx).await?;
+    tx.commit().await?;
+
+    let response = GuestCartOperationResponse {
+        guest_cart_id: guest_cart_uuid,
+        cart_details: cart_details_response,
+    };
+
+    // Można też zwrócić `guest_cart_uuid` w nagłówku odpowiedzi, aby frontend mógł go przechwycić
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "X-Guest-Cart-Id",
+        guest_cart_uuid.to_string().parse().unwrap(),
+    );
+
+    Ok((StatusCode::OK, headers, Json(response)))
+}
+
+//GET /api/guest-cart
+pub async fn get_guest_cart(
+    State(app_state): State<AppState>,
+    guest_cart_id_header: Option<TypedHeader<XGuestCartId>>,
+) -> Result<impl IntoResponse, AppError> {
+    if let Some(TypedHeader(XGuestCartId(guest_id))) = guest_cart_id_header {
+        let mut conn = app_state.db_pool.acquire().await?;
+        if let Some(cart) = sqlx::query_as::<_, ShoppingCart>(
+            r#"
+                SELECT id, user_id, guest_session_id, created_at, updated_at
+                FROM shopping_carts
+                WHERE guest_session_id = $1
+            "#,
+        )
+        .bind(guest_id)
+        .fetch_optional(&mut *conn)
+        .await?
+        {
+            let response = build_cart_details_response(&cart, &mut conn).await?;
+            return Ok((StatusCode::OK, Json(response)));
+        }
+    }
+    Ok((StatusCode::OK, Json(CartDetailsResponse::default())))
+}
+
+pub async fn remove_item_from_guest_cart(
+    State(app_state): State<AppState>,
+    guest_cart_id_header: Option<TypedHeader<XGuestCartId>>,
+    Path(product_id_to_remove): Path<Uuid>,
+) -> Result<impl IntoResponse, AppError> {
+    let TypedHeader(XGuestCartId(guest_id)) = guest_cart_id_header
+        .ok_or_else(|| AppError::BadRequest("Missing X-Guest-Cart-Id header".to_string()))?;
+
+    let mut tx = app_state.db_pool.begin().await?;
+
+    let cart = sqlx::query_as::<_, ShoppingCart>(
+        r#"
+            SELECT id, user_id, guest_session_id, created_at, updated_at
+            FROM shopping_carts
+            WHERE guest_seesion_id = $1
+        "#,
+    )
+    .bind(guest_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::NotFound);
+
+    // Usuń produkt z koszyka
+    sqlx::query::<_, CartItem>(
+        r#"
+            DELETE FROM cart_items
+            WHERE cart_id = $1
+            AND product_id = $2
+        "#,
+    )
+    .bind(cart.id)
+    .bind(product_id_to_remove)
+    .execute(&mut *tx)
+    .await?;
+
+    let updated_cart = sqlx::query_as::<_, ShoppingCart>(
+        r#"
+            UPDATE shopping_carts
+            SET updated_at = NOW()
+            WHERE id = $1
+            RETURNING id, user_id, guest_session_id, created_at, updated_at
+        "#,
+    )
+    .bind(cart.id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let response_details = build_cart_details_response(&updated_cart, &mut tx).await?;
+    tx.commit().await?;
+
+    let response = GuestCartOperationResponse {
+        guest_cart_id: guest_id,
+        cart_details: response_details,
+    };
+
+    Ok((StatusCode::OK, Json(response)))
+}
+
+// POST /api/cart/merge/ (Chroniony endpoint)
+pub async fn merge_cart_handler(
+    State(app_state): State<AppState>,
+    user_claims: TokenClaims,
+    Json(payload): Json<MergeCartPayload>,
+) -> Result<impl IntoResponse, AppError> {
+    let user_id = user_claims.user_id;
+    let guest_cart_id_to_merge = payload.guest_cart_id;
+
+    let mut tx = app_state.db_pool.begin().await?;
+
+    let user_cart = match sqlx::query_as::<_, ShoppingCart>(
+        r#"
+            SELECT id, user_id, guest_session_id, created_at, updated_at
+            FROM shopping_carts
+            WHERE user_id = $1
+        "#,
+    )
+    .bind(user_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    {
+        Some(cart) => cart,
+        None => {
+            sqlx::query_as::<_, ShoppingCart>(
+                r#"
+                    INSERT INTO shopping_carts (user_id)
+                    VALUES ($1)
+                    RETURNING id, user_id, guest_session_id, created_at, updated_at,
+                "#,
+            )
+            .bind(user_id)
+            .fetch_one(&mut *tx)
+            .await?
+        }
+    };
+
+    if let Some(guest_cart) = sqlx::query_as::<_, ShoppingCart>(
+        r#"
+            SELECT id, user_id, guest_session_id, created_at, updated_at
+            FROM shopping_carts
+            WHERE guest_session_id = $1
+        "#,
+    )
+    .bind(guest_cart_id_to_merge)
+    .fetch_optional(&mut *tx)
+    .await?
+    {
+        if guest_cart.id != user_cart.id {
+            let guest_items = sqlx::query_as::<_, CartItem>(
+                r#"
+                    SELECT *
+                    FROM cart_items
+                    WHERE cart_id = $1
+                "#,
+            )
+            .bind(guest_cart.id)
+            .fetch_all(&mut *tx)
+            .await?;
+
+            for item in guest_items {
+                // Sprawdź czy produkt już jest w koszyku użytkownika
+                let existing_user_item = sqlx::query(
+                    r#"
+                        SELECT id
+                        FROM cart_items
+                        WHERE cart_id = $1
+                        AND product_id = $2
+                    "#,
+                )
+                .bind(user_cart.id)
+                .bind(item.product_id)
+                .fetch_optional(&mut *tx)
+                .await?;
+
+                if existing_user_item.is_none() {
+                    sqlx::query::<_, CartItem>(
+                        r#"
+                            INSERT INTO cart_items (cart_id, product_id, added_at)
+                            VALUES ($1, $2, $3) 
+                        "#,
+                    )
+                    .bind(user_cart.id)
+                    .bind(item.product_id)
+                    .bind(item.added_at)
+                    .execute(&mut *tx)
+                    .await?;
+                }
+            }
+            // Usuń stary koszyk gościa (jego pozycje zostaną usunięte przez ON DELETE CASCADE, jeśli tak jest ustawione dla cart_items.cart_id)
+            // Jeśli nie ma CASCADE, usuń najpierw pozycje: DELETE FROM cart_items WHERE cart_id = $1
+            sqlx::query::<_, CartItem>("DELETE FROM cart_items WHERE cart_id = $1")
+                .bind(guest_cart.id)
+                .execute(&mut *tx)
+                .await?;
+            sqlx::query::<_, ShoppingCart>("DELETE FROM shopping_carts WHERE id = $1")
+                .bind(guest_cart.id)
+                .execute(&mut *tx)
+                .await?;
+        } else {
+            // Koszyk gościa to ten sam, co już przypisany użytkownikowi - tylko wyczyść guest_session_id
+            sqlx::query::<_, ShoppingCart>(
+                "UPDATE shopping_carts SET guest_session_id = NULL WHERE id = $1 AND user_id = $2",
+            )
+            .bind(user_cart.id)
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
+    // Jeśli koszyk gościa nie został znaleziony, nic nie rób, użytkownik kontynuuje ze swoim (ew. nowo utworzonym) koszykiem.
+
+    let final_updated_cart = sqlx::query_as::<_, ShoppingCart>(
+        "UPDATE shopping_carts SET updated_at = NOW() WHERE id = $1 RETURNING id, user_id, guest_session_id, created_at, updated_at"
+    ).bind(user_cart.id).fetch_one(&mut *tx).await?;
+
+    let response = build_cart_details_response(&final_updated_cart, &mut tx).await?;
+    tx.commit().await?;
+
+    Ok((StatusCode::OK, Json(response)))
 }

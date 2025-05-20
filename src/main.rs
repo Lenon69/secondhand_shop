@@ -109,12 +109,19 @@ async fn main() {
             "/api/orders/{order_id}",
             get(get_order_details_handler).patch(update_order_status_handler),
         )
-        .route("/api/cart/items", post(add_item_to_cart_handler))
         .route("/api/cart", get(get_cart_handler))
+        .route("/api/cart/items", post(add_item_to_cart_handler))
         .route(
             "/api/cart/items/{product_id}",
             delete(remove_item_from_cart_handler),
         )
+        .route("/api/guest-cart", get(get_guest_cart))
+        .route("/api/guest-cart/items", post(add_item_to_guest_cart))
+        .route(
+            "/api/guest-cart/items/{product_id}",
+            delete(remove_item_from_guest_cart),
+        )
+        .route("/api/cart/merge", post(merge_cart_handler))
         .layer(TraceLayer::new_for_http())
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024))
         .with_state(app_state); // Dodajemy middleware do logowania każdego zapytania HTTP

@@ -197,9 +197,28 @@ pub struct OrderDetailsResponse {
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ShoppingCart {
     pub id: Uuid,
-    pub user_id: Uuid,
+    pub user_id: Option<Uuid>,
+    pub guest_session_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+///Payload dla scalania koszyka
+#[derive(Debug, Deserialize)]
+pub struct MergeCartPayload {
+    pub guest_cart_id: Uuid,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddProductToGuestCartPayload {
+    pub product_id: Uuid,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GuestCartOperationResponse {
+    pub guest_cart_id: Uuid,
+    #[serde(flatten)]
+    pub cart_details: CartDetailsResponse,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -226,7 +245,7 @@ pub struct CartItemPublic {
     pub added_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 pub struct CartDetailsResponse {
     pub cart_id: Uuid,
     pub user_id: Uuid,
