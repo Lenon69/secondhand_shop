@@ -24,12 +24,18 @@ pub enum ProductCondition {
 #[sqlx(type_name = "product_status")]
 #[strum(ascii_case_insensitive)]
 pub enum ProductStatus {
-    Available, // Dostępny
-    Reserved,  // Zarezerwowany
-    Sold,      // Sprzedany
+    Available,
+    Reserved,
+    Sold,
 }
 
-// --- NOWY ENUM DLA KATEGORII ---
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display)]
+#[sqlx(type_name = "product_gender")]
+pub enum ProductGender {
+    Damskie,
+    Męskie,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display)]
 #[sqlx(type_name = "category_type")]
 #[strum(ascii_case_insensitive)]
@@ -56,6 +62,7 @@ pub struct Product {
     pub name: String,
     pub description: String,
     pub price: i64,
+    pub gender: ProductGender,
     pub condition: ProductCondition,
     pub category: Category,
     pub status: ProductStatus,

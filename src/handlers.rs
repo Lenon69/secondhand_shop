@@ -24,7 +24,7 @@ use crate::{
 };
 use crate::{
     auth_models::{LoginPayload, RegistrationPayload, TokenClaims},
-    models::{CreateOrderFromCartPayload, Order, OrderStatus, ProductStatus},
+    models::{CreateOrderFromCartPayload, Order, OrderStatus, ProductGender, ProductStatus},
 };
 use futures::future::try_join_all;
 use std::collections::HashMap;
@@ -38,7 +38,7 @@ pub async fn get_product_details(
 ) -> Result<Json<Product>, AppError> {
     let product_result = sqlx::query_as::<_, Product>(
         // To jest OK, jeśli Product ma FromRow
-        r#"SELECT id, name, description, price, condition, category, status, images
+        r#"SELECT id, name, description, price, gender, condition, category, status, images
            FROM products
            WHERE id = $1"#,
     )
@@ -90,6 +90,11 @@ pub async fn list_products(
         }
     };
 
+    if let Some(gender) = params.gender() {
+        append_where_or_and_count(&mut count_builder);
+        count_builder.push("gender = ").push_bind(gender);
+    }
+
     if let Some(category) = params.category() {
         append_where_or_and_count(&mut count_builder);
         count_builder.push("category = ").push_bind(category);
@@ -133,7 +138,7 @@ pub async fn list_products(
     // --- Budowanie zapytania o DANE ---
     let mut data_builder: QueryBuilder<Postgres> = QueryBuilder::new(
         r#"
-            SELECT id, name, description, price, condition, category, status, images
+            SELECT id, name, description, price, gender, condition, category, status, images
             FROM products
         "#,
     );
@@ -147,6 +152,11 @@ pub async fn list_products(
             builder.push(" AND ");
         }
     };
+
+    if let Some(gender) = params.gender() {
+        append_where_or_and_data(&mut data_builder);
+        data_builder.push("gender = ").push_bind(gender);
+    }
 
     if let Some(category) = params.category() {
         append_where_or_and_data(&mut data_builder);
@@ -293,6 +303,10 @@ pub async fn create_product_handler(
         .get("price")
         .ok_or_else(|| AppError::UnprocessableEntity("Brak pola 'price'.".to_string()))?
         .clone();
+    let gender_str = text_fields
+        .get("gender")
+        .ok_or_else(|| AppError::UnprocessableEntity("Brak pola 'gender'.".to_string()))?
+        .clone();
     let condition_str = text_fields
         .get("condition")
         .ok_or_else(|| AppError::UnprocessableEntity("Brak pola 'condition'.".to_string()))?
@@ -313,6 +327,14 @@ pub async fn create_product_handler(
     let price: i64 = price_str.parse().map_err(|_| {
         AppError::UnprocessableEntity("Pole 'price' musi być liczbą całkowitą".to_string())
     })?;
+
+    let gender = ProductGender::from_str(&gender_str).map_err(|_| {
+        AppError::UnprocessableEntity(format!(
+            "Nieprawidłowa wartość pola 'gender': {}",
+            gender_str
+        ))
+    })?;
+
     let condition = ProductCondition::from_str(&condition_str).map_err(|_| {
         AppError::UnprocessableEntity(format!(
             "Nieprawidłowa wartość pola 'condition': {}",
@@ -363,15 +385,16 @@ pub async fn create_product_handler(
 
     let new_product_db = sqlx::query_as::<_, Product>(
         r#"
-            INSERT INTO products (id, name, description, price, condition, category, status, images)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING id, name, description, price, condition , category, status , images
+            INSERT INTO products (id, name, description, price, gender, condition, category, status, images)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING id, name, description, price, gender, condition , category, status , images
         "#,
     )
     .bind(new_product_id)
     .bind(&name)
     .bind(&description)
     .bind(price)
+    .bind(gender)
     .bind(condition)
     .bind(category)
     .bind(product_status)
@@ -489,6 +512,13 @@ pub async fn update_product_partial_handler(
             .parse()
             .map_err(|_| AppError::UnprocessableEntity("Nieprawidłowy format ceny".to_string()))?;
     }
+
+    if let Some(gender) = text_fields.get("gender") {
+        existing_product.gender = ProductGender::from_str(&gender).map_err(|_| {
+            AppError::UnprocessableEntity("Nieprawidłowa sub-kategoria produktu".to_string())
+        })?;
+    }
+
     if let Some(condition) = text_fields.get("condition") {
         existing_product.condition = ProductCondition::from_str(&condition).map_err(|_| {
             AppError::UnprocessableEntity("Nieprawidłowy stan produktu".to_string())
@@ -578,12 +608,13 @@ pub async fn update_product_partial_handler(
 
     let updated_product = sqlx::query_as::<_, Product>(r#"
             UPDATE products
-            SET name = $1, description = $2, price = $3, condition = $4, category = $5, status = $6, images = $7
-            WHERE id = $8
+            SET name = $1, description = $2, price = $3, gender = $4, condition = $5, category = $6, status = $7, images = $8
+            WHERE id = $9
             RETURNING *
         "#).bind(&existing_product.name)
         .bind(&existing_product.description)
         .bind(&existing_product.price)
+        .bind(&existing_product.gender)
         .bind(&existing_product.condition)
         .bind(&existing_product.category)
         .bind(&existing_product.status)
@@ -613,7 +644,7 @@ pub async fn delete_product_handler(
     // Pobierz produkt, aby uzyskać listę obrazów
     let product_to_delete = sqlx::query_as::<_, Product>(
         r#"
-            SELECT id, name, description, price, condition, category, status, images
+            SELECT id, name, description, price, gender, condition, category, status, images
             FROM products
             WHERE id = $1
         "#,
@@ -946,7 +977,7 @@ pub async fn create_order_handler(
             r#"
                 INSERT INTO order_items (order_id, product_id, price_at_purchase)
                 VALUES ($1, $2, $3)
-                RETURNING id, order_id, product_id, price_at_purchase -- Nie mamy added_at w OrderItem
+                RETURNING id, order_id, product_id, price_at_purchase 
             "#, // W strukturze OrderItem nie ma added_at, jeśli tak zdefiniowałeś
         )
         .bind(order.id)
@@ -1134,7 +1165,7 @@ pub async fn get_order_details_handler(
         // item_db jest typu OrderItem
         let product = sqlx::query_as::<_, Product>(
             r#"
-                SELECT id, name, description, price, condition, category, status, images
+                SELECT id, name, description, price, gender, condition, category, status, images
                 FROM products
                 WHERE id = $1
             "#,
@@ -1343,7 +1374,7 @@ pub async fn add_item_to_cart_handler(
     for item_db in items_db {
         let product = sqlx::query_as::<_, Product>(
             r#"
-                SELECT id, name, description, price, condition, category, status, images
+                SELECT id, name, description, price, gender, condition, category, status, images
                 FROM products
                 WHERE id = $1
             "#, // FOR UPDATE nie jest tu konieczne, bo produkt był blokowany wcześniej

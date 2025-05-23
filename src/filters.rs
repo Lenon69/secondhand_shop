@@ -1,5 +1,5 @@
 // src/filters.rs
-use crate::models::{Category, ProductCondition, ProductStatus};
+use crate::models::{Category, ProductCondition, ProductGender, ProductStatus};
 use serde::Deserialize;
 
 const DEFAULT_PAGE_LIMIT: i64 = 10;
@@ -17,6 +17,8 @@ pub struct ListingParams {
     offset: Option<i64>,
 
     // Filtry
+    #[serde(default)]
+    gender: Option<ProductGender>,
     #[serde(default)]
     category: Option<Category>,
     #[serde(default)]
@@ -46,6 +48,10 @@ impl ListingParams {
 
     pub fn offset(&self) -> i64 {
         self.offset.unwrap_or(0).max(0)
+    }
+
+    pub fn gender(&self) -> Option<ProductGender> {
+        self.gender.clone()
     }
 
     pub fn category(&self) -> Option<Category> {
