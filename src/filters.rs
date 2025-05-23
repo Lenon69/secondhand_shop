@@ -12,29 +12,29 @@ const DEFAULT_SORT_ORDER: &str = "asc";
 pub struct ListingParams {
     // Paginacja
     #[serde(default)]
-    limit: Option<i64>,
+    pub limit: Option<i64>,
     #[serde(default)]
-    offset: Option<i64>,
+    pub offset: Option<i64>,
 
     // Filtry
     #[serde(default)]
-    gender: Option<ProductGender>,
+    pub gender: Option<ProductGender>,
     #[serde(default)]
-    category: Option<Category>,
+    pub category: Option<Category>,
     #[serde(default)]
-    condition: Option<ProductCondition>,
+    pub condition: Option<ProductCondition>,
     #[serde(default)]
-    status: Option<ProductStatus>,
+    pub status: Option<ProductStatus>,
     #[serde(default)]
-    price_min: Option<i64>,
+    pub price_min: Option<i64>,
     #[serde(default)]
-    price_max: Option<i64>,
+    pub price_max: Option<i64>,
 
     //Sortowanie
     #[serde(default)]
-    sort_by: Option<String>,
+    pub sort_by: Option<String>,
     #[serde(default)]
-    order: Option<String>,
+    pub order: Option<String>,
 }
 
 impl ListingParams {

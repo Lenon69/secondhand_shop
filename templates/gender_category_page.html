@@ -1,0 +1,53 @@
+{# templates/gender_category_page.html #}
+<div class="flex flex-col md:flex-row gap-6">
+  <aside
+    id="category-sidebar"
+    class="w-full md:w-1/4 lg:w-1/5 p-4 border border-gray-200 rounded-lg shadow-sm bg-gray-50 md:sticky md:top-20 md:self-start"
+    style="max-height: calc(100vh - 100px); overflow-y: auto"
+  >
+    <h2 class="text-xl font-semibold mb-4 text-gray-800">
+      Kategorie {{ current_gender }}
+    </h2>
+    <nav>
+      <ul class="space-y-2">
+        <li>
+          <a
+            href="#"
+            hx-get="/htmx/products?gender={{ current_gender }}"
+            hx-target="#product-listing-area"
+            hx-swap="innerHTML"
+            hx-push-url="/{{ current_gender.to_string()|lower }}"
+            class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-100 hover:text-pink-700 transition-colors"
+            _="on htmx:afterSwap
+                            remove .font-bold .text-pink-700 from #category-sidebar a
+                            add .font-bold .text-pink-700 to me"
+            >Wszystkie</a
+          >
+        </li>
+        {% for category_item in categories %}
+        <li>
+          <a
+            href="#"
+            hx-get="/htmx/products?gender={{ current_gender }}&amp;category={{ category_item }}"
+            hx-target="#product-listing-area"
+            hx-swap="innerHTML"
+            hx-push-url="/{{ current_gender.to_string()|lower }}/{{ category_item.to_string() | lower }}"
+            class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-100 hover:text-pink-700 transition-colors"
+            _="on htmx:afterSwap 
+                            remove .font-bold .text-pink-700 from #category-sidebar a
+                            add .font-bold .text-pink-700 to me"
+            >{{ category_item }}</a
+          >
+        </li>
+        {% endfor %}
+      </ul>
+    </nav>
+  </aside>
+
+  <section
+    id="product-listing-area"
+    class="w-full md:w-3/4 lg:w-4/5 p-0 md:p-4"
+  >
+    {{ products_payload | safe }}
+  </section>
+</div>

@@ -7,8 +7,8 @@ use crate::errors::AppError;
 use crate::filters::ListingParams;
 use crate::handlers::XGuestCartId;
 use crate::models;
-use crate::models::CartDetailsResponse;
 use crate::models::Product;
+use crate::models::{CartDetailsResponse, Category, ProductGender};
 use askama::Template;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
@@ -16,6 +16,10 @@ use axum::http::header::HeaderValue;
 use axum::response::AppendHeaders;
 use axum::response::{Html, IntoResponse, Response};
 use axum_extra::TypedHeader;
+use serde::Deserialize;
+use serde_json::to_string;
+use std::str::FromStr;
+use strum::IntoEnumIterator;
 use uuid::Uuid;
 
 #[derive(Template, Debug, Clone)]
@@ -26,6 +30,7 @@ pub struct ProductGridTemplate {
     pub total_pages: i64,
     pub per_page: i64,
     pub filter_query_string: String,
+    pub current_listing_params_qs: String,
 }
 
 impl IntoResponse for ProductGridTemplate {
@@ -52,48 +57,22 @@ pub async fn list_products_htmx_handler(
     State(app_state): State<AppState>,
     Query(params): Query<ListingParams>,
 ) -> Result<ProductGridTemplate, AppError> {
-    tracing::info!(
-        "Obsłużono zapytanie HTMX GET /htmx/products z parametrami: {:?}",
-        params
-    );
+    tracing::info!("HTMX: /htmx/products z parametrami: {:?}", params);
 
-    let paginated_response =
-        crate::handlers::list_products(State(app_state.clone()), Query(params.clone()))
-            .await?
-            .0;
+    let paginated_response_json =
+        crate::handlers::list_products(State(app_state.clone()), Query(params.clone())).await?;
+    let paginated_response = paginated_response_json.0;
 
-    // --- Budowanie filter_query_string ---
-    let mut query_parts = Vec::new();
-    if let Some(category) = params.category() {
-        query_parts.push(format!("category={}", category.to_string())); // Upewnij się, że Category implementuje Display
-    }
-    if let Some(condition) = params.condition() {
-        query_parts.push(format!("condition={}", condition.to_string())); // Upewnij się, że ProductCondition implementuje Display
-    }
-    if let Some(price_min) = params.price_min() {
-        query_parts.push(format!("price_min={}", price_min));
-    }
-    if let Some(price_max) = params.price_max() {
-        query_parts.push(format!("price_max={}", price_max));
-    }
-    // Dodaj sortowanie, jeśli jest używane w filtrach
-    // query_parts.push(format!("sort_by={}", params.sort_by()));
-    // query_parts.push(format!("order={}", params.order()));
-
-    let filter_query_string = if query_parts.is_empty() {
-        String::new()
-    } else {
-        // Zaczynamy od &amp; ponieważ będzie to doklejane do ?page=...&amp;limit=...
-        format!("&amp;{}", query_parts.join("&amp;"))
-    };
-    // ------------------------------------
+    let filter_query_string = build_filter_only_query_string(&params);
+    let current_listing_params_qs = build_full_query_string_from_params(&params);
 
     Ok(ProductGridTemplate {
         products: paginated_response.data,
         current_page: paginated_response.current_page,
         total_pages: paginated_response.total_pages,
         per_page: paginated_response.per_page,
-        filter_query_string, // Przekazujemy gotowy string
+        filter_query_string,
+        current_listing_params_qs,
     })
 }
 
@@ -459,11 +438,19 @@ pub async fn remove_item_from_cart_htmx_handler(
     })
 }
 
+#[derive(Debug, Deserialize)]
+pub struct DetailViewParams {
+    #[serde(default)]
+    return_params: Option<String>,
+}
 #[derive(Template)]
 #[template(path = "product_detail_view.html")]
 pub struct ProductDetailTemplate {
-    pub product: Product,
-    pub formatted_price: String,
+    pub product: Product,                        // Cały obiekt produktu
+    pub formatted_price: String,                 // Sformatowana cena
+    pub product_images_json: String,             // JSON string z listą URL-i obrazków dla galerii
+    pub return_query_params_str: Option<String>, // Opcjonalny query string dla linku "Wróć"
+    pub product_name_for_js: String,
 }
 
 impl IntoResponse for ProductDetailTemplate {
@@ -486,11 +473,12 @@ impl IntoResponse for ProductDetailTemplate {
 pub async fn get_product_detail_htmx_handler(
     State(app_state): State<AppState>,
     Path(product_id): Path<Uuid>,
+    Query(query_params): Query<DetailViewParams>,
 ) -> Result<ProductDetailTemplate, AppError> {
     tracing::info!("HTMX: Pobieranie szczegółów produktu ID: {}", product_id);
 
     let product_result = sqlx::query_as::<_, Product>(
-        r#"SELECT id, name, description, price, condition, category, status, images
+        r#"SELECT id, name, description, price, gender, condition, category, status, images
            FROM products
            WHERE id = $1"#,
     )
@@ -499,15 +487,30 @@ pub async fn get_product_detail_htmx_handler(
     .await;
 
     match product_result {
-        Ok(product) => {
-            // Formatowanie ceny (np. 12345 groszy na "123,45 zł")
-            let price_in_zl = (product.price as f64) / 100.0;
-            // Użyj formatowania z dwoma miejscami po przecinku, zamieniając kropkę na przecinek
-            let formatted_price_string = format!("{:.2}", price_in_zl).replace('.', ",") + " zł";
+        // Zakładam, że product_result to Twój wynik zapytania
+        Ok(product_data) => {
+            let formatted_price_string =
+                format!("{:.2}", (product_data.price as f64) / 100.0).replace('.', ",") + " zł";
+
+            let images_json_string =
+                serde_json::to_string(&product_data.images).unwrap_or_else(|e| {
+                    tracing::error!("Failed to serialize product.images for JS: {}", e);
+                    "[]".to_string()
+                });
+
+            // NOWE: Przygotowanie nazwy produktu jako bezpiecznego stringu JSON/JavaScript
+            let product_name_js_safe =
+                serde_json::to_string(&product_data.name).unwrap_or_else(|e| {
+                    tracing::error!("Failed to serialize product.name for JS: {}", e);
+                    "\"Błąd nazwy produktu\"".to_string() // Fallback na poprawny string JSON
+                });
 
             Ok(ProductDetailTemplate {
-                product,
-                formatted_price: formatted_price_string, // Przekaż sformatowaną cenę
+                product: product_data,
+                formatted_price: formatted_price_string,
+                product_images_json: images_json_string,
+                return_query_params_str: query_params.return_params,
+                product_name_for_js: product_name_js_safe, // PRZEKAŻ NOWE POLE
             })
         }
         Err(sqlx::Error::RowNotFound) => {
@@ -522,5 +525,151 @@ pub async fn get_product_detail_htmx_handler(
             );
             Err(AppError::from(e))
         }
+    }
+}
+
+#[derive(Template)]
+#[template(path = "gender_category_page.html")]
+pub struct GenderPageTemplate {
+    pub current_gender: ProductGender,
+    pub categories: Vec<Category>,
+    pub products_payload: ProductGridTemplate,
+}
+
+impl IntoResponse for GenderPageTemplate {
+    fn into_response(self) -> Response {
+        match self.render() {
+            Ok(html) => Html(html).into_response(),
+            Err(e) => {
+                tracing::error!(
+                    "Askama (gender_category_page) template rendering error: {}",
+                    e
+                );
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Error rendering gender page: {}", e),
+                )
+                    .into_response()
+            }
+        }
+    }
+}
+
+#[axum::debug_handler]
+pub async fn gender_page_htmx_handler(
+    State(app_state): State<AppState>,
+    Path(gender_str): Path<String>,
+) -> Result<GenderPageTemplate, AppError> {
+    // ... (parsowanie gender, pobieranie all_categories) ...
+    let gender = ProductGender::from_str(&gender_str)
+        .map_err(|_| AppError::BadRequest("Nieprawidłowa płeć".to_string()))?;
+    let all_categories: Vec<Category> = Category::iter().collect();
+
+    let initial_listing_params = ListingParams::new_with_gender_and_defaults(Some(gender.clone())); // Użyj Twojego konstruktora
+
+    let paginated_response_json = crate::handlers::list_products(
+        State(app_state.clone()),
+        Query(initial_listing_params.clone()),
+    )
+    .await?;
+    let paginated_response = paginated_response_json.0;
+
+    let filter_query_string_for_initial_grid =
+        build_filter_only_query_string(&initial_listing_params);
+    let initial_current_listing_params_qs =
+        build_full_query_string_from_params(&initial_listing_params);
+
+    let initial_products_payload = ProductGridTemplate {
+        products: paginated_response.data,
+        current_page: paginated_response.current_page,
+        total_pages: paginated_response.total_pages,
+        per_page: paginated_response.per_page,
+        filter_query_string: filter_query_string_for_initial_grid,
+        current_listing_params_qs: initial_current_listing_params_qs,
+    };
+
+    Ok(GenderPageTemplate {
+        current_gender: gender,
+        categories: all_categories,
+        products_payload: initial_products_payload,
+    })
+}
+
+impl ListingParams {
+    pub fn new_with_gender_and_defaults(gender: Option<ProductGender>) -> Self {
+        Self {
+            gender,
+            limit: None,
+            offset: None,
+            category: None,
+            condition: None,
+            status: None,
+            price_min: None,
+            price_max: None,
+            sort_by: None,
+            order: None,
+        }
+    }
+}
+
+fn build_full_query_string_from_params(params: &ListingParams) -> String {
+    let mut query_parts = Vec::new();
+    // Paginacja
+    query_parts.push(format!("limit={}", params.limit()));
+    query_parts.push(format!("offset={}", params.offset()));
+    // Filtry
+    if let Some(g) = params.gender() {
+        query_parts.push(format!("gender={}", g.to_string()));
+    }
+    if let Some(c) = params.category() {
+        query_parts.push(format!("category={}", c.to_string()));
+    }
+    if let Some(cond) = params.condition() {
+        query_parts.push(format!("condition={}", cond.to_string()));
+    }
+    if let Some(stat) = params.status() {
+        query_parts.push(format!("status={}", stat.to_string()));
+    }
+    if let Some(p_min) = params.price_min() {
+        query_parts.push(format!("price_min={}", p_min));
+    }
+    if let Some(p_max) = params.price_max() {
+        query_parts.push(format!("price_max={}", p_max));
+    }
+    // Sortowanie
+    query_parts.push(format!("sort_by={}", params.sort_by()));
+    query_parts.push(format!("order={}", params.order()));
+
+    query_parts.join("&")
+}
+
+// Funkcja pomocnicza do budowania query string dla filtrów (do paginacji)
+fn build_filter_only_query_string(params: &ListingParams) -> String {
+    let mut filter_parts = Vec::new();
+    if let Some(g) = params.gender() {
+        filter_parts.push(format!("gender={}", g.to_string()));
+    }
+    if let Some(c) = params.category() {
+        filter_parts.push(format!("category={}", c.to_string()));
+    }
+    if let Some(cond) = params.condition() {
+        filter_parts.push(format!("condition={}", cond.to_string()));
+    }
+    if let Some(stat) = params.status() {
+        filter_parts.push(format!("status={}", stat.to_string()));
+    } // Dodaj status
+    if let Some(p_min) = params.price_min() {
+        filter_parts.push(format!("price_min={}", p_min));
+    }
+    if let Some(p_max) = params.price_max() {
+        filter_parts.push(format!("price_max={}", p_max));
+    }
+    filter_parts.push(format!("sort_by={}", params.sort_by()));
+    filter_parts.push(format!("order={}", params.order()));
+
+    if filter_parts.is_empty() {
+        String::new()
+    } else {
+        format!("&amp;{}", filter_parts.join("&amp;")) // Zaczyna się od &amp;
     }
 }

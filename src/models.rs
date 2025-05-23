@@ -2,7 +2,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::Type;
-use strum_macros::{Display, EnumString};
+use strum_macros::{Display, EnumIter, EnumString};
 use uuid::Uuid;
 use validator::Validate;
 
@@ -24,36 +24,40 @@ pub enum ProductCondition {
 #[sqlx(type_name = "product_status")]
 #[strum(ascii_case_insensitive)]
 pub enum ProductStatus {
+    #[strum(serialize = "Dostępny")]
     Available,
+    #[strum(serialize = "Zarezerwowany")]
     Reserved,
+    #[strum(serialize = "Sprzedany")]
     Sold,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display, EnumIter)]
 #[sqlx(type_name = "product_gender")]
 pub enum ProductGender {
     Damskie,
-    Męskie,
+    Meskie,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display, EnumIter)]
 #[sqlx(type_name = "category_type")]
 #[strum(ascii_case_insensitive)]
 pub enum Category {
-    Koszule,          // Shirts
-    Spodnie,          // Trousers / Pants
-    Sukienki,         // Dresses
-    Spodnice,         // Skirts
-    Swetry,           // Sweaters / Jumpers
-    Bluzy,            // Hoodies / Sweatshirts
-    KurtkiPlaszcze,   // Jackets / Coats
-    MarynarkiZakiety, // Blazers / Suits
-    Obuwie,           // Shoes
-    Torebki,          // Bags
-    Akcesoria,        // Accessories (paski, czapki, szaliki)
-    Bielizna,         // Underwear (jeśli dotyczy)
-    StrojeKapielowe,  // Swimwear (jeśli dotyczy)
-    Inne,             // Other
+    Koszule,
+    Spodnie,
+    Sukienki,
+    Spodnice,
+    Swetry,
+    Bluzy,
+    KurtkiPlaszcze,
+    MarynarkiZakiety,
+    Obuwie,
+    Torebki,
+    Akcesoria,
+    Bielizna,
+    #[strum(serialize = "Stroje kąpielowe")]
+    StrojeKapielowe,
+    Inne,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

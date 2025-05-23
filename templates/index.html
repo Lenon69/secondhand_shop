@@ -225,14 +225,18 @@
             class="flex justify-center space-x-4 sm:space-x-6 py-3 text-sm font-medium"
           >
             <a
-              href="#"
+              href="/dla-niej"
+              hx-get="/htmx/strona-plec/Damskie"
+              hx-target="#content"
+              hx-push-url="/dla-niej"
+              hx-swap="innerHTML"
               class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
-              >Damska</a
+              >Dla niej</a
             >
             <a
               href="#"
               class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
-              >Męska</a
+              >Dla niego</a
             >
             <a
               href="#"
@@ -286,18 +290,21 @@
             </div>
           </div>
           <a
-            href="#"
+            href="/dla-niej"
+            hx-get="/htmx/strona-plec/Damskie"
+            hx-target="#content"
+            hx-push-url="/dla-niej"
             @click="isMobileMenuOpen = false; currentMobilePage='damska'"
             :class="{'mobile-nav-active': currentMobilePage === 'damska'}"
             class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-black"
-            >Damska</a
+            >Dla niej</a
           >
           <a
             href="#"
             @click="isMobileMenuOpen = false; currentMobilePage='meska'"
             :class="{'mobile-nav-active': currentMobilePage === 'meska'}"
             class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-black"
-            >Męska</a
+            >Dla niego</a
           >
           <a
             href="#"

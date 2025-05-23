@@ -146,6 +146,7 @@ async fn main() {
             "/htmx/product/{product_id}",
             get(get_product_detail_htmx_handler),
         )
+        .route("/htmx/strona-plec/{gender}", get(gender_page_htmx_handler))
         .nest_service("/static", ServeDir::new("/static"))
         .layer(TraceLayer::new_for_http())
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024))

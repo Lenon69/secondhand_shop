@@ -34,8 +34,8 @@
         Dodaj do koszyka
       </button>
       <a
-        href="/products/{{ product.id }}"
-        hx-get="/htmx/product/{{ product.id }}"
+        href="/products/{{ product.id }}?{{ current_listing_params_qs| safe }}"
+        hx-get="/htmx/product/{{ product.id }}?return_params={{ current_listing_params_qs | urlencode }}"
         hx-target="#content"
         hx-swap="innerHTML"
         hx-push-url="/products/{{ product.id }}"
@@ -51,8 +51,7 @@
     {% endfor %}
   </div>
 
-  {# Paginacja - teraz używa filter_query_string #} {% if total_pages > 0 %} {#
-  Pokaż paginację tylko jeśli są jakieś strony #}
+  {% if total_pages > 0 %}
   <div
     class="mt-8 flex justify-center items-center space-x-2"
     id="pagination-controls"
