@@ -10,11 +10,14 @@ use validator::Validate;
 #[sqlx(type_name = "product_condition")]
 #[strum(ascii_case_insensitive)]
 pub enum ProductCondition {
-    New,      // Nowy (np. z metkami, nieużywany)
-    LikeNew,  // Jak nowy (użyty minimalnie, bez śladów)
-    VeryGood, // Bardzo dobry (niewielkie ślady użytkowania)
-    Good,     // Dobry (widoczne ślady użytkowania, ale w pełni funkcjonalny)
-    Fair,     // Dostateczny (spore ślady użytkowania, możliwe drobne wady)
+    #[strum(serialize = "Nowy")]
+    New,
+    #[strum(serialize = "Jak nowy")]
+    LikeNew,
+    #[strum(serialize = "Bardzo dobry")]
+    VeryGood,
+    #[strum(serialize = "Dobry")]
+    Good,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display)]
