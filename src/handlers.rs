@@ -32,11 +32,6 @@ use std::str::FromStr;
 use uuid::Uuid;
 use validator::Validate;
 
-pub async fn root_handler() -> &'static str {
-    tracing::info!("Obsłużono zapytanie do /");
-    "Witaj na stronie MegJoni"
-}
-
 pub async fn get_product_details(
     State(app_state): State<AppState>,
     Path(product_id): Path<Uuid>,
@@ -615,6 +610,68 @@ pub async fn delete_product_handler(
         ));
     }
 
+    // Pobierz produkt, aby uzyskać listę obrazów
+    let product_to_delete = sqlx::query_as::<_, Product>(
+        r#"
+            SELECT id, name, description, price, condition, category, status, images
+            FROM products
+            WHERE id = $1
+        "#,
+    )
+    .bind(product_id)
+    .fetch_optional(&app_state.db_pool)
+    .await
+    .map_err(|e| AppError::SqlxError(e))?
+    .ok_or(AppError::NotFound)?;
+
+    // 2. Spróbuj usunąć obrazy z Cloudinary
+    if !product_to_delete.images.is_empty() {
+        let mut delete_futures = Vec::new();
+        for image_url in product_to_delete.images {
+            if let Some(public_id) =
+                extract_public_id_from_url(&image_url, &app_state.cloudinary_config.cloud_name)
+            {
+                let config_clone = app_state.cloudinary_config.clone();
+                let public_id_clone = public_id.to_string(); // Klonujemy public_id do logowania
+                delete_futures.push(async move {
+                    tracing::info!(
+                        "Próba usunięcia obrazka z Cloudinary, public_id: '{}' (z URL: '{}')",
+                        public_id_clone,
+                        image_url
+                    );
+                    delete_image_from_cloudinary(&public_id, &config_clone).await
+                    // Tutaj możesz chcieć inaczej obsłużyć błędy, np. logować i kontynuować
+                });
+            } else {
+                tracing::warn!(
+                    "Nie można wyodrębnić public_id z URL do usunięcia: {}",
+                    image_url
+                );
+            }
+        }
+
+        if !delete_futures.is_empty() {
+            // try_join_all zwróci błąd, jeśli którakolwiek z operacji się nie powiedzie.
+            // Możesz chcieć użyć join_all i ręcznie sprawdzić wyniki, jeśli chcesz kontynuować mimo błędów.
+            match try_join_all(delete_futures).await {
+                Ok(_) => tracing::info!(
+                    "Pomyślnie usunięto obrazy z Cloudinary dla produktu {}",
+                    product_id
+                ),
+                Err(e) => {
+                    // Zdecyduj, czy ten błąd powinien zatrzymać usunięcie produktu z DB.
+                    // Na razie logujemy i kontynuujemy. Możesz zwrócić AppError::InternalServerError.
+                    tracing::error!(
+                        "Błąd podczas usuwania niektórych obrazków z Cloudinary dla produktu {}: {:?}. Produkt zostanie usunięty z bazy danych.",
+                        product_id,
+                        e
+                    );
+                }
+            }
+        }
+    }
+
+    // 3. Usuń produkt z bazy danych
     let result = sqlx::query(
         r#"
             DELETE FROM products
@@ -627,15 +684,16 @@ pub async fn delete_product_handler(
 
     match result {
         Ok(query_result) => {
-            // Sprawdzanie ile wierszy zostało usuniętych
             if query_result.rows_affected() == 0 {
+                // To nie powinno się zdarzyć, jeśli produkt był pobrany powyżej,
+                // ale dla pewności zostawiamy.
                 tracing::warn!(
-                    "DELETE: Nie znaleziono produktu do usunięcia o ID {}",
+                    "DELETE: Nie znaleziono produktu do usunięcia o ID {} (mimo wcześniejszego pobrania)",
                     product_id
                 );
                 Err(AppError::NotFound)
             } else {
-                tracing::info!("Usunięto produkt o ID: {}", product_id);
+                tracing::info!("Usunięto produkt o ID: {} z bazy danych", product_id);
                 Ok(StatusCode::NO_CONTENT)
             }
         }
@@ -645,12 +703,10 @@ pub async fn delete_product_handler(
                 product_id,
                 err
             );
-
             Err(AppError::SqlxError(err))
         }
     }
 }
-
 pub async fn register_handler(
     State(app_state): State<AppState>,
     Json(payload): Json<RegistrationPayload>,
@@ -1335,7 +1391,7 @@ pub async fn add_item_to_cart_handler(
 
     let response_cart = CartDetailsResponse {
         cart_id: cart.id,
-        user_id,
+        user_id: Some(user_id),
         total_items: cart_items_public.len(), // Poprawne użycie długości wektora
         items: cart_items_public,
         total_price: current_total_price,
@@ -1473,7 +1529,7 @@ pub async fn remove_item_from_cart_handler(
 }
 
 #[derive(Debug, Clone)]
-pub struct XGuestCartId(Uuid);
+pub struct XGuestCartId(pub Uuid);
 
 impl axum_extra::headers::Header for XGuestCartId {
     fn name() -> &'static axum::http::HeaderName {
@@ -1736,7 +1792,7 @@ pub async fn merge_cart_handler(
                 r#"
                     INSERT INTO shopping_carts (user_id)
                     VALUES ($1)
-                    RETURNING id, user_id, guest_session_id, created_at, updated_at,
+                    RETURNING id, user_id, guest_session_id, created_at, updated_at
                 "#,
             )
             .bind(user_id)

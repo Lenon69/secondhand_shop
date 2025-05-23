@@ -2,11 +2,11 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::Type;
-use strum_macros::EnumString;
+use strum_macros::{Display, EnumString};
 use uuid::Uuid;
 use validator::Validate;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display)]
 #[sqlx(type_name = "product_condition")]
 #[strum(ascii_case_insensitive)]
 pub enum ProductCondition {
@@ -17,7 +17,7 @@ pub enum ProductCondition {
     Fair,     // Dostateczny (spore ślady użytkowania, możliwe drobne wady)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display)]
 #[sqlx(type_name = "product_status")]
 #[strum(ascii_case_insensitive)]
 pub enum ProductStatus {
@@ -27,7 +27,7 @@ pub enum ProductStatus {
 }
 
 // --- NOWY ENUM DLA KATEGORII ---
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display)]
 #[sqlx(type_name = "category_type")]
 #[strum(ascii_case_insensitive)]
 pub enum Category {
@@ -209,10 +209,10 @@ pub struct MergeCartPayload {
     pub guest_cart_id: Uuid,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct AddProductToGuestCartPayload {
-    pub product_id: Uuid,
-}
+// #[derive(Debug, Deserialize)]
+// pub struct AddProductToGuestCartPayload {
+//     pub product_id: Uuid,
+// }
 
 #[derive(Debug, Serialize)]
 pub struct GuestCartOperationResponse {
@@ -248,7 +248,7 @@ pub struct CartItemPublic {
 #[derive(Debug, Serialize, Default)]
 pub struct CartDetailsResponse {
     pub cart_id: Uuid,
-    pub user_id: Uuid,
+    pub user_id: Option<Uuid>,
     pub items: Vec<CartItemPublic>,
     pub total_items: usize,
     pub total_price: i64,

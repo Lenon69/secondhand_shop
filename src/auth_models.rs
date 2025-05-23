@@ -1,5 +1,4 @@
 // src/auth_models.rs
-
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;

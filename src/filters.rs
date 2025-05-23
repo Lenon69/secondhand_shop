@@ -7,7 +7,7 @@ const MAX_PAGE_LIMIT: i64 = 50;
 const DEFAULT_SORT_BY: &str = "name";
 const DEFAULT_SORT_ORDER: &str = "asc";
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub struct ListingParams {
     // Paginacja

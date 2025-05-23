@@ -70,7 +70,7 @@ pub async fn build_cart_details_response(
 
     Ok(CartDetailsResponse {
         cart_id: cart.id,
-        user_id: cart.user_id.expect("Problem with CartDetailsResponse"),
+        user_id: cart.user_id,
         total_items: cart_items_public.len(),
         items: cart_items_public,
         total_price: current_total_price,

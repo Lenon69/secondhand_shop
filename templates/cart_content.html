@@ -1,0 +1,66 @@
+{# templates/cart_content.html #} {% if cart_item_count == 0 %}
+<p class="text-gray-600 py-6 text-center">Twój koszyk jest pusty.</p>
+{% else %}
+<p class="text-sm text-gray-500">
+  Masz {{ cart_item_count }} przedmiot(y) w koszyku.
+</p>
+<ul role="list" class="my-6 divide-y divide-gray-200 border-t border-b">
+  {% for item in items %}
+  <li class="flex py-4">
+    <div
+      class="h-20 w-20 flex-shrink-0 overflow-hidden rounded-md border border-gray-200"
+    >
+      {% if item.product.images.len() > 0 %}
+      <img
+        src="{{ item.product.images[0] }}"
+        alt="{{ item.product.name }}"
+        class="h-full w-full object-cover object-center"
+      />
+      {% else %}
+      <div
+        class="h-full w-full bg-gray-100 flex items-center justify-center text-xs text-gray-400"
+      >
+        Brak foto
+      </div>
+      {% endif %}
+    </div>
+    <div class="ml-4 flex flex-1 flex-col">
+      <div>
+        <div class="flex justify-between text-sm font-medium text-gray-800">
+          <h3>
+            <a href="/products/{{ item.product.id }}"
+              >{{ item.product.name }}</a
+            >
+          </h3>
+          <p class="ml-4">{{ item.product.price / 100 }} zł</p>
+        </div>
+        <p class="mt-1 text-xs text-gray-500">
+          Kategoria: {{ item.product.category }}
+        </p>
+      </div>
+      <div class="flex flex-1 items-end justify-between text-xs">
+        <div class="flex">
+          <button
+            type="button"
+            hx-post="/htmx/cart/remove/{{ item.product.id }}"
+            hx-target="#cart-content-target"
+            hx-swap="innerHTML"
+            class="font-medium text-pink-600 hover:text-pink-500"
+          >
+            Usuń
+          </button>
+        </div>
+      </div>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+<script type="text/hyperscript">
+  init
+      get #cart-subtotal-price
+      set its innerHTML to "{{ total_price / 100 }}.00 zł"
+
+      trigger updateCartCount(newCount: {{ cart_item_count }}) on body
+  end
+</script>
+{% endif %}

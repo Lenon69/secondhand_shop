@@ -1,18 +1,21 @@
 // src/main.rs
 
+use axum::response::Html;
 use axum::{
     Router,
     extract::DefaultBodyLimit,
     routing::{delete, get, post},
 };
+use dotenvy::dotenv;
+use htmx_handlers::*;
+use reqwest::StatusCode;
 use sqlx::postgres::PgPoolOptions;
+use std::env;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
+use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-
-use dotenvy::dotenv;
-use std::env;
 
 // Deklaracje modułów
 mod auth; // dla src/auth.rs
@@ -22,10 +25,11 @@ mod cloudinary; // dla src/cloudinary.rs
 mod errors; // dla src/errors.rs
 mod filters; // dla src/filters.rs
 mod handlers; // dla src/handlers.rs
+mod htmx_handlers;
 mod middleware; // dla src/middleware.rs
 mod models; // dla src/models.rs
 mod pagination; // dla src/pagination.rs
-mod state; // dla src/state.rs 
+mod state; // dla src/state.rs
 
 // Importy z własnych modułów
 use crate::handlers::*;
@@ -87,7 +91,6 @@ async fn main() {
 
     // Definicja routingu aplikacji
     let app = Router::new()
-        .route("/", get(root_handler)) // Dodajemy prosty handler dla ścieżki "/"
         .route(
             "/api/products",
             get(list_products).post(create_product_handler),
@@ -122,9 +125,31 @@ async fn main() {
             delete(remove_item_from_guest_cart),
         )
         .route("/api/cart/merge", post(merge_cart_handler))
+        .route("/", get(serve_index))
+        // .route("/htmx/page/o-nas", method_router)
+        // .route("/htmx/page/damska", method_router)
+        // .route("/htmx/page/meska", method_router)
+        // .route("/htmx/page/nowosci", method_router)
+        // .route("/htmx/page/wyprzedaz", method_router)
+        // .route("/htmx/page/kontakt", method_router)
+        .route(
+            "/htmx/cart/add/{product_id}",
+            post(add_item_to_cart_htmx_handler),
+        )
+        .route("/htmx/cart/details", get(get_cart_details_htmx_handler))
+        .route("/htmx/products", get(list_products_htmx_handler))
+        .route(
+            "/htmx/cart/remove/{product_id}",
+            post(remove_item_from_cart_htmx_handler),
+        )
+        .route(
+            "/htmx/product/{product_id}",
+            get(get_product_detail_htmx_handler),
+        )
+        .nest_service("/static", ServeDir::new("/static"))
         .layer(TraceLayer::new_for_http())
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024))
-        .with_state(app_state); // Dodajemy middleware do logowania każdego zapytania HTTP
+        .with_state(app_state);
 
     // Adres i port, na którym serwer będzie nasłuchiwał
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000)); // Nasłuchuj na wszystkich interfejsach na porcie 3000
@@ -142,5 +167,12 @@ async fn main() {
     // Uruchomienie serwera Axum
     if let Err(e) = axum::serve(listener, app.into_make_service()).await {
         tracing::error!("Błąd serwera: {}", e);
+    }
+}
+
+async fn serve_index() -> Result<Html<String>, StatusCode> {
+    match tokio::fs::read_to_string("templates/index.html").await {
+        Ok(content) => Ok(Html(content)),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
