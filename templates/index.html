@@ -24,6 +24,22 @@
         currentMobilePage: '',
         guestCartId: localStorage.getItem('guestCartId') || null,
 
+
+
+        isFullscreenImageOpen: false,     
+        fullscreenImageUrl: '',           
+
+        // NOWE: Funkcje do obsługi pełnego ekranu
+        openFullscreenImage(imageUrl) {
+            this.fullscreenImageUrl = imageUrl;
+            this.isFullscreenImageOpen = true;
+            console.log('Opening fullscreen image:', imageUrl);
+        },
+        closeFullscreenImage() {
+            this.isFullscreenImageOpen = false;
+            console.log('Closing fullscreen image');
+        },
+
         updateCartCounterVisuals() {
             const bubble = document.getElementById('cart-count-bubble');
             const mobileBubble = document.getElementById('cart-count-bubble-mobile');
@@ -40,7 +56,7 @@
             console.log('Alpine: handleHtmxCartUpdate received. Detail:', eventDetail);
             if (eventDetail && typeof eventDetail.newCount !== 'undefined') {
                 this.cartItemCount = parseInt(eventDetail.newCount) || 0;
-                this.updateCartCounterVisuals(); // Aktualizuj wygląd
+                this.updateCartCounterVisuals();
                 console.log('Alpine: cartItemCount set to:', this.cartItemCount);
 
                 if (eventDetail.newGuestCartId && !this.guestCartId) {
@@ -60,23 +76,8 @@
         console.log('Alpine init: cartItemCount=', cartItemCount, 'guestCartId=', guestCartId);
     "
     x-on:js-update-cart.document="handleHtmxCartUpdate($event.detail)"
-    {#
-    Alpine
-    nasłuchuje
-    na
-    ten
-    event
-    z
-    JS
-    #}
+    x-on:keydown.escape.window="closeFullscreenImage()"
     class="flex flex-col min-h-screen bg-white text-gray-900 font-sans"
-    {#
-    Usunęliśmy
-    atrybut
-    _
-    (Hyperscript)
-    stąd
-    #}
   >
     <header class="sticky top-0 z-40 bg-white shadow-md">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -560,6 +561,58 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <div
+      x-show="isFullscreenImageOpen"
+      x-cloak
+      x-transition:enter="transition-opacity ease-in-out duration-300"
+      x-transition:enter-start="opacity-0"
+      x-transition:enter-end="opacity-100"
+      x-transition:leave="transition-opacity ease-in-out duration-200"
+      x-transition:leave-start="opacity-100"
+      x-transition:leave-end="opacity-0"
+      class="fixed inset-0 z-60 flex items-center justify-center p-2 sm:p-4"
+      aria-labelledby="fullscreen-image-title"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        class="fixed inset-0 bg-black bg-opacity-40"
+        @click="closeFullscreenImage()"
+      ></div>
+
+      <div
+        @click.stop
+        class="relative bg-white rounded-lg shadow-2xl overflow-y-auto {# Umożliwia przewijanie pionowe dla wysokich obrazków #} w-full h-full {# Mobile: Domyślnie zajmuje całą dostępną przestrzeń wewnątrz paddingu rodzica #} max-w-full max-h-full {# Mobile: Bez dodatkowych ograniczeń max-width/height #} sm:w-auto sm:h-auto {# Desktop: Szerokość/wysokość dopasuje się do treści (obrazka) do limitów max #} sm:max-w-4xl {# Desktop: Maksymalna szerokość kontenera obrazka #} sm:max-h-[90vh] {# Desktop: Maksymalna wysokość kontenera obrazka #} flex items-center justify-center {# Centruje obrazek wewnątrz tego boxu, jeśli obrazek jest mniejszy niż box #} p-0"
+      >
+        <img
+          :src="fullscreenImageUrl"
+          alt="Powiększone zdjęcie produktu"
+          class="block object-contain {# object-contain aby cały obrazek był widoczny i zachował proporcje #} w-auto h-auto {# Rozmiar dopasuje się do treści, ograniczony przez rodzica #} max-w-full {# Nie szerszy niż jego kontener (biały box) #} max-h-full"
+        />
+      </div>
+
+      <button
+        @click="closeFullscreenImage()"
+        type="button"
+        class="absolute top-3 right-3 sm:top-4 sm:right-4 z-70 {# Wyższy z-index niż kontener obrazka #} p-1.5 bg-white bg-opacity-75 hover:bg-opacity-100 rounded-full text-gray-700 hover:text-black focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:ring-offset-black/10 transition-all"
+        aria-label="Zamknij podgląd obrazka"
+      >
+        <svg
+          class="h-6 w-6"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="2.5"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M6 18L18 6M6 6l12 12"
+          />
+        </svg>
+      </button>
     </div>
 
     <script>

@@ -4,7 +4,13 @@
         <div>
             {% if product.images.len() > 0 %}
                 <div class="mb-4">
-                    <img id="mainProductImage" src="{{ product.images[0] }}" alt="Zdjęcie główne {{ product.name | escape }}" class="w-full h-auto max-h-[500px] object-contain rounded-lg border border-gray-200 shadow-sm">
+                    <img 
+                        id="mainProductImage" 
+                        src="{{ product.images[0] }}" 
+                        alt="Zdjęcie główne {{ product.name | escape }}" 
+                        class="w-full h-auto max-h-[500px] object-contain rounded-lg border border-gray-200 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                        @click="openFullscreenImage($el.src)" {# NOWE: @click do otwarcia pełnego ekranu #}
+                    >
                 </div>
                 {% if product.images.len() > 1 %}
                     <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
@@ -12,15 +18,14 @@
                         <button 
                             type="button" 
                             class="block border-2 border-transparent hover:border-pink-500 rounded-md overflow-hidden focus:outline-none focus:border-pink-500 transition"
-                            _="on click set #mainProductImage.src to '{{ image_url }}'"
+                            _="on click set #mainProductImage.src to '{{ image_url }}'" {# To zmienia src głównego obrazka #}
                         >
                             <img src="{{ image_url }}" alt="Miniaturka {{ loop.index }} {{ product.name | escape }}" class="w-full h-20 object-cover">
                         </button>
                         {% endfor %}
                     </div>
                 {% endif %}
-            {% else %}
-                <div class="w-full h-64 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
+            {% else %}                <div class="w-full h-64 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
                     <p class="text-gray-500">Brak dostępnych zdjęć</p>
                 </div>
             {% endif %}
