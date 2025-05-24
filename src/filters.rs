@@ -35,6 +35,8 @@ pub struct ListingParams {
     pub sort_by: Option<String>,
     #[serde(default)]
     pub order: Option<String>,
+    #[serde(default)]
+    pub search: Option<String>,
 }
 
 impl ListingParams {
@@ -49,11 +51,9 @@ impl ListingParams {
     pub fn offset(&self) -> i64 {
         self.offset.unwrap_or(0).max(0)
     }
-
     pub fn gender(&self) -> Option<ProductGender> {
         self.gender.clone()
     }
-
     pub fn category(&self) -> Option<Category> {
         self.category.clone()
     }
@@ -70,6 +70,10 @@ impl ListingParams {
         self.price_max.clone()
     }
 
+    pub fn search(&self) -> Option<String> {
+        self.search.clone()
+    }
+
     pub fn sort_by(&self) -> &str {
         self.sort_by.as_deref().unwrap_or(DEFAULT_SORT_BY)
     }
@@ -82,5 +86,21 @@ impl ListingParams {
                 "asc"
             }
         })
+    }
+    // Konstruktor używany w htmx_handlers (jeśli potrzebny)
+    pub fn new_with_gender_and_default(gender: Option<ProductGender>) -> Self {
+        Self {
+            gender,
+            limit: None,
+            offset: None,
+            category: None,
+            condition: None,
+            status: None,
+            price_min: None,
+            price_max: None,
+            search: None,
+            sort_by: None,
+            order: None,
+        }
     }
 }

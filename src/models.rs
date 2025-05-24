@@ -46,10 +46,13 @@ pub enum Category {
     Koszule,
     Spodnie,
     Sukienki,
+    #[strum(serialize = "Spódnice")]
     Spodnice,
     Swetry,
     Bluzy,
+    #[strum(serialize = "Kurtki i Żakiety")]
     KurtkiPlaszcze,
+    #[strum(serialize = "Marynarki i Płaszcze")]
     MarynarkiZakiety,
     Obuwie,
     Torebki,
@@ -58,6 +61,27 @@ pub enum Category {
     #[strum(serialize = "Stroje kąpielowe")]
     StrojeKapielowe,
     Inne,
+}
+
+impl Category {
+    pub fn as_url_param(&self) -> String {
+        match self {
+            Category::Koszule => "Koszule".to_string(),
+            Category::Spodnie => "Spodnie".to_string(),
+            Category::Sukienki => "Sukienki".to_string(),
+            Category::Spodnice => "Spodnice".to_string(),
+            Category::Swetry => "Swetry".to_string(),
+            Category::Bluzy => "Bluzy".to_string(),
+            Category::KurtkiPlaszcze => "KurtkiPlaszcze".to_string(),
+            Category::MarynarkiZakiety => "MarynarkiZakiety".to_string(),
+            Category::Obuwie => "Obuwie".to_string(),
+            Category::Torebki => "Torebki".to_string(),
+            Category::Akcesoria => "Akcesoria".to_string(),
+            Category::Bielizna => "Bielizna".to_string(),
+            Category::StrojeKapielowe => "StrojeKapielowe".to_string(),
+            Category::Inne => "Inne".to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -251,7 +275,7 @@ pub struct AddProductToCartPayload {
 
 // --- STRUKTURY ODPOWIEDZI API DLA KOSZYKA ---
 // Do wyświetlania pozycji koszyka wraz z danymi produktu
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct CartItemPublic {
     pub cart_item_id: Uuid,
     #[serde(flatten)]

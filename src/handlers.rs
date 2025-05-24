@@ -37,7 +37,6 @@ pub async fn get_product_details(
     Path(product_id): Path<Uuid>,
 ) -> Result<Json<Product>, AppError> {
     let product_result = sqlx::query_as::<_, Product>(
-        // To jest OK, jeśli Product ma FromRow
         r#"SELECT id, name, description, price, gender, condition, category, status, images
            FROM products
            WHERE id = $1"#,
@@ -106,7 +105,6 @@ pub async fn list_products(
 
     let status_to_filter = params.status().unwrap_or(ProductStatus::Available);
     append_where_or_and_count(&mut count_builder);
-    // Poprawiona literówka i przekazanie przez referencję
     count_builder.push("status = ").push_bind(&status_to_filter);
 
     if let Some(price_min) = params.price_min() {
@@ -116,6 +114,17 @@ pub async fn list_products(
     if let Some(price_max) = params.price_max() {
         append_where_or_and_count(&mut count_builder);
         count_builder.push("price <= ").push_bind(price_max);
+    }
+
+    if let Some(search_term) = params.search() {
+        append_where_or_and_count(&mut count_builder);
+        let like_pattern = format!("%{}%", search_term);
+        count_builder
+            .push("(name ILIKE)")
+            .push_bind(like_pattern.clone())
+            .push(" OR description ILIKE")
+            .push_bind(like_pattern)
+            .push(")");
     }
 
     // Wykonanie zapytania COUNT
@@ -142,7 +151,7 @@ pub async fn list_products(
             FROM products
         "#,
     );
-    // Zdefiniuj na nowo flagę i domknięcie dla tej sekcji, aby uniknąć problemów z pożyczaniem
+
     let mut data_added_where = false;
     let mut append_where_or_and_data = |builder: &mut QueryBuilder<Postgres>| {
         if !data_added_where {
@@ -176,6 +185,17 @@ pub async fn list_products(
     if let Some(price_max) = params.price_max() {
         append_where_or_and_data(&mut data_builder);
         data_builder.push("price <= ").push_bind(price_max);
+    }
+
+    if let Some(search_term) = params.search() {
+        append_where_or_and_data(&mut data_builder);
+        let like_pattern = format!("%{}%", search_term);
+        data_builder
+            .push("(name ILIKE ")
+            .push_bind(like_pattern.clone())
+            .push(" OR description ILIKE ")
+            .push_bind(like_pattern)
+            .push(")");
     }
 
     let sort_by_column = match params.sort_by() {

@@ -1,13 +1,16 @@
 // src/main.rs
 
+use axum::Router;
+use axum::extract::DefaultBodyLimit;
 use axum::response::Html;
-use axum::{
-    Router,
-    extract::DefaultBodyLimit,
-    routing::{delete, get, post},
-};
+use axum::routing::{delete, get, post};
 use dotenvy::dotenv;
-use htmx_handlers::*;
+use htmx_handlers::{
+    add_item_to_cart_htmx_handler, gender_page_handler, get_cart_details_htmx_handler,
+    get_product_detail_htmx_handler, list_products_htmx_handler,
+    remove_item_from_cart_htmx_handler,
+};
+// use htmx_handlers::*;
 use reqwest::StatusCode;
 use sqlx::postgres::PgPoolOptions;
 use std::env;
@@ -112,8 +115,8 @@ async fn main() {
             "/api/orders/{order_id}",
             get(get_order_details_handler).patch(update_order_status_handler),
         )
-        .route("/api/cart", get(get_cart_handler))
         .route("/api/cart/items", post(add_item_to_cart_handler))
+        .route("/api/cart", get(get_cart_handler))
         .route(
             "/api/cart/items/{product_id}",
             delete(remove_item_from_cart_handler),
@@ -132,6 +135,7 @@ async fn main() {
         // .route("/htmx/page/nowosci", method_router)
         // .route("/htmx/page/wyprzedaz", method_router)
         // .route("/htmx/page/kontakt", method_router)
+        .route("/htmx/dla/{gender_slug}", get(gender_page_handler))
         .route(
             "/htmx/cart/add/{product_id}",
             post(add_item_to_cart_htmx_handler),
@@ -143,11 +147,10 @@ async fn main() {
             post(remove_item_from_cart_htmx_handler),
         )
         .route(
-            "/htmx/product/{product_id}",
+            "/htmx/produkt/{product_id}",
             get(get_product_detail_htmx_handler),
         )
-        .route("/htmx/strona-plec/{gender}", get(gender_page_htmx_handler))
-        .nest_service("/static", ServeDir::new("/static"))
+        .nest_service("/static", ServeDir::new("static"))
         .layer(TraceLayer::new_for_http())
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024))
         .with_state(app_state);

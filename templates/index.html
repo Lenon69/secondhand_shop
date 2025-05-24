@@ -3,113 +3,188 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MEG JONI - Sklep Vintage</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
-    <script src="https://unpkg.com/alpinejs" defer></script>
-    <script src="https://unpkg.com/hyperscript.org@0.9.14"></script>
+    <meta
+      name="description"
+      content="Odkryj unikalną odzież vintage w MEG JONI. Najlepsze perełki z drugiej ręki dla niej i dla niego."
+    />
+    <title>MEG JONI - Sklep Vintage Online</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio"></script>
+    <script
+      src="https://unpkg.com/htmx.org@2.0.0/dist/htmx.min.js"
+      defer
+    ></script>
+    <script
+      src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"
+      defer
+    ></script>
+    <script
+      src="https://unpkg.com/hyperscript.org@0.9.12/dist/hyperscript.min.js"
+      defer
+    ></script>
 
     <style type="text/tailwindcss">
       [x-cloak] {
         display: none !important;
       }
+      .htmx-indicator {
+        display: none;
+        opacity: 0;
+        transition: opacity 200ms ease-in;
+      }
+      .htmx-request .htmx-indicator {
+        display: inline-block;
+        opacity: 1;
+      }
+      .htmx-request.htmx-indicator {
+        display: inline-block;
+        opacity: 1;
+      }
+      .mobile-nav-active {
+        @apply bg-pink-50 text-pink-700 font-semibold;
+      }
+      #category-sidebar::-webkit-scrollbar {
+        width: 8px;
+      }
+      #category-sidebar::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+      }
+      #category-sidebar::-webkit-scrollbar-thumb {
+        background: #d1d5db;
+        border-radius: 10px;
+      }
+      #category-sidebar::-webkit-scrollbar-thumb:hover {
+        background: #9ca3af;
+      }
+      #category-sidebar {
+        scrollbar-width: thin;
+        scrollbar-color: #d1d5db #f1f1f1;
+      }
     </style>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon" />
   </head>
 
   <body
-    x-data="{ 
-        cartOpen: false, 
-        cartItemCount: 0, 
+    x-data="{
+        cartOpen: false,
+        cartItemCount: 0,
         isMobileMenuOpen: false,
         currentMobilePage: '',
-        guestCartId: localStorage.getItem('guestCartId') || null,
-
-
-
-        isFullscreenImageOpen: false,     
-        fullscreenImageUrl: '',           
-
-        // NOWE: Funkcje do obsługi pełnego ekranu
-        openFullscreenImage(imageUrl) {
-            this.fullscreenImageUrl = imageUrl;
-            this.isFullscreenImageOpen = true;
-            console.log('Opening fullscreen image:', imageUrl);
+        guestCartId: null,
+        activeImageModal: { isOpen: false, currentSrc: '', images: [], currentIndex: 0 },
+        initAlpine() {
+            this.cartItemCount = parseInt(localStorage.getItem('alpineCartCount')) || 0;
+            this.guestCartId = localStorage.getItem('guestCartId');
+            this.updateCartCounterVisuals();
+            this.$watch('cartItemCount', (val) => { localStorage.setItem('alpineCartCount', val); this.updateCartCounterVisuals(); });
+            this.$watch('guestCartId', (val) => { if (val) localStorage.setItem('guestCartId', val); else localStorage.removeItem('guestCartId'); });
         },
-        closeFullscreenImage() {
-            this.isFullscreenImageOpen = false;
-            console.log('Closing fullscreen image');
-        },
-
         updateCartCounterVisuals() {
-            const bubble = document.getElementById('cart-count-bubble');
-            const mobileBubble = document.getElementById('cart-count-bubble-mobile');
-            if (this.cartItemCount > 0) {
-                if (bubble) bubble.classList.remove('hidden');
-                if (mobileBubble) mobileBubble.classList.remove('hidden');
-            } else {
-                if (bubble) bubble.classList.add('hidden');
-                if (mobileBubble) mobileBubble.classList.add('hidden');
+            ['cart-count-bubble', 'cart-count-bubble-mobile'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    if (this.cartItemCount > 0) el.classList.remove('hidden');
+                    else el.classList.add('hidden');
+                }
+            });
+        },
+        handleHtmxCartUpdate(detail) {
+            if (detail && typeof detail.newCount !== 'undefined') {
+                this.cartItemCount = parseInt(detail.newCount) || 0;
+                if (detail.newGuestCartId && !this.guestCartId) this.guestCartId = detail.newGuestCartId;
             }
         },
-
-        handleHtmxCartUpdate(eventDetail) {
-            console.log('Alpine: handleHtmxCartUpdate received. Detail:', eventDetail);
-            if (eventDetail && typeof eventDetail.newCount !== 'undefined') {
-                this.cartItemCount = parseInt(eventDetail.newCount) || 0;
-                this.updateCartCounterVisuals();
-                console.log('Alpine: cartItemCount set to:', this.cartItemCount);
-
-                if (eventDetail.newGuestCartId && !this.guestCartId) {
-                    this.guestCartId = eventDetail.newGuestCartId;
-                    localStorage.setItem('guestCartId', this.guestCartId);
-                    console.log('Alpine: New guestCartId saved:', this.guestCartId);
-                }
-            } else {
-                console.log('Alpine: eventDetail.newCount was undefined or eventDetail missing. Event Detail:', eventDetail);
+        openImageModal(src, imagesJsonString) {
+            try {
+                this.activeImageModal.images = JSON.parse(imagesJsonString);
+                this.activeImageModal.currentIndex = this.activeImageModal.images.indexOf(src);
+                if (this.activeImageModal.currentIndex === -1 && this.activeImageModal.images.length > 0) this.activeImageModal.currentIndex = 0;
+                this.activeImageModal.currentSrc = this.activeImageModal.images[this.activeImageModal.currentIndex] || src;
+                this.activeImageModal.isOpen = true;
+                document.body.style.overflow = 'hidden';
+            } catch (e) {
+                this.activeImageModal.images = [src]; this.activeImageModal.currentIndex = 0; this.activeImageModal.currentSrc = src; this.activeImageModal.isOpen = true; document.body.style.overflow = 'hidden';
             }
-        }
+        },
+        closeImageModal() { this.activeImageModal.isOpen = false; document.body.style.overflow = ''; },
+        nextImageModal() { if (this.activeImageModal.images.length > 0) { this.activeImageModal.currentIndex = (this.activeImageModal.currentIndex + 1) % this.activeImageModal.images.length; this.activeImageModal.currentSrc = this.activeImageModal.images[this.activeImageModal.currentIndex]; } },
+        prevImageModal() { if (this.activeImageModal.images.length > 0) { this.activeImageModal.currentIndex = (this.activeImageModal.currentIndex - 1 + this.activeImageModal.images.length) % this.activeImageModal.images.length; this.activeImageModal.currentSrc = this.activeImageModal.images[this.activeImageModal.currentIndex]; } }
     }"
-    x-init="
-        cartItemCount = parseInt(localStorage.getItem('alpineCartCount') || 0);
-        guestCartId = localStorage.getItem('guestCartId');
-        updateCartCounterVisuals();
-        console.log('Alpine init: cartItemCount=', cartItemCount, 'guestCartId=', guestCartId);
-    "
+    x-init="initAlpine()"
     x-on:js-update-cart.document="handleHtmxCartUpdate($event.detail)"
-    x-on:keydown.escape.window="closeFullscreenImage()"
-    class="flex flex-col min-h-screen bg-white text-gray-900 font-sans"
+    x-on:keydown.escape.window="if(activeImageModal.isOpen) closeImageModal()"
+    x-on:keydown.left.window="if(activeImageModal.isOpen && activeImageModal.images.length > 1) prevImageModal()"
+    x-on:keydown.right.window="if(activeImageModal.isOpen && activeImageModal.images.length > 1) nextImageModal()"
+    class="flex flex-col min-h-screen bg-white text-gray-900 font-sans antialiased"
   >
-    <header class="sticky top-0 z-40 bg-white shadow-md">
+    <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-sm shadow-md">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16 items-center">
-          <a
-            href="/"
-            class="text-xl font-bold border border-black px-2 py-1 hover:bg-gray-100 transition-colors"
-            >MEG JONI</a
-          >
-
-          <div
-            class="hidden lg:flex flex-1 justify-center items-center space-x-2 px-6"
-          >
-            <input
-              type="text"
-              placeholder="Szukaj..."
-              class="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-shadow"
-            />
-            <button
-              class="px-4 py-2 bg-black text-white rounded-lg transition-all duration-300 ease-in-out hover:bg-gray-700 hover:shadow-lg hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50"
+        <div class="flex justify-between items-center h-16">
+          <h1>
+            <a
+              href="/"
+              hx-get="/htmx/products?limit=9&amp;sort_by=name&amp;order=asc"
+              hx-target="#content"
+              hx-push-url="/"
+              hx-swap="innerHTML"
+              @click="currentMobilePage=''"
+              class="text-2xl font-bold border-2 border-black px-3 py-1 hover:bg-gray-100 transition-colors duration-200"
             >
-              Szukaj
-            </button>
+              MEG JONI
+            </a>
+          </h1>
+          <div class="hidden lg:flex flex-1 justify-center items-center px-6">
+            <form
+              hx-get="/htmx/products"
+              hx-target="#content"
+              hx-swap="innerHTML"
+              hx-indicator="#search-spinner-desktop"
+              class="w-full max-w-md flex"
+            >
+              <input
+                type="search"
+                name="search"
+                placeholder="Szukaj perełek..."
+                class="w-full px-4 py-2 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-shadow text-sm"
+                aria-label="Wyszukaj produkty"
+              />
+              <button
+                type="submit"
+                class="px-4 py-2 bg-black text-white rounded-r-lg transition-colors duration-300 ease-in-out hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 text-sm"
+                aria-label="Szukaj"
+              >
+                Szukaj
+                <span id="search-spinner-desktop" class="htmx-indicator ml-1"
+                  ><svg
+                    class="animate-spin h-4 w-4 text-white inline"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      class="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      stroke-width="4"
+                    ></circle>
+                    <path
+                      class="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path></svg
+                ></span>
+              </button>
+            </form>
           </div>
-
-          <div class="flex items-center space-x-3">
+          <div class="flex items-center space-x-2 sm:space-x-3">
             <div class="hidden lg:flex items-center space-x-4">
               <a
                 href="#"
-                class="flex items-center space-x-1 text-gray-700 hover:text-black transition-colors"
-              >
-                <svg
+                class="flex items-center space-x-1 text-gray-700 hover:text-pink-600 transition-colors"
+                aria-label="Moje konto"
+                ><svg
                   class="w-6 h-6"
                   fill="none"
                   stroke="currentColor"
@@ -120,13 +195,12 @@
                     stroke-linecap="round"
                     stroke-linejoin="round"
                     d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-                  />
-                </svg>
-                <span class="hidden sm:inline">Moje konto</span>
-              </a>
+                  /></svg
+                ><span class="text-sm">Konto</span></a
+              >
               <button
                 @click="cartOpen = true; $el.dispatchEvent(new CustomEvent('cartOpened', {bubbles: true, composed: true}))"
-                class="relative flex items-center space-x-1 text-gray-700 hover:text-black transition-colors transform hover:scale-110 focus:outline-none"
+                class="relative flex items-center space-x-1 text-gray-700 hover:text-pink-600 transition-colors transform hover:scale-105 focus:outline-none"
                 aria-label="Otwórz koszyk"
               >
                 <svg
@@ -140,49 +214,47 @@
                     stroke-linecap="round"
                     stroke-linejoin="round"
                     d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"
-                  />
-                </svg>
-                <span class="hidden sm:inline">Mój koszyk</span>
-                <span
+                  /></svg
+                ><span class="text-sm">Koszyk</span
+                ><span
                   id="cart-count-bubble"
                   x-text="cartItemCount"
                   x-show="cartItemCount > 0"
                   x-cloak
-                  class="absolute -top-2.5 -right-1.5 sm:-right-2.5 bg-red-500 text-white text-xs font-semibold rounded-full w-5 h-5 flex items-center justify-center ring-1 ring-white"
+                  class="absolute -top-2 -right-2 bg-pink-600 text-white text-xs font-semibold rounded-full w-5 h-5 flex items-center justify-center ring-2 ring-white"
                 ></span>
               </button>
             </div>
+            <button
+              @click="cartOpen = true; $el.dispatchEvent(new CustomEvent('cartOpened', {bubbles: true, composed: true}))"
+              class="lg:hidden relative p-1 text-gray-700 hover:text-pink-600 transition-colors transform hover:scale-105 focus:outline-none"
+              aria-label="Otwórz koszyk"
+            >
+              <svg
+                class="w-7 h-7"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"
+                /></svg
+              ><span
+                id="cart-count-bubble-mobile"
+                x-text="cartItemCount"
+                x-show="cartItemCount > 0"
+                x-cloak
+                class="absolute -top-1.5 -right-1.5 bg-pink-600 text-white text-[0.6rem] font-semibold rounded-full w-4 h-4 flex items-center justify-center ring-1 ring-white"
+              ></span>
+            </button>
             <div class="flex items-center lg:hidden">
               <button
-                @click="cartOpen = true; $el.dispatchEvent(new CustomEvent('cartOpened', {bubbles: true, composed: true}))"
-                class="relative mr-2 p-1 text-gray-700 hover:text-black transition-colors transform hover:scale-110 focus:outline-none"
-                aria-label="Otwórz koszyk"
-              >
-                <svg
-                  class="w-7 h-7"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"
-                  />
-                </svg>
-                <span
-                  id="cart-count-bubble-mobile"
-                  x-text="cartItemCount"
-                  x-show="cartItemCount > 0"
-                  x-cloak
-                  class="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[0.6rem] font-semibold rounded-full w-4 h-4 flex items-center justify-center ring-1 ring-white"
-                ></span>
-              </button>
-              <button
                 @click="isMobileMenuOpen = !isMobileMenuOpen"
-                aria-label="Otwórz menu"
-                class="p-2 rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-black"
+                aria-label="Menu"
+                class="p-2 rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-pink-500"
               >
                 <svg
                   x-show="!isMobileMenuOpen"
@@ -196,9 +268,8 @@
                     stroke-linejoin="round"
                     stroke-width="2"
                     d="M4 6h16M4 12h16M4 18h16"
-                  ></path>
-                </svg>
-                <svg
+                  ></path></svg
+                ><svg
                   x-show="isMobileMenuOpen"
                   x-cloak
                   class="w-6 h-6"
@@ -218,131 +289,202 @@
           </div>
         </div>
       </div>
-
       <nav class="hidden lg:flex bg-gray-50 border-t border-b border-gray-200">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div
-            class="flex justify-center space-x-4 sm:space-x-6 py-3 text-sm font-medium"
+            class="flex justify-center space-x-3 xl:space-x-4 py-3 text-sm font-medium"
           >
             <a
               href="/dla-niej"
-              hx-get="/htmx/strona-plec/Damskie"
-              hx-target="#content"
+              hx-get="/htmx/dla/niej"
               hx-push-url="/dla-niej"
               hx-swap="innerHTML"
+              hx-target="#content"
+              @click="currentMobilePage='damska'"
               class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
               >Dla niej</a
             >
             <a
-              href="#"
+              href="/dla-niego"
+              hx-get="/htmx/dla/niego"
+              hx-push-url="/dla-niego"
+              hx-swap="innerHTML"
+              hx-target="#content"
+              @click="currentMobilePage='meska'"
               class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
               >Dla niego</a
             >
             <a
-              href="#"
+              href="/nowosci"
+              hx-get="/htmx/products?sort_by=created_at&amp;order=desc"
+              hx-target="#content"
+              hx-push-url="/nowosci"
+              hx-swap="innerHTML"
+              @click="currentMobilePage='nowosci'"
               class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
               >Nowości</a
             >
             <a
-              href="#"
+              href="/wyprzedaz"
+              hx-get="/htmx/products?status=Available&amp;on_sale=true"
+              hx-target="#content"
+              hx-push-url="/wyprzedaz"
+              hx-swap="innerHTML"
+              @click="currentMobilePage='wyprzedaz'"
               class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
               >Wyprzedaż</a
             >
             <a
-              href="#"
+              href="/o-nas"
+              hx-get="/htmx/page/o-nas"
+              hx-target="#content"
+              hx-push-url="/o-nas"
+              hx-swap="innerHTML"
+              @click="currentMobilePage='o-nas'"
               class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
               >O nas</a
             >
             <a
-              href="#"
+              href="/kontakt"
+              hx-get="/htmx/page/kontakt"
+              hx-target="#content"
+              hx-push-url="/kontakt"
+              hx-swap="innerHTML"
+              @click="currentMobilePage='kontakt'"
               class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
               >Kontakt</a
             >
           </div>
         </div>
       </nav>
-
       <div
         x-show="isMobileMenuOpen"
         x-cloak
-        class="lg:hidden fixed inset-x-0 top-16 z-30 bg-white shadow-xl overflow-y-auto transition-transform duration-300 ease-in-out"
-        x-transition:enter="transform ease-out duration-300"
-        x-transition:enter-start="-translate-y-full"
-        x-transition:enter-end="translate-y-0"
-        x-transition:leave="transform ease-in duration-200"
-        x-transition:leave-start="translate-y-0"
-        x-transition:leave-end="-translate-y-full"
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0 -translate-y-4"
+        x-transition:enter-end="opacity-100 translate-y-0"
+        x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="opacity-100 translate-y-0"
+        x-transition:leave-end="opacity-0 -translate-y-4"
+        class="lg:hidden absolute top-16 inset-x-0 z-30 bg-white shadow-lg border-t border-gray-200 overflow-y-auto"
         @click.away="isMobileMenuOpen = false"
       >
         <div class="pt-2 pb-3 space-y-1 px-2">
-          <div class="px-2 pb-4 pt-2">
-            <div class="flex space-x-2">
+          <div class="px-2 pb-3 pt-1">
+            <form
+              hx-get="/htmx/products"
+              hx-target="#content"
+              hx-swap="innerHTML"
+              hx-indicator="#search-spinner-mobile"
+              @submit="isMobileMenuOpen = false"
+              class="flex space-x-2"
+            >
               <input
-                type="text"
-                placeholder="Szukaj..."
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                type="search"
+                name="search"
+                placeholder="Szukaj perełek..."
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500 focus:border-transparent text-sm"
+                aria-label="Wyszukaj produkty (mobilne)"
               />
               <button
-                class="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500"
+                type="submit"
+                class="px-3 py-2 bg-black text-white rounded-md hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 text-sm"
+                aria-label="Szukaj"
               >
                 Szukaj
+                <span id="search-spinner-mobile" class="htmx-indicator ml-1"
+                  ><svg
+                    class="animate-spin h-4 w-4 text-white inline"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      class="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      stroke-width="4"
+                    ></circle>
+                    <path
+                      class="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path></svg
+                ></span>
               </button>
-            </div>
+            </form>
           </div>
           <a
             href="/dla-niej"
-            hx-get="/htmx/strona-plec/Damskie"
+            hx-get="/htmx/dla/niej"
             hx-target="#content"
+            hx-swap="innerHTML"
             hx-push-url="/dla-niej"
             @click="isMobileMenuOpen = false; currentMobilePage='damska'"
             :class="{'mobile-nav-active': currentMobilePage === 'damska'}"
-            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-black"
+            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-700"
             >Dla niej</a
           >
           <a
-            href="#"
+            href="/dla-niego"
+            hx-get="/htmx/dla/niego"
+            hx-target="#content"
+            hx-swap="innerHTML"
+            hx-push-url="/dla-niego"
             @click="isMobileMenuOpen = false; currentMobilePage='meska'"
             :class="{'mobile-nav-active': currentMobilePage === 'meska'}"
-            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-black"
+            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-700"
             >Dla niego</a
           >
           <a
-            href="#"
+            href="/nowosci"
+            hx-get="/htmx/products?sort_by=created_at&amp;order=desc"
+            hx-target="#content"
+            hx-push-url="/nowosci"
             @click="isMobileMenuOpen = false; currentMobilePage='nowosci'"
             :class="{'mobile-nav-active': currentMobilePage === 'nowosci'}"
-            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-black"
+            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-700"
             >Nowości</a
           >
           <a
-            href="#"
+            href="/wyprzedaz"
+            hx-get="/htmx/products?status=Available&amp;on_sale=true"
+            hx-target="#content"
+            hx-push-url="/wyprzedaz"
             @click="isMobileMenuOpen = false; currentMobilePage='wyprzedaz'"
             :class="{'mobile-nav-active': currentMobilePage === 'wyprzedaz'}"
-            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-black"
+            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-700"
             >Wyprzedaż</a
           >
           <a
-            href="#"
+            href="/o-nas"
+            hx-get="/htmx/page/o-nas"
+            hx-target="#content"
+            hx-push-url="/o-nas"
             @click="isMobileMenuOpen = false; currentMobilePage='o-nas'"
             :class="{'mobile-nav-active': currentMobilePage === 'o-nas'}"
-            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-black"
+            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-700"
             >O nas</a
           >
           <a
-            href="#"
+            href="/kontakt"
+            hx-get="/htmx/page/kontakt"
+            hx-target="#content"
+            hx-push-url="/kontakt"
             @click="isMobileMenuOpen = false; currentMobilePage='kontakt'"
             :class="{'mobile-nav-active': currentMobilePage === 'kontakt'}"
-            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-black"
+            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-700"
             >Kontakt</a
           >
-
           <div class="pt-4 pb-3 border-t border-gray-200">
             <div class="flex items-center px-3">
               <a
                 href="#"
                 @click="isMobileMenuOpen = false"
-                class="flex items-center text-base font-medium text-gray-700 hover:text-black"
-              >
-                <svg
+                class="flex items-center text-base font-medium text-gray-700 hover:text-pink-700"
+                ><svg
                   class="w-6 h-6 mr-2"
                   fill="none"
                   stroke="currentColor"
@@ -353,104 +495,229 @@
                     stroke-linecap="round"
                     stroke-linejoin="round"
                     d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-                  ></path>
-                </svg>
-                Moje konto
-              </a>
+                  ></path></svg
+                >Moje konto</a
+              >
             </div>
           </div>
         </div>
       </div>
     </header>
 
-    <main class="flex-grow max-w-7xl mx-auto px-4 py-10 w-full">
+    <main class="flex-grow max-w-7xl mx-auto px-4 py-6 sm:py-8 md:py-10 w-full">
       <div
         id="content"
-        hx-get="/htmx/products?limit=6&amp;sort_by=name&amp;order=asc"
+        hx-get="/htmx/products?limit=9&amp;sort_by=name&amp;order=asc"
         hx-trigger="load"
         hx-swap="innerHTML"
-        {#=""
-        hx-target="this"
-        class=""
+        class="min-h-[60vh]"
       >
-        <div id="products-grid-container">
-          <div
-            id="products-container"
-            class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-          ></div>
-          <div
-            class="mt-8 flex justify-center items-center space-x-2"
-            id="pagination-controls"
-          ></div>
+        <div class="flex justify-center items-center min-h-[60vh]">
+          <svg
+            class="animate-spin h-12 w-12 text-pink-600"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+            ></circle>
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            ></path>
+          </svg>
         </div>
       </div>
     </main>
 
-    <footer class="bg-gray-100 border-t border-gray-200 py-6 text-gray-700">
-      <div class="max-w-7xl mx-auto px-6 lg:px-8">
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-6 text-sm mb-6">
-          <a href="#" class="hover:underline hover:text-black">Kontakt</a>
-          <a href="#" class="hover:underline hover:text-black"
-            >Wysyłka i zwroty</a
-          >
-          <a href="#" class="hover:underline hover:text-black"
-            >Polityka prywatności</a
-          >
-          <a href="#" class="hover:underline hover:text-black"
-            >Regulamin sklepu</a
-          >
-        </div>
-        <div class="flex justify-center space-x-5">
-          <a
-            href="https://facebook.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="text-gray-500 hover:text-blue-600 transition-colors"
-            aria-label="Facebook"
-          >
-            <span class="sr-only">Facebook</span>
-            <svg
-              class="w-7 h-7"
-              fill="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
+    <footer class="bg-gray-100 border-t border-gray-200 py-8 text-gray-700">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div
+          class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 text-sm mb-8"
+        >
+          <div>
+            <h3
+              class="font-semibold text-gray-800 mb-3 uppercase tracking-wider"
             >
-              <path
-                d="M12 2.04C6.48 2.04 2 6.52 2 12.06c0 4.99 3.66 9.13 8.44 9.88v-6.99H7.9v-2.89h2.54V9.81c0-2.51 1.49-3.89 3.78-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.77l-.44 2.89h-2.33v6.99A10.01 10.01 0 0022 12.06C22 6.52 17.52 2.04 12 2.04z"
-              />
-            </svg>
-          </a>
-          <a
-            href="https://instagram.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="text-gray-500 hover:text-pink-500 transition-colors"
-            aria-label="Instagram"
-          >
-            <span class="sr-only">Instagram</span>
-            <svg
-              class="w-7 h-7"
-              fill="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
+              Obsługa Klienta
+            </h3>
+            <ul class="space-y-2">
+              <li>
+                <a
+                  href="/kontakt"
+                  hx-get="/htmx/page/kontakt"
+                  hx-target="#content"
+                  hx-push-url="/kontakt"
+                  class="hover:underline hover:text-pink-600 transition-colors"
+                  >Kontakt</a
+                >
+              </li>
+              <li>
+                <a
+                  href="/wysylka-i-zwroty"
+                  hx-get="/htmx/page/wysylka-i-zwroty"
+                  hx-target="#content"
+                  hx-push-url="/wysylka-i-zwroty"
+                  class="hover:underline hover:text-pink-600 transition-colors"
+                  >Wysyłka i zwroty</a
+                >
+              </li>
+              <li>
+                <a
+                  href="/faq"
+                  hx-get="/htmx/page/faq"
+                  hx-target="#content"
+                  hx-push-url="/faq"
+                  class="hover:underline hover:text-pink-600 transition-colors"
+                  >FAQ</a
+                >
+              </li>
+            </ul>
+          </div>
+          <div>
+            <h3
+              class="font-semibold text-gray-800 mb-3 uppercase tracking-wider"
             >
-              <path
-                d="M12 2c2.72 0 3.05.01 4.12.06 1.06.05 1.79.22 2.42.46.65.25 1.23.59 1.77 1.15.54.55.89 1.12 1.14 1.77.24.63.41 1.36.46 2.42.05 1.07.06 1.4.06 4.12s-.01 3.05-.06 4.12c-.05 1.06-.22 1.79-.46 2.42-.25.65-.59 1.23-1.14 1.77-.54.55-1.12.89-1.77 1.14-.63.24-1.36.41-2.42.46-1.07.05-1.4.06-4.12.06s-3.05-.01-4.12-.06c-1.06-.05-1.79-.22-2.42-.46-.65-.25-1.23-.59-1.77-1.14-.54-.55-.89-1.12-1.14-1.77-.24-.63-.41-1.36-.46-2.42-.05-1.07-.06-1.4-.06-4.12s.01-3.05.06-4.12c.05-1.06.22-1.79.46 2.42.25-.65.59-1.23 1.14 1.77.54-.55 1.12.89 1.77-1.14.63-.24 1.36-.41 2.42-.46C8.95 2.01 9.28 2 12 2zm0 1.8c-2.67 0-3 .01-4.05.06-1.02.04-1.63.21-2.13.41-.56.2-.98.5-1.41.93-.42.43-.72.85-.92 1.41-.2.5-.37 1.11-.41 2.13-.05 1.05-.06 1.38-.06 4.05s.01 3 .06 4.05c.04 1.02.21 1.63.41 2.13.2.56.5.98.92 1.41.43.42.85.72 1.41.92.5.2 1.11.37 2.13.41 1.05.05 1.38.06 4.05.06h.01c2.67 0 3-.01 4.05-.06 1.02-.04 1.63-.21 2.13-.41.56-.2.98-.5 1.41-.92.42-.43.72-.85.92-1.41.2-.5.37-1.11.41-2.13.05-1.05.06-1.38.06-4.05s-.01-3-.06-4.05c-.04-1.02-.21-1.63-.41-2.13-.2-.56-.5-.98-.92-1.41-.43-.42-.85-.72-1.41-.92-.5-.2-1.11-.37-2.13-.41C15 3.81 14.67 3.8 12 3.8zm0 3.91c-2.27 0-4.1 1.83-4.1 4.1s1.83 4.1 4.1 4.1 4.1-1.83 4.1-4.1-1.83-4.1-4.1-4.1zm0 6.81c-1.5 0-2.71-1.21-2.71-2.71s1.21-2.71 2.71-2.71 2.71 1.21 2.71 2.71-1.21 2.71-2.71 2.71zm5.24-6.52c0 .6-.48 1.08-1.08 1.08s-1.08-.48-1.08-1.08.48-1.08 1.08-1.08 1.08.48 1.08 1.08z"
-              />
-            </svg>
-          </a>
+              Informacje
+            </h3>
+            <ul class="space-y-2">
+              <li>
+                <a
+                  href="/o-nas"
+                  hx-get="/htmx/page/o-nas"
+                  hx-target="#content"
+                  hx-push-url="/o-nas"
+                  class="hover:underline hover:text-pink-600 transition-colors"
+                  >O nas</a
+                >
+              </li>
+              <li>
+                <a
+                  href="/polityka-prywatnosci"
+                  hx-get="/htmx/page/polityka-prywatnosci"
+                  hx-target="#content"
+                  hx-push-url="/polityka-prywatnosci"
+                  class="hover:underline hover:text-pink-600 transition-colors"
+                  >Polityka prywatności</a
+                >
+              </li>
+              <li>
+                <a
+                  href="/regulamin"
+                  hx-get="/htmx/page/regulamin"
+                  hx-target="#content"
+                  hx-push-url="/regulamin"
+                  class="hover:underline hover:text-pink-600 transition-colors"
+                  >Regulamin sklepu</a
+                >
+              </li>
+            </ul>
+          </div>
+          <div>
+            <h3
+              class="font-semibold text-gray-800 mb-3 uppercase tracking-wider"
+            >
+              Kategorie
+            </h3>
+            <ul class="space-y-2">
+              <li>
+                <a
+                  href="/dla-niej"
+                  hx-get="/htmx/strona-plec/Damskie"
+                  hx-target="#content"
+                  hx-push-url="/dla-niej"
+                  class="hover:underline hover:text-pink-600 transition-colors"
+                  >Dla niej</a
+                >
+              </li>
+              <li>
+                <a
+                  href="/dla-niego"
+                  hx-get="/htmx/strona-plec/Meskie"
+                  hx-target="#content"
+                  hx-push-url="/dla-niego"
+                  class="hover:underline hover:text-pink-600 transition-colors"
+                  >Dla niego</a
+                >
+              </li>
+              <li>
+                <a
+                  href="/nowosci"
+                  hx-get="/htmx/products?sort_by=created_at&amp;order=desc"
+                  hx-target="#content"
+                  hx-push-url="/nowosci"
+                  class="hover:underline hover:text-pink-600 transition-colors"
+                  >Nowości</a
+                >
+              </li>
+            </ul>
+          </div>
+          <div>
+            <h3
+              class="font-semibold text-gray-800 mb-3 uppercase tracking-wider"
+            >
+              Śledź nas
+            </h3>
+            <div class="flex space-x-4">
+              <a
+                href="https://facebook.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-gray-500 hover:text-blue-600 transition-colors"
+                aria-label="Facebook"
+                ><span class="sr-only">Facebook</span
+                ><svg
+                  class="w-6 h-6"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M12 2.04C6.48 2.04 2 6.52 2 12.06c0 4.99 3.66 9.13 8.44 9.88v-6.99H7.9v-2.89h2.54V9.81c0-2.51 1.49-3.89 3.78-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.77l-.44 2.89h-2.33v6.99A10.01 10.01 0 0022 12.06C22 6.52 17.52 2.04 12 2.04z"
+                  /></svg
+              ></a>
+              <a
+                href="https://instagram.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-gray-500 hover:text-pink-500 transition-colors"
+                aria-label="Instagram"
+                ><span class="sr-only">Instagram</span
+                ><svg
+                  class="w-6 h-6"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M12 2c2.72 0 3.05.01 4.12.06 1.06.05 1.79.22 2.42.46.65.25 1.23.59 1.77 1.15.54.55.89 1.12 1.14 1.77.24.63.41 1.36.46 2.42.05 1.07.06 1.4.06 4.12s-.01 3.05-.06 4.12c-.05 1.06-.22 1.79-.46 2.42-.25.65-.59 1.23-1.14 1.77-.54-.55-1.12.89-1.77 1.14-.63.24-1.36.41-2.42.46-1.07.05-1.4.06-4.12.06s-3.05-.01-4.12-.06c-1.06-.05-1.79-.22-2.42-.46-.65-.25-1.23-.59-1.77-1.14-.54-.55-.89-1.12-1.14-1.77-.24-.63-.41-1.36-.46-2.42-.05-1.07-.06-1.4-.06-4.12s.01-3.05.06-4.12c.05-1.06.22-1.79.46 2.42.25-.65.59-1.23 1.14 1.77.54-.55 1.12.89 1.77-1.14.63-.24 1.36.41 2.42-.46C8.95 2.01 9.28 2 12 2zm0 1.8c-2.67 0-3 .01-4.05.06-1.02.04-1.63.21-2.13.41-.56.2-.98.5-1.41.93-.42.43-.72.85-.92 1.41-.2.5-.37 1.11-.41 2.13-.05 1.05-.06 1.38-.06 4.05s.01 3 .06 4.05c.04 1.02.21 1.63.41 2.13.2.56.5.98.92 1.41.43.42.85.72 1.41.92.5.2 1.11.37 2.13.41 1.05.05 1.38.06 4.05.06h.01c2.67 0 3-.01 4.05-.06 1.02-.04 1.63.21 2.13-.41.56-.2.98-.5 1.41-.92.42-.43.72-.85.92-1.41.2-.5.37-1.11-.41-2.13.05-1.05.06-1.38.06-4.05s-.01-3-.06-4.05c-.04-1.02-.21-1.63-.41-2.13-.2-.56-.5-.98-.92-1.41-.43-.42-.85-.72-1.41-.92-.5-.2-1.11-.37-2.13-.41C15 3.81 14.67 3.8 12 3.8zm0 3.91c-2.27 0-4.1 1.83-4.1 4.1s1.83 4.1 4.1 4.1 4.1-1.83 4.1-4.1-1.83-4.1-4.1-4.1zm0 6.81c-1.5 0-2.71-1.21-2.71-2.71s1.21-2.71 2.71-2.71 2.71 1.21 2.71 2.71-1.21 2.71-2.71 2.71zm5.24-6.52c0 .6-.48 1.08-1.08 1.08s-1.08-.48-1.08-1.08.48-1.08 1.08-1.08 1.08.48 1.08 1.08z"
+                  /></svg
+              ></a>
+            </div>
+          </div>
         </div>
         <p class="text-center text-xs text-gray-500 mt-8">
-          © <span x-text="new Date().getFullYear()"></span> Meg Joni. Wszelkie
-          prawa zastrzeżone.
+          &copy; <span x-text="new Date().getFullYear()"></span> Meg Joni.
+          Wszelkie prawa zastrzeżone.
         </p>
       </div>
     </footer>
 
-    <div x-show="cartOpen" class="fixed inset-0 z-50 flex justify-end" x-cloak>
+    <aside
+      x-show="cartOpen"
+      class="fixed inset-0 z-50 flex justify-end"
+      x-cloak
+    >
       <div
         @click="cartOpen = false"
-        class="fixed inset-0 bg-black bg-opacity-20 transition-opacity"
+        class="fixed inset-0 bg-black bg-opacity-40 transition-opacity"
         x-show="cartOpen"
         x-transition:enter="transition-opacity ease-in-out duration-300"
         x-transition:enter-start="opacity-0"
@@ -459,33 +726,33 @@
         x-transition:leave-start="opacity-100"
         x-transition:leave-end="opacity-0"
       ></div>
-
       <div
-        class="relative flex flex-col max-w-xs w-full bg-white shadow-xl py-4 pb-6 overflow-y-auto transform transition-all ease-in-out duration-300"
         x-show="cartOpen"
         @click.away="cartOpen = false"
-        x-transition:enter="ease-out duration-300"
-        x-transition:enter-start="translate-x-full opacity-90"
-        x-transition:enter-end="translate-x-0 opacity-100"
-        x-transition:leave="ease-in duration-200"
-        x-transition:leave-start="translate-x-0 opacity-100"
-        x-transition:leave-end="translate-x-full opacity-90"
+        x-transition:enter="transform transition ease-in-out duration-300 sm:duration-300"
+        x-transition:enter-start="translate-x-full"
+        x-transition:enter-end="translate-x-0"
+        x-transition:leave="transform transition ease-in-out duration-300 sm:duration-300"
+        x-transition:leave-start="translate-x-0"
+        x-transition:leave-end="translate-x-full"
+        class="relative flex flex-col max-w-md w-full bg-white shadow-xl pt-4 pb-6 overflow-y-auto"
       >
-        <div class="px-4 sm:px-6 flex items-center justify-between">
+        <div
+          class="px-4 sm:px-6 flex items-center justify-between pb-4 border-b"
+        >
           <h2 class="text-lg font-medium text-gray-900">Twój koszyk</h2>
           <button
             @click="cartOpen = false"
             type="button"
-            class="-mr-2 p-2 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            class="-mr-2 p-2 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-pink-500"
+            aria-label="Zamknij koszyk"
           >
-            <span class="sr-only">Zamknij koszyk</span>
             <svg
               class="h-6 w-6"
               fill="none"
               viewBox="0 0 24 24"
               stroke-width="1.5"
               stroke="currentColor"
-              aria-hidden="true"
             >
               <path
                 stroke-linecap="round"
@@ -495,7 +762,7 @@
             </svg>
           </button>
         </div>
-        <div class="mt-6 px-4 sm:px-6 relative flex-1 flex flex-col">
+        <div class="mt-2 px-0 sm:px-0 relative flex-1 flex flex-col">
           <div
             id="cart-content-target"
             class="flex-grow"
@@ -503,15 +770,9 @@
             hx-trigger="load, updateCartDisplay from:body, cartOpened from:body"
             hx-swap="innerHTML"
           >
-            <p
-              class="text-gray-600 py-6 text-center"
-              x-show="cartItemCount === 0"
-            >
-              Twój koszyk jest pusty.
-            </p>
-            <div x-show="cartItemCount > 0" x-cloak class="py-6 text-center">
+            <div class="flex justify-center items-center h-full py-10">
               <svg
-                class="animate-spin h-6 w-6 text-pink-600 mx-auto"
+                class="animate-spin h-8 w-8 text-pink-600"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -530,48 +791,55 @@
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 ></path>
               </svg>
-              <p class="mt-2 text-sm text-gray-500">Ładowanie koszyka...</p>
-            </div>
-          </div>
-          <div class="border-t border-gray-200 px-0 py-6 mt-auto">
-            <div
-              class="flex justify-between text-base font-medium text-gray-900"
-            >
-              <p>Suma</p>
-              <p id="cart-subtotal-price">0.00 zł</p>
-            </div>
-            <p class="mt-0.5 text-sm text-gray-500">
-              Wysyłka i podatki obliczane przy kasie.
-            </p>
-            <div class="mt-6">
-              <a
-                href="/checkout"
-                class="flex items-center justify-center rounded-md border border-transparent bg-green-600 px-6 py-3 text-base font-medium text-white shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors"
-                >Do kasy</a
-              >
-            </div>
-            <div
-              class="mt-6 flex justify-center text-center text-sm text-gray-500"
-            >
-              <p>
-                lub
-                <button
-                  type="button"
-                  @click="cartOpen = false"
-                  class="font-medium text-pink-600 hover:text-pink-500"
-                >
-                  Kontynuuj zakupy
-                  <span aria-hidden="true"> &rarr;</span>
-                </button>
-              </p>
             </div>
           </div>
         </div>
+        <div
+          class="border-t border-gray-200 px-4 sm:px-6 py-6 mt-auto"
+          x-show="cartItemCount > 0"
+          x-cloak
+        >
+          <div class="flex justify-between text-base font-medium text-gray-900">
+            <p>Suma</p>
+            <p id="cart-subtotal-price">0,00 zł</p>
+          </div>
+          <p class="mt-0.5 text-sm text-gray-500">
+            Wysyłka i podatki obliczane przy kasie.
+          </p>
+          <div class="mt-6">
+            <a
+              href="/checkout"
+              class="flex items-center justify-center rounded-md border border-transparent bg-pink-600 px-6 py-3 text-base font-medium text-white shadow-sm hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 transition-colors"
+              >Do kasy</a
+            >
+          </div>
+          <div
+            class="mt-6 flex justify-center text-center text-sm text-gray-500"
+          >
+            <p>
+              lub
+              <button
+                type="button"
+                @click="cartOpen = false"
+                class="font-medium text-pink-600 hover:text-pink-500"
+              >
+                Kontynuuj zakupy<span aria-hidden="true"> &rarr;</span>
+              </button>
+            </p>
+          </div>
+        </div>
+        <div
+          class="px-4 sm:px-6 py-6 text-center mt-auto"
+          x-show="cartItemCount === 0"
+          x-cloak
+        >
+          <p class="text-gray-500">Twój koszyk jest pusty.</p>
+        </div>
       </div>
-    </div>
+    </aside>
 
     <div
-      x-show="isFullscreenImageOpen"
+      x-show="activeImageModal.isOpen"
       x-cloak
       x-transition:enter="transition-opacity ease-in-out duration-300"
       x-transition:enter-start="opacity-0"
@@ -579,31 +847,21 @@
       x-transition:leave="transition-opacity ease-in-out duration-200"
       x-transition:leave-start="opacity-100"
       x-transition:leave-end="opacity-0"
-      class="fixed inset-0 z-60 flex items-center justify-center p-2 sm:p-4"
+      class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
       aria-labelledby="fullscreen-image-title"
       role="dialog"
       aria-modal="true"
     >
-      <div
-        class="fixed inset-0 bg-black bg-opacity-40"
-        @click="closeFullscreenImage()"
-      ></div>
-
-      <div
+      <img
+        :src="activeImageModal.currentSrc"
+        alt="Powiększone zdjęcie produktu"
+        class="block object-contain max-w-full max-h-full rounded-lg shadow-2xl"
         @click.stop
-        class="relative bg-white rounded-lg shadow-2xl overflow-y-auto {# Umożliwia przewijanie pionowe dla wysokich obrazków #} w-full h-full {# Mobile: Domyślnie zajmuje całą dostępną przestrzeń wewnątrz paddingu rodzica #} max-w-full max-h-full {# Mobile: Bez dodatkowych ograniczeń max-width/height #} sm:w-auto sm:h-auto {# Desktop: Szerokość/wysokość dopasuje się do treści (obrazka) do limitów max #} sm:max-w-4xl {# Desktop: Maksymalna szerokość kontenera obrazka #} sm:max-h-[90vh] {# Desktop: Maksymalna wysokość kontenera obrazka #} flex items-center justify-center {# Centruje obrazek wewnątrz tego boxu, jeśli obrazek jest mniejszy niż box #} p-0"
-      >
-        <img
-          :src="fullscreenImageUrl"
-          alt="Powiększone zdjęcie produktu"
-          class="block object-contain {# object-contain aby cały obrazek był widoczny i zachował proporcje #} w-auto h-auto {# Rozmiar dopasuje się do treści, ograniczony przez rodzica #} max-w-full {# Nie szerszy niż jego kontener (biały box) #} max-h-full"
-        />
-      </div>
-
+      />
       <button
-        @click="closeFullscreenImage()"
+        @click="closeImageModal()"
         type="button"
-        class="absolute top-3 right-3 sm:top-4 sm:right-4 z-70 {# Wyższy z-index niż kontener obrazka #} p-1.5 bg-white bg-opacity-75 hover:bg-opacity-100 rounded-full text-gray-700 hover:text-black focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:ring-offset-black/10 transition-all"
+        class="absolute top-4 right-4 z-[70] p-2 bg-white/80 hover:bg-white rounded-full text-gray-700 hover:text-pink-600 focus:outline-none focus:ring-2 focus:ring-pink-500 transition-all"
         aria-label="Zamknij podgląd obrazka"
       >
         <svg
@@ -620,45 +878,76 @@
           />
         </svg>
       </button>
+      <button
+        x-show="activeImageModal.images.length > 1"
+        @click.stop="prevImageModal()"
+        type="button"
+        class="absolute left-4 top-1/2 -translate-y-1/2 z-[70] p-3 bg-white/60 hover:bg-white/90 rounded-full text-gray-800 hover:text-pink-600 focus:outline-none focus:ring-2 focus:ring-pink-500 transition-all"
+        aria-label="Poprzednie zdjęcie"
+      >
+        <svg
+          class="h-7 w-7"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="2.5"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M15.75 19.5L8.25 12l7.5-7.5"
+          />
+        </svg>
+      </button>
+      <button
+        x-show="activeImageModal.images.length > 1"
+        @click.stop="nextImageModal()"
+        type="button"
+        class="absolute right-4 top-1/2 -translate-y-1/2 z-[70] p-3 bg-white/60 hover:bg-white/90 rounded-full text-gray-800 hover:text-pink-600 focus:outline-none focus:ring-2 focus:ring-pink-500 transition-all"
+        aria-label="Następne zdjęcie"
+      >
+        <svg
+          class="h-7 w-7"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="2.5"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M8.25 4.5l7.5 7.5-7.5 7.5"
+          />
+        </svg>
+      </button>
     </div>
 
     <script>
-      document.addEventListener("alpine:init", () => {
-        // Wczytanie guestCartId przy inicjalizacji Alpine, jeśli nie ma go w x-data na body
-        // Jeśli jest w x-data na body, ta linia może nie być potrzebna,
-        // ale upewnia, że Alpine ma dostęp do tej wartości.
-        // Alpine.store('cartData', { guestCartId: localStorage.getItem('guestCartId') });
-
-        // Nasłuchuj na zdarzenie 'updateCartCount' wyzwalane przez HTMX (z HX-Trigger)
-        // To jest alternatywa dla nasłuchiwania przez Hyperscript, jeśli go całkowicie usuniesz.
-        // Jeśli Hyperscript działa poprawnie, ten listener nie jest potrzebny.
-        document.body.addEventListener("updateCartCount", function (htmxEvent) {
-          console.log(
-            "JavaScript (body listener): updateCartCount triggered. HTMX Detail:",
-            htmxEvent.detail,
-          );
-          if (htmxEvent.detail) {
-            // Wyślij niestandardowe zdarzenie, na które nasłuchuje Alpine na body
-            document.body.dispatchEvent(
-              new CustomEvent("js-update-cart", {
-                detail: htmxEvent.detail, // Przekaż cały obiekt {newCount: X, newGuestCartId: Y}
-                bubbles: true,
-              }),
-            );
-          }
-        });
+      document.body.addEventListener("htmx:configRequest", (event) => {
+        const guestCartId = localStorage.getItem("guestCartId");
+        if (guestCartId) event.detail.headers["X-Guest-Cart-Id"] = guestCartId;
       });
-
-      // Listener dla htmx:configRequest do dodawania nagłówka X-Guest-Cart-Id
-      // Ten listener musi być dodany, jeśli usunąłeś odpowiednik z Hyperscript
-      document.body.addEventListener("htmx:configRequest", function (event) {
-        const guestCartId = localStorage.getItem("guestCartId"); // Odczytaj bezpośrednio z localStorage
-        if (guestCartId) {
-          event.detail.headers["X-Guest-Cart-Id"] = guestCartId;
-          console.log(
-            "JavaScript (htmx:configRequest): Adding X-Guest-Cart-Id header:",
-            guestCartId,
+      document.body.addEventListener("updateCartCount", (htmxEvent) => {
+        if (htmxEvent.detail) {
+          document.body.dispatchEvent(
+            new CustomEvent("js-update-cart", {
+              detail: htmxEvent.detail,
+              bubbles: true,
+            }),
           );
+          if (typeof htmxEvent.detail.newCartTotalPrice !== "undefined") {
+            const subtotalPriceElement = document.getElementById(
+              "cart-subtotal-price",
+            );
+            if (subtotalPriceElement) {
+              const priceInZl = (
+                parseInt(htmxEvent.detail.newCartTotalPrice) / 100
+              )
+                .toFixed(2)
+                .replace(".", ",");
+              subtotalPriceElement.innerHTML = priceInZl + " zł";
+            }
+          }
         }
       });
     </script>
