@@ -291,7 +291,6 @@ pub async fn get_product_detail_htmx_handler(
 
     let all_images_js_array_literal: String =
         serde_json::to_string(&product.images).unwrap_or_else(|_| String::from("[]"));
-
     // 2. Zbuduj string dla x-data. Zauważ, że klucze obiektu JS nie potrzebują cudzysłowów, jeśli są prostymi identyfikatorami.
     let x_data_attribute_value = format!(
         "{{ currentMainImage: {val1}, allProductImages: {val2} }}", // Zmieniono na allProductImages (camelCase)
@@ -302,8 +301,9 @@ pub async fn get_product_detail_htmx_handler(
     // "{ currentMainImage: \"url1\", allProductImages: [\"url1\",\"url2\"] }"
 
     let main_image_click_alpine_action = format!(
-        "if (currentMainImage && currentMainImage !== '') $dispatch('open-alpine-modal', {{ src: currentMainImage, imagesJsonString: {} }})",
-        all_images_js_array_literal // Używamy bezpośrednio, bo to już literał tablicy JS
+        // Użyj klucza imagesArray, a wartość to już gotowa tablica JS
+        "if (currentMainImage && currentMainImage !== '') $dispatch('open-alpine-modal', {{ src: currentMainImage, imagesArray: {} }})",
+        all_images_js_array_literal // Ten string zostanie wstawiony jako literał tablicy JS
     );
 
     let return_query_params_str_rust: Option<String> = query_params.return_params;

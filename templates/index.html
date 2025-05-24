@@ -94,27 +94,48 @@
                 if (detail.newGuestCartId && !this.guestCartId) this.guestCartId = detail.newGuestCartId;
             }
         },
-        openImageModal(src, imagesJsonString) {
-            try {
-                this.activeImageModal.images = JSON.parse(imagesJsonString);
-                this.activeImageModal.currentIndex = this.activeImageModal.images.indexOf(src);
-                if (this.activeImageModal.currentIndex === -1 && this.activeImageModal.images.length > 0) this.activeImageModal.currentIndex = 0;
-                this.activeImageModal.currentSrc = this.activeImageModal.images[this.activeImageModal.currentIndex] || src;
-                this.activeImageModal.isOpen = true;
-                document.body.style.overflow = 'hidden';
-            } catch (e) {
-                this.activeImageModal.images = [src]; this.activeImageModal.currentIndex = 0; this.activeImageModal.currentSrc = src; this.activeImageModal.isOpen = true; document.body.style.overflow = 'hidden';
+activeImageModal: {
+            isOpen: false,
+            currentSrc: '',
+            images: [],      // Tablica URL-i wszystkich obrazków produktu
+            currentIndex: 0
+        },
+        openImageModal(src, imagesArray) { // Zmieniono imagesJsonString na imagesArray
+            this.activeImageModal.images = imagesArray; // Bezpośrednie przypisanie tablicy
+            this.activeImageModal.currentIndex = this.activeImageModal.images.indexOf(src);
+            if (this.activeImageModal.currentIndex === -1 && this.activeImageModal.images.length > 0) {
+                this.activeImageModal.currentIndex = 0; // Domyślnie pierwszy obrazek, jeśli src nie pasuje
+            }
+            // Ustaw currentSrc na podstawie (potencjalnie) zaktualizowanego currentIndex
+            if (this.activeImageModal.images.length > 0) {
+                this.activeImageModal.currentSrc = this.activeImageModal.images[this.activeImageModal.currentIndex];
+            } else {
+                this.activeImageModal.currentSrc = src; // Fallback, jeśli tablica jest pusta (nie powinno się zdarzyć)
+            }
+            this.activeImageModal.isOpen = true;
+            document.body.style.overflow = 'hidden'; // Zapobiegaj przewijaniu tła
+        },
+        closeImageModal() {
+            this.activeImageModal.isOpen = false;
+            document.body.style.overflow = ''; // Przywróć przewijanie tła
+        },
+        nextImageModal() {
+            if (this.activeImageModal.images.length > 0) {
+                this.activeImageModal.currentIndex = (this.activeImageModal.currentIndex + 1) % this.activeImageModal.images.length;
+                this.activeImageModal.currentSrc = this.activeImageModal.images[this.activeImageModal.currentIndex];
             }
         },
-        closeImageModal() { this.activeImageModal.isOpen = false; document.body.style.overflow = ''; },
-        nextImageModal() { if (this.activeImageModal.images.length > 0) { this.activeImageModal.currentIndex = (this.activeImageModal.currentIndex + 1) % this.activeImageModal.images.length; this.activeImageModal.currentSrc = this.activeImageModal.images[this.activeImageModal.currentIndex]; } },
-        prevImageModal() { if (this.activeImageModal.images.length > 0) { this.activeImageModal.currentIndex = (this.activeImageModal.currentIndex - 1 + this.activeImageModal.images.length) % this.activeImageModal.images.length; this.activeImageModal.currentSrc = this.activeImageModal.images[this.activeImageModal.currentIndex]; } }
+        prevImageModal() {
+            if (this.activeImageModal.images.length > 0) {
+                this.activeImageModal.currentIndex = (this.activeImageModal.currentIndex - 1 + this.activeImageModal.images.length) % this.activeImageModal.images.length;
+                this.activeImageModal.currentSrc = this.activeImageModal.images[this.activeImageModal.currentIndex];
+            }
+        }
     }"
-    x-init="initAlpine()"
-    x-on:js-update-cart.document="handleHtmxCartUpdate($event.detail)"
-    x-on:keydown.escape.window="if(activeImageModal.isOpen) closeImageModal()"
-    x-on:keydown.left.window="if(activeImageModal.isOpen && activeImageModal.images.length > 1) prevImageModal()"
-    x-on:keydown.right.window="if(activeImageModal.isOpen && activeImageModal.images.length > 1) nextImageModal()"
+    x-on:open-alpine-modal.window="openImageModal($event.detail.src, $event.detail.imagesArray)"
+    x-on:keydown.escape.window="if(activeImageModal.isOpen) { closeImageModal() }"
+    x-on:keydown.left.window="if(activeImageModal.isOpen && activeImageModal.images.length > 1) { prevImageModal() }"
+    x-on:keydown.right.window="if(activeImageModal.isOpen && activeImageModal.images.length > 1) { nextImageModal() }"
     class="flex flex-col min-h-screen bg-white text-gray-900 font-sans antialiased"
   >
     <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-sm shadow-md">
@@ -503,6 +524,100 @@
         </div>
       </div>
     </header>
+
+    <div
+      x-show="activeImageModal.isOpen"
+      x-cloak
+      x-transition:enter="transition-opacity ease-in-out duration-300"
+      x-transition:enter-start="opacity-0"
+      x-transition:enter-end="opacity-100"
+      x-transition:leave="transition-opacity ease-in-out duration-200"
+      x-transition:leave-start="opacity-100"
+      x-transition:leave-end="opacity-0"
+      class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-auto"
+      @click="closeImageModal()"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="fullscreen-image-alt"
+    >
+      <div
+        @click.stop
+        class="relative flex items-center justify-center w-full h-full"
+      >
+        <img
+          :src="activeImageModal.currentSrc"
+          id="fullscreen-image-alt"
+          alt="Powiększone zdjęcie produktu"
+          class="block rounded-lg shadow-2xl object-contain"
+          style="max-width: calc(100% - 40px); max-height: calc(100% - 40px)"
+        />
+      </div>
+
+      <button
+        @click.stop="closeImageModal()"
+        type="button"
+        class="absolute top-4 right-4 z-[70] p-2 bg-white/20 hover:bg-white/40 rounded-full text-white focus:outline-none focus:ring-2 focus:ring-white transition-all"
+        aria-label="Zamknij podgląd obrazka"
+      >
+        <svg
+          class="h-7 w-7"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="2"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M6 18L18 6M6 6l12 12"
+          />
+        </svg>
+      </button>
+
+      <button
+        x-show="activeImageModal.images.length > 1"
+        @click.stop="prevImageModal()"
+        type="button"
+        class="absolute left-4 top-1/2 -translate-y-1/2 z-[70] p-3 bg-white/20 hover:bg-white/40 rounded-full text-white focus:outline-none focus:ring-2 focus:ring-white transition-all"
+        aria-label="Poprzednie zdjęcie"
+      >
+        <svg
+          class="h-8 w-8"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="2"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M15.75 19.5L8.25 12l7.5-7.5"
+          />
+        </svg>
+      </button>
+
+      <button
+        x-show="activeImageModal.images.length > 1"
+        @click.stop="nextImageModal()"
+        type="button"
+        class="absolute right-4 top-1/2 -translate-y-1/2 z-[70] p-3 bg-white/20 hover:bg-white/40 rounded-full text-white focus:outline-none focus:ring-2 focus:ring-white transition-all"
+        aria-label="Następne zdjęcie"
+      >
+        <svg
+          class="h-8 w-8"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="2"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M8.25 4.5l7.5 7.5-7.5 7.5"
+          />
+        </svg>
+      </button>
+    </div>
 
     <main class="flex-grow max-w-7xl mx-auto px-4 py-6 sm:py-8 md:py-10 w-full">
       <div
