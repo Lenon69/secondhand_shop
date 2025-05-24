@@ -8,9 +8,9 @@
       content="Odkryj unikalną odzież vintage w MEG JONI. Najlepsze perełki z drugiej ręki dla niej i dla niego."
     />
     <title>MEG JONI - Sklep Vintage Online</title>
-    <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script
-      src="https://unpkg.com/htmx.org@2.0.0/dist/htmx.min.js"
+      src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"
       defer
     ></script>
     <script
@@ -21,7 +21,6 @@
       src="https://unpkg.com/hyperscript.org@0.9.12/dist/hyperscript.min.js"
       defer
     ></script>
-
     <style type="text/tailwindcss">
       [x-cloak] {
         display: none !important;
@@ -71,13 +70,21 @@
         isMobileMenuOpen: false,
         currentMobilePage: '',
         guestCartId: null,
-        activeImageModal: { isOpen: false, currentSrc: '', images: [], currentIndex: 0 },
+
+        activeImageModal: { // Stan modala jako pojedynczy obiekt
+            isOpen: false,
+            currentSrc: '',
+            images: [],
+            currentIndex: 0
+        },
+
+        // Metody na głównym poziomie x-data
         initAlpine() {
             this.cartItemCount = parseInt(localStorage.getItem('alpineCartCount')) || 0;
             this.guestCartId = localStorage.getItem('guestCartId');
             this.updateCartCounterVisuals();
-            this.$watch('cartItemCount', (val) => { localStorage.setItem('alpineCartCount', val); this.updateCartCounterVisuals(); });
-            this.$watch('guestCartId', (val) => { if (val) localStorage.setItem('guestCartId', val); else localStorage.removeItem('guestCartId'); });
+            
+            // $watch jest metodą Alpine, nie trzeba jej definiować, wystarczy użyć w x-init
         },
         updateCartCounterVisuals() {
             ['cart-count-bubble', 'cart-count-bubble-mobile'].forEach(id => {
@@ -91,33 +98,28 @@
         handleHtmxCartUpdate(detail) {
             if (detail && typeof detail.newCount !== 'undefined') {
                 this.cartItemCount = parseInt(detail.newCount) || 0;
-                if (detail.newGuestCartId && !this.guestCartId) this.guestCartId = detail.newGuestCartId;
+                if (detail.newGuestCartId && this.guestCartId !== detail.newGuestCartId) {
+                    this.guestCartId = detail.newGuestCartId;
+                }
             }
         },
-activeImageModal: {
-            isOpen: false,
-            currentSrc: '',
-            images: [],      // Tablica URL-i wszystkich obrazków produktu
-            currentIndex: 0
-        },
-        openImageModal(src, imagesArray) { // Zmieniono imagesJsonString na imagesArray
-            this.activeImageModal.images = imagesArray; // Bezpośrednie przypisanie tablicy
+        openImageModal(src, imagesArray) {
+            this.activeImageModal.images = Array.isArray(imagesArray) ? imagesArray : [];
             this.activeImageModal.currentIndex = this.activeImageModal.images.indexOf(src);
             if (this.activeImageModal.currentIndex === -1 && this.activeImageModal.images.length > 0) {
-                this.activeImageModal.currentIndex = 0; // Domyślnie pierwszy obrazek, jeśli src nie pasuje
+                this.activeImageModal.currentIndex = 0;
             }
-            // Ustaw currentSrc na podstawie (potencjalnie) zaktualizowanego currentIndex
-            if (this.activeImageModal.images.length > 0) {
+            if (this.activeImageModal.images.length > 0 && this.activeImageModal.images[this.activeImageModal.currentIndex]) {
                 this.activeImageModal.currentSrc = this.activeImageModal.images[this.activeImageModal.currentIndex];
             } else {
-                this.activeImageModal.currentSrc = src; // Fallback, jeśli tablica jest pusta (nie powinno się zdarzyć)
+                this.activeImageModal.currentSrc = src; // Fallback
             }
             this.activeImageModal.isOpen = true;
-            document.body.style.overflow = 'hidden'; // Zapobiegaj przewijaniu tła
+            document.body.style.overflow = 'hidden';
         },
         closeImageModal() {
             this.activeImageModal.isOpen = false;
-            document.body.style.overflow = ''; // Przywróć przewijanie tła
+            document.body.style.overflow = '';
         },
         nextImageModal() {
             if (this.activeImageModal.images.length > 0) {
@@ -132,11 +134,17 @@ activeImageModal: {
             }
         }
     }"
+    x-init="
+        initAlpine();
+        $watch('cartItemCount', (value) => localStorage.setItem('alpineCartCount', value));
+        $watch('guestCartId', (value) => { if (value) localStorage.setItem('guestCartId', value); else localStorage.removeItem('guestCartId'); });
+    "
     x-on:open-alpine-modal.window="openImageModal($event.detail.src, $event.detail.imagesArray)"
-    x-on:keydown.escape.window="if(activeImageModal.isOpen) { closeImageModal() }"
-    x-on:keydown.left.window="if(activeImageModal.isOpen && activeImageModal.images.length > 1) { prevImageModal() }"
-    x-on:keydown.right.window="if(activeImageModal.isOpen && activeImageModal.images.length > 1) { nextImageModal() }"
-    class="flex flex-col min-h-screen bg-white text-gray-900 font-sans antialiased"
+    x-on:js-update-cart.document="handleHtmxCartUpdate($event.detail)"
+    x-on:keydown.escape.window="if(activeImageModal.isOpen) closeImageModal()"
+    x-on:keydown.left.window="if(activeImageModal.isOpen && activeImageModal.images.length > 1) prevImageModal()"
+    x-on:keydown.right.window="if(activeImageModal.isOpen && activeImageModal.images.length > 1) nextImageModal()"
+    class="flex flex-col min-h-screen bg-gray-50 text-gray-900 font-sans antialiased"
   >
     <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-sm shadow-md">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -148,7 +156,7 @@ activeImageModal: {
               hx-target="#content"
               hx-push-url="/"
               hx-swap="innerHTML"
-              @click="currentMobilePage=''"
+              @click="isMobileMenuOpen = false; currentMobilePage=''"
               class="text-2xl font-bold border-2 border-black px-3 py-1 hover:bg-gray-100 transition-colors duration-200"
             >
               MEG JONI
@@ -160,6 +168,7 @@ activeImageModal: {
               hx-target="#content"
               hx-swap="innerHTML"
               hx-indicator="#search-spinner-desktop"
+              hx-push-url="true"
               class="w-full max-w-md flex"
             >
               <input
@@ -318,9 +327,9 @@ activeImageModal: {
             <a
               href="/dla-niej"
               hx-get="/htmx/dla/niej"
+              hx-target="#content"
               hx-push-url="/dla-niej"
               hx-swap="innerHTML"
-              hx-target="#content"
               @click="currentMobilePage='damska'"
               class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
               >Dla niej</a
@@ -328,9 +337,9 @@ activeImageModal: {
             <a
               href="/dla-niego"
               hx-get="/htmx/dla/niego"
+              hx-target="#content"
               hx-push-url="/dla-niego"
               hx-swap="innerHTML"
-              hx-target="#content"
               @click="currentMobilePage='meska'"
               class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
               >Dla niego</a
@@ -398,6 +407,7 @@ activeImageModal: {
               hx-swap="innerHTML"
               hx-indicator="#search-spinner-mobile"
               @submit="isMobileMenuOpen = false"
+              hx-push-url="true"
               class="flex space-x-2"
             >
               <input
@@ -463,6 +473,7 @@ activeImageModal: {
             href="/nowosci"
             hx-get="/htmx/products?sort_by=created_at&amp;order=desc"
             hx-target="#content"
+            hx-swap="innerHTML"
             hx-push-url="/nowosci"
             @click="isMobileMenuOpen = false; currentMobilePage='nowosci'"
             :class="{'mobile-nav-active': currentMobilePage === 'nowosci'}"
@@ -473,6 +484,7 @@ activeImageModal: {
             href="/wyprzedaz"
             hx-get="/htmx/products?status=Available&amp;on_sale=true"
             hx-target="#content"
+            hx-swap="innerHTML"
             hx-push-url="/wyprzedaz"
             @click="isMobileMenuOpen = false; currentMobilePage='wyprzedaz'"
             :class="{'mobile-nav-active': currentMobilePage === 'wyprzedaz'}"
@@ -483,6 +495,7 @@ activeImageModal: {
             href="/o-nas"
             hx-get="/htmx/page/o-nas"
             hx-target="#content"
+            hx-swap="innerHTML"
             hx-push-url="/o-nas"
             @click="isMobileMenuOpen = false; currentMobilePage='o-nas'"
             :class="{'mobile-nav-active': currentMobilePage === 'o-nas'}"
@@ -493,6 +506,7 @@ activeImageModal: {
             href="/kontakt"
             hx-get="/htmx/page/kontakt"
             hx-target="#content"
+            hx-swap="innerHTML"
             hx-push-url="/kontakt"
             @click="isMobileMenuOpen = false; currentMobilePage='kontakt'"
             :class="{'mobile-nav-active': currentMobilePage === 'kontakt'}"
@@ -525,101 +539,9 @@ activeImageModal: {
       </div>
     </header>
 
-    <div
-      x-show="activeImageModal.isOpen"
-      x-cloak
-      x-transition:enter="transition-opacity ease-in-out duration-300"
-      x-transition:enter-start="opacity-0"
-      x-transition:enter-end="opacity-100"
-      x-transition:leave="transition-opacity ease-in-out duration-200"
-      x-transition:leave-start="opacity-100"
-      x-transition:leave-end="opacity-0"
-      class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-auto"
-      @click="closeImageModal()"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="fullscreen-image-alt"
+    <main
+      class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 md:py-10 w-full"
     >
-      <div
-        @click.stop
-        class="relative flex items-center justify-center w-full h-full"
-      >
-        <img
-          :src="activeImageModal.currentSrc"
-          id="fullscreen-image-alt"
-          alt="Powiększone zdjęcie produktu"
-          class="block rounded-lg shadow-2xl object-contain"
-          style="max-width: calc(100% - 40px); max-height: calc(100% - 40px)"
-        />
-      </div>
-
-      <button
-        @click.stop="closeImageModal()"
-        type="button"
-        class="absolute top-4 right-4 z-[70] p-2 bg-white/20 hover:bg-white/40 rounded-full text-white focus:outline-none focus:ring-2 focus:ring-white transition-all"
-        aria-label="Zamknij podgląd obrazka"
-      >
-        <svg
-          class="h-7 w-7"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke-width="2"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M6 18L18 6M6 6l12 12"
-          />
-        </svg>
-      </button>
-
-      <button
-        x-show="activeImageModal.images.length > 1"
-        @click.stop="prevImageModal()"
-        type="button"
-        class="absolute left-4 top-1/2 -translate-y-1/2 z-[70] p-3 bg-white/20 hover:bg-white/40 rounded-full text-white focus:outline-none focus:ring-2 focus:ring-white transition-all"
-        aria-label="Poprzednie zdjęcie"
-      >
-        <svg
-          class="h-8 w-8"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke-width="2"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M15.75 19.5L8.25 12l7.5-7.5"
-          />
-        </svg>
-      </button>
-
-      <button
-        x-show="activeImageModal.images.length > 1"
-        @click.stop="nextImageModal()"
-        type="button"
-        class="absolute right-4 top-1/2 -translate-y-1/2 z-[70] p-3 bg-white/20 hover:bg-white/40 rounded-full text-white focus:outline-none focus:ring-2 focus:ring-white transition-all"
-        aria-label="Następne zdjęcie"
-      >
-        <svg
-          class="h-8 w-8"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke-width="2"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M8.25 4.5l7.5 7.5-7.5 7.5"
-          />
-        </svg>
-      </button>
-    </div>
-
-    <main class="flex-grow max-w-7xl mx-auto px-4 py-6 sm:py-8 md:py-10 w-full">
       <div
         id="content"
         hx-get="/htmx/products?limit=9&amp;sort_by=name&amp;order=asc"
@@ -745,7 +667,7 @@ activeImageModal: {
               <li>
                 <a
                   href="/dla-niej"
-                  hx-get="/htmx/strona-plec/Damskie"
+                  hx-get="/htmx/dla/niej"
                   hx-target="#content"
                   hx-push-url="/dla-niej"
                   class="hover:underline hover:text-pink-600 transition-colors"
@@ -755,7 +677,7 @@ activeImageModal: {
               <li>
                 <a
                   href="/dla-niego"
-                  hx-get="/htmx/strona-plec/Meskie"
+                  hx-get="/htmx/dla/niego"
                   hx-target="#content"
                   hx-push-url="/dla-niego"
                   class="hover:underline hover:text-pink-600 transition-colors"
@@ -832,8 +754,9 @@ activeImageModal: {
     >
       <div
         @click="cartOpen = false"
-        class="fixed inset-0 bg-black bg-opacity-40 transition-opacity"
         x-show="cartOpen"
+        class="fixed inset-0 transition-opacity backdrop-blur-sm"
+        style="background-color: rgba(0, 0, 0, 0.5) !important"
         x-transition:enter="transition-opacity ease-in-out duration-300"
         x-transition:enter-start="opacity-0"
         x-transition:enter-end="opacity-100"
@@ -962,28 +885,35 @@ activeImageModal: {
       x-transition:leave="transition-opacity ease-in-out duration-200"
       x-transition:leave-start="opacity-100"
       x-transition:leave-end="opacity-0"
-      class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-      aria-labelledby="fullscreen-image-title"
+      class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-auto"
+      @click="closeImageModal()"
       role="dialog"
       aria-modal="true"
+      aria-labelledby="fullscreen-image-alt"
     >
-      <img
-        :src="activeImageModal.currentSrc"
-        alt="Powiększone zdjęcie produktu"
-        class="block object-contain max-w-full max-h-full rounded-lg shadow-2xl"
+      <div
         @click.stop
-      />
+        class="relative flex items-center justify-center w-full h-full"
+      >
+        <img
+          :src="activeImageModal.currentSrc"
+          id="fullscreen-image-alt"
+          alt="Powiększone zdjęcie produktu"
+          class="block rounded-lg shadow-2xl object-contain"
+          style="max-width: calc(100% - 40px); max-height: calc(100% - 40px)"
+        />
+      </div>
       <button
-        @click="closeImageModal()"
+        @click.stop="closeImageModal()"
         type="button"
-        class="absolute top-4 right-4 z-[70] p-2 bg-white/80 hover:bg-white rounded-full text-gray-700 hover:text-pink-600 focus:outline-none focus:ring-2 focus:ring-pink-500 transition-all"
+        class="absolute top-4 right-4 z-[70] p-2 bg-white/20 hover:bg-white/40 rounded-full text-white focus:outline-none focus:ring-2 focus:ring-white transition-all"
         aria-label="Zamknij podgląd obrazka"
       >
         <svg
-          class="h-6 w-6"
+          class="h-7 w-7"
           fill="none"
           viewBox="0 0 24 24"
-          stroke-width="2.5"
+          stroke-width="2"
           stroke="currentColor"
         >
           <path
@@ -997,14 +927,14 @@ activeImageModal: {
         x-show="activeImageModal.images.length > 1"
         @click.stop="prevImageModal()"
         type="button"
-        class="absolute left-4 top-1/2 -translate-y-1/2 z-[70] p-3 bg-white/60 hover:bg-white/90 rounded-full text-gray-800 hover:text-pink-600 focus:outline-none focus:ring-2 focus:ring-pink-500 transition-all"
+        class="absolute left-4 top-1/2 -translate-y-1/2 z-[70] p-3 bg-white/20 hover:bg-white/40 rounded-full text-white focus:outline-none focus:ring-2 focus:ring-white transition-all"
         aria-label="Poprzednie zdjęcie"
       >
         <svg
-          class="h-7 w-7"
+          class="h-8 w-8"
           fill="none"
           viewBox="0 0 24 24"
-          stroke-width="2.5"
+          stroke-width="2"
           stroke="currentColor"
         >
           <path
@@ -1018,14 +948,14 @@ activeImageModal: {
         x-show="activeImageModal.images.length > 1"
         @click.stop="nextImageModal()"
         type="button"
-        class="absolute right-4 top-1/2 -translate-y-1/2 z-[70] p-3 bg-white/60 hover:bg-white/90 rounded-full text-gray-800 hover:text-pink-600 focus:outline-none focus:ring-2 focus:ring-pink-500 transition-all"
+        class="absolute right-4 top-1/2 -translate-y-1/2 z-[70] p-3 bg-white/20 hover:bg-white/40 rounded-full text-white focus:outline-none focus:ring-2 focus:ring-white transition-all"
         aria-label="Następne zdjęcie"
       >
         <svg
-          class="h-7 w-7"
+          class="h-8 w-8"
           fill="none"
           viewBox="0 0 24 24"
-          stroke-width="2.5"
+          stroke-width="2"
           stroke="currentColor"
         >
           <path
@@ -1037,12 +967,75 @@ activeImageModal: {
       </button>
     </div>
 
+    {# Komponent powiadomień, jeśli go używasz #}
+    <div
+      x-data="{ show: false, message: '', type: 'info', timeout: null }"
+      x-init="$el.addEventListener('showMessage', (event) => {
+             message = event.detail.message;
+             type = event.detail.type || 'info';
+             show = true;
+             clearTimeout(timeout);
+             timeout = setTimeout(() => show = false, 3500);
+         })"
+      x-show="show"
+      x-transition:enter="transition ease-out duration-300"
+      x-transition:enter-start="opacity-0 transform translate-y-2"
+      x-transition:enter-end="opacity-100 transform translate-y-0"
+      x-transition:leave="transition ease-in duration-300"
+      x-transition:leave-start="opacity-100 transform translate-y-0"
+      x-transition:leave-end="opacity-0 transform translate-y-2"
+      class="fixed bottom-5 right-5 text-white px-4 py-3 rounded-md shadow-lg z-[100] text-sm"
+      :class="{
+             'bg-green-600': type === 'success',
+             'bg-red-600': type === 'error',
+             'bg-sky-600': type === 'info',
+             'bg-yellow-500 text-black': type === 'warning'
+         }"
+      role="alert"
+      x-cloak
+    >
+      <p x-text="message"></p>
+    </div>
+
+    <div
+      x-data="{ show: false, message: '', type: 'info', timeout: null }"
+      x-init="$el.addEventListener('showMessage', (event) => {
+             message = event.detail.message;
+             type = event.detail.type || 'info';
+             show = true;
+             clearTimeout(timeout);
+             timeout = setTimeout(() => show = false, 3500);
+         })"
+      x-show="show"
+      x-transition:enter="transition ease-out duration-300"
+      x-transition:enter-start="opacity-0 transform translate-y-2"
+      x-transition:enter-end="opacity-100 transform translate-y-0"
+      x-transition:leave="transition ease-in duration-300"
+      x-transition:leave-start="opacity-100 transform translate-y-0"
+      x-transition:leave-end="opacity-0 transform translate-y-2"
+      class="fixed bottom-5 right-5 text-white px-4 py-3 rounded-md shadow-lg z-[100] text-sm"
+      :class="{
+             'bg-green-600': type === 'success',
+             'bg-red-600': type === 'error',
+             'bg-sky-600': type === 'info',
+             'bg-yellow-500 text-black': type === 'warning'
+         }"
+      role="alert"
+      x-cloak
+    >
+      <p x-text="message"></p>
+    </div>
+
     <script>
       document.body.addEventListener("htmx:configRequest", (event) => {
         const guestCartId = localStorage.getItem("guestCartId");
         if (guestCartId) event.detail.headers["X-Guest-Cart-Id"] = guestCartId;
       });
       document.body.addEventListener("updateCartCount", (htmxEvent) => {
+        console.log(
+          'Odebrano zdarzenie HTMX "updateCartCount". Detail:',
+          htmxEvent.detail,
+        );
         if (htmxEvent.detail) {
           document.body.dispatchEvent(
             new CustomEvent("js-update-cart", {

@@ -863,7 +863,7 @@ pub async fn remove_item_from_cart_htmx_handler(
             "newCartTotalPrice": cart_details.total_price,
             "newGuestCartId": guest_cart_id_for_trigger // Przekazujemy ID gościa, jeśli było
         },
-        "showMessage": { // Opcjonalna wiadomość o sukcesie
+        "showMessage": {
             "type": "info",
             "message": "Produkt usunięty z koszyka."
         }
