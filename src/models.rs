@@ -247,11 +247,6 @@ pub struct MergeCartPayload {
     pub guest_cart_id: Uuid,
 }
 
-// #[derive(Debug, Deserialize)]
-// pub struct AddProductToGuestCartPayload {
-//     pub product_id: Uuid,
-// }
-
 #[derive(Debug, Serialize)]
 pub struct GuestCartOperationResponse {
     pub guest_cart_id: Uuid,

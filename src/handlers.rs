@@ -120,9 +120,9 @@ pub async fn list_products(
         append_where_or_and_count(&mut count_builder);
         let like_pattern = format!("%{}%", search_term);
         count_builder
-            .push("(name ILIKE)")
+            .push("(name ILIKE ")
             .push_bind(like_pattern.clone())
-            .push(" OR description ILIKE")
+            .push(" OR description ILIKE ")
             .push_bind(like_pattern)
             .push(")");
     }

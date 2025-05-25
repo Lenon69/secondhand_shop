@@ -6,9 +6,9 @@ use axum::response::Html;
 use axum::routing::{delete, get, post};
 use dotenvy::dotenv;
 use htmx_handlers::{
-    add_item_to_cart_htmx_handler, gender_page_handler, get_cart_details_htmx_handler,
-    get_product_detail_htmx_handler, list_products_htmx_handler,
-    remove_item_from_cart_htmx_handler,
+    about_us_page_handler, add_item_to_cart_htmx_handler, gender_page_handler,
+    get_cart_details_htmx_handler, get_product_detail_htmx_handler, list_products_htmx_handler,
+    privacy_policy_page_handler, remove_item_from_cart_htmx_handler, terms_of_service_page_handler,
 };
 // use htmx_handlers::*;
 use reqwest::StatusCode;
@@ -21,18 +21,18 @@ use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 // Deklaracje modułów
-mod auth; // dla src/auth.rs
-mod auth_models; // dla src/auth_models.rs
-mod cart_utils; // dla src/cart_utils.rs
-mod cloudinary; // dla src/cloudinary.rs
-mod errors; // dla src/errors.rs
-mod filters; // dla src/filters.rs
-mod handlers; // dla src/handlers.rs
+mod auth;
+mod auth_models;
+mod cart_utils;
+mod cloudinary;
+mod errors;
+mod filters;
+mod handlers;
 mod htmx_handlers;
-mod middleware; // dla src/middleware.rs
-mod models; // dla src/models.rs
-mod pagination; // dla src/pagination.rs
-mod state; // dla src/state.rs
+mod middleware;
+mod models;
+mod pagination;
+mod state;
 
 // Importy z własnych modułów
 use crate::handlers::*;
@@ -129,12 +129,12 @@ async fn main() {
         )
         .route("/api/cart/merge", post(merge_cart_handler))
         .route("/", get(serve_index))
-        // .route("/htmx/page/o-nas", method_router)
-        // .route("/htmx/page/damska", method_router)
-        // .route("/htmx/page/meska", method_router)
-        // .route("/htmx/page/nowosci", method_router)
-        // .route("/htmx/page/wyprzedaz", method_router)
-        // .route("/htmx/page/kontakt", method_router)
+        .route("/htmx/page/o-nas", get(about_us_page_handler))
+        .route("/htmx/page/regulamin", get(terms_of_service_page_handler))
+        .route(
+            "/htmx/page/polityka-prywatnosci",
+            get(privacy_policy_page_handler),
+        )
         .route("/htmx/dla/{gender_slug}", get(gender_page_handler))
         .route(
             "/htmx/cart/add/{product_id}",
