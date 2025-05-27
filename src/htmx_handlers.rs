@@ -1,4 +1,5 @@
 // src/htmx_handlers.rs
+//
 
 #[allow(unused_imports)]
 use axum::{
@@ -24,7 +25,7 @@ use crate::{
     errors::AppError,
     filters::ListingParams,
     handlers::XGuestCartId,
-    models::{CartDetailsResponse, Category, Product, ShoppingCart},
+    models::{CartDetailsResponse, Category, Order, OrderStatus, Product, ShoppingCart},
     pagination::PaginatedProductsResponse,
     state::AppState,
 };
@@ -1790,6 +1791,653 @@ pub async fn terms_of_service_page_handler() -> Result<Markup, AppError> {
                     li { (s8_p3) }
                     li { (s8_p4) } // Pamiętaj o uzupełnieniu linków w tej zmiennej
                     li { (s8_p5) }
+                }
+            }
+        }
+    })
+}
+
+pub async fn contact_page_handler() -> Result<Markup, AppError> {
+    // Dane kontaktowe - UZUPEŁNIJ WŁASNYMI DANYMI!
+    let shop_name = "MEG JONI";
+    let contact_email = "kontakt@megjoni.com";
+    let contact_phone = Some("+48 123 456 789");
+    let company_full_name = "MEG JONI Jan Kowalski";
+    let company_address_line1 = "ul. Modna 1";
+    let company_address_line2 = "00-001 Warszawa";
+    // Możesz dodać linki do mediów społecznościowych
+    let social_facebook_url = Some("https://www.facebook.com/megjoni"); // Opcjonalnie
+    let social_instagram_url = Some("https://www.instagram.com/meg.joni"); // Opcjonalnie
+
+    // --- Definicje tekstów jako zmienne Rusta ---
+    let heading_main_text = "Skontaktuj się z nami";
+    let intro_text = format!(
+        "Masz pytania dotyczące naszych produktów, zamówienia, a może chcesz po prostu porozmawiać o modzie vintage? \
+        Jesteśmy tutaj, aby Ci pomóc! W {} cenimy każdego klienta i staramy się odpowiadać na wszystkie wiadomości \
+        tak szybko, jak to tylko możliwe.",
+        shop_name
+    );
+
+    let email_heading_text = "Napisz do nas";
+    let email_description_text =
+        format!("Najlepszym sposobem na kontakt jest wysłanie wiadomości e-mail na adres:");
+
+    let phone_heading_text = "Zadzwoń do nas";
+    let phone_description_text = if contact_phone.is_some() {
+        "Jeśli wolisz rozmowę telefoniczną, jesteśmy dostępni pod numerem:"
+    } else {
+        "" // Pusty, jeśli nie ma telefonu
+    };
+    let phone_hours_text = "Pn. - Pt. w godzinach 9:00 - 17:00"; // Przykładowe godziny
+
+    let address_heading_text = "Adres korespondencyjny";
+    // let address_note_text = "(Uwaga: nie prowadzimy sprzedaży stacjonarnej pod tym adresem)"; // Jeśli dotyczy
+
+    let social_media_heading_text = "Znajdź nas w sieci";
+
+    let response_time_text =
+        "Staramy się odpowiadać na wszystkie zapytania w ciągu 24 godzin w dni robocze.";
+
+    Ok(html! {
+        div ."max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16" {
+            div ."text-center mb-12" {
+                h1 ."text-4xl sm:text-5xl font-bold tracking-tight text-gray-900" { (heading_main_text) }
+                p ."mt-4 text-lg text-gray-600" { (intro_text) }
+            }
+
+            div ."space-y-10" {
+                // Sekcja Email
+                section ."p-6 bg-white rounded-lg shadow-lg border border-gray-200" {
+                    h2 ."text-2xl font-semibold text-pink-600 mb-3" { (email_heading_text) }
+                    p ."text-gray-700 mb-2" { (email_description_text) }
+                    a href=(format!("mailto:{}", contact_email)) class="text-lg text-gray-900 font-medium hover:underline break-all" { (contact_email) }
+                }
+
+                // Sekcja Telefon (opcjonalna)
+                @if let Some(phone) = contact_phone {
+                    section ."p-6 bg-white rounded-lg shadow-lg border border-gray-200" {
+                        h2 ."text-2xl font-semibold text-pink-600 mb-3" { (phone_heading_text) }
+                        @if !phone_description_text.is_empty() {
+                            p ."text-gray-700 mb-2" { (phone_description_text) }
+                        }
+                        a href=(format!("tel:{}", phone.replace(" ", ""))) class="text-lg text-gray-900 font-medium hover:underline" { (phone) }
+                        p ."text-sm text-gray-500 mt-1" { (phone_hours_text) }
+                    }
+                }
+
+                // Sekcja Adres Korespondencyjny
+                section ."p-6 bg-white rounded-lg shadow-lg border border-gray-200" {
+                    h2 ."text-2xl font-semibold text-pink-600 mb-3" { (address_heading_text) }
+                    p ."text-gray-700 leading-relaxed" {
+                        (company_full_name) br;
+                        (company_address_line1) br;
+                        (company_address_line2)
+                    }
+                    // @if let Some(note) = address_note_text {
+                    //     p ."text-sm text-gray-500 mt-2" { (note) }
+                    // }
+                }
+
+                // Sekcja Media Społecznościowe (opcjonalna)
+                @if social_facebook_url.is_some() || social_instagram_url.is_some() {
+                    section ."p-6 bg-white rounded-lg shadow-lg border border-gray-200" {
+                        h2 ."text-2xl font-semibold text-pink-600 mb-4" { (social_media_heading_text) }
+                        div ."flex space-x-6" {
+                            @if let Some(fb_url) = social_facebook_url {
+                                a href=(fb_url) target="_blank" rel="noopener noreferrer" class="text-gray-600 hover:text-blue-600 transition-colors" {
+                                    // Prosty tekst lub SVG ikona
+                                    span class="text-lg font-medium" {"Facebook"}
+                                    // Dla SVG np.:
+                                    // svg."w-8 h-8" fill="currentColor" viewBox="0 0 24 24" { path d="..." /}
+                                }
+                            }
+                            @if let Some(ig_url) = social_instagram_url {
+                                a href=(ig_url) target="_blank" rel="noopener noreferrer" class="text-gray-600 hover:text-pink-500 transition-colors" {
+                                    span class="text-lg font-medium" {"Instagram"}
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Czas odpowiedzi
+                div ."text-center mt-10 pt-6 border-t border-gray-200" {
+                    p ."text-md text-gray-600" { (response_time_text) }
+                }
+            }
+        }
+    })
+}
+
+#[derive(Debug)]
+struct FaqItem {
+    question: String,
+    answer: String,
+}
+
+pub async fn faq_page_handler() -> Result<Markup, AppError> {
+    let faq_items = vec![
+        FaqItem {
+            question: "Jakie są dostępne metody płatności?".to_string(),
+            answer: "W naszym sklepie MEG JONI akceptujemy następujące metody płatności: szybkie przelewy online (Przelewy24, BLIK) oraz przelew tradycyjny. Wszystkie transakcje są bezpieczne i szyfrowane.".to_string(),
+        },
+        FaqItem {
+            question: "Jaki jest czas realizacji zamówienia?".to_string(),
+            answer: "Standardowo, zamówienia przygotowujemy do wysyłki w ciągu 1-2 dni roboczych od momentu zaksięgowania wpłaty. Czas dostawy przez przewoźnika to zazwyczaj dodatkowe 1-2 dni robocze.".to_string(),
+        },
+        FaqItem {
+            question: "Jakie są koszty i opcje dostawy?".to_string(),
+            answer: "Oferujemy dostawę za pośrednictwem Paczkomatów InPost oraz Poczta Polska. Koszt dostawy jest widoczny podczas składania zamówienia i zależy od wybranej opcji. Dla zamówień powyżej [np. 300 zł] dostawa jest darmowa!".to_string(),
+        },
+        FaqItem {
+            question: "Czy wysyłacie za granicę?".to_string(),
+            answer: "Obecnie realizujemy wysyłki wyłącznie na terenie Polski. Pracujemy nad rozszerzeniem naszej oferty o wysyłki międzynarodowe.".to_string(),
+        },
+        FaqItem {
+            question: "W jakim stanie są oferowane ubrania?".to_string(),
+            answer: "W MEG JONI specjalizujemy się w odzieży vintage i używanej w doskonałym lub bardzo dobrym stanie. Każdy produkt jest starannie sprawdzany, a jego stan (wraz z ewentualnymi minimalnymi śladami użytkowania, które dodają charakteru) jest dokładnie opisany na karcie produktu. Stawiamy na jakość i unikatowość.".to_string(),
+        },
+        FaqItem {
+            question: "Jak dbać o odzież vintage?".to_string(),
+            answer: "Pielęgnacja odzieży vintage zależy od materiału. Zawsze sprawdzaj metki, jeśli są dostępne. Generalnie zalecamy delikatne pranie ręczne lub w niskich temperaturach, a dla szczególnie cennych materiałów (jak jedwab czy wełna) czyszczenie chemiczne. Unikaj suszenia w suszarce bębnowej.".to_string(),
+        },
+        FaqItem {
+            question: "Czy produkty są unikatowe?".to_string(),
+            answer: "Tak, większość naszej oferty to pojedyncze, unikatowe egzemplarze. To właśnie czyni zakupy w MEG JONI wyjątkowym doświadczeniem - masz szansę zdobyć coś, czego nie będzie miał nikt inny!".to_string(),
+        },
+        FaqItem {
+            question: "Czy mogę zwrócić zakupiony produkt?".to_string(),
+            answer: "Oczywiście. Masz 14 dni na zwrot towaru bez podania przyczyny od momentu otrzymania przesyłki. Produkt musi być w stanie nienaruszonym, z oryginalnymi metkami (jeśli były). Szczegóły procedury zwrotu znajdziesz w naszym Regulaminie Sklepu.".to_string(),
+        },
+        FaqItem {
+            question: "Jak złożyć reklamację?".to_string(),
+            answer: "Jeśli otrzymany produkt posiada wadę, która nie była opisana, skontaktuj się z nami mailowo, dołączając zdjęcia i opis problemu. Każdą reklamację rozpatrujemy indywidualnie. Więcej informacji znajdziesz w Regulaminie Sklepu.".to_string(),
+        },
+    ];
+
+    Ok(html! {
+        div ."max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16" {
+            div ."text-center mb-12" {
+                h1 ."text-4xl sm:text-5xl font-bold tracking-tight text-gray-900" { "Najczęściej Zadawane Pytania (FAQ)" }
+                p ."mt-3 text-lg text-gray-600" { "Masz pytanie? Sprawdź, czy nie ma tutaj odpowiedzi!" }
+            }
+
+            div ."space-y-6" { // Kontener na wszystkie pytania i odpowiedzi
+                @for (index, item) in faq_items.iter().enumerate() {
+                    div ."bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden"
+                        "x-data"=(format!("{{ open: {} }}", if index == 0 { "true" } else { "false" })) // Pierwsze pytanie domyślnie otwarte
+                        {
+                        // Pytanie - klikalny nagłówek
+                        h3 ."cursor-pointer p-5 sm:p-6 border-b border-gray-200 hover:bg-gray-50 transition-colors duration-150"
+                           "@click"="open = !open"
+                           class="flex justify-between items-center w-full" {
+                            span ."text-lg font-semibold text-gray-800" { (item.question) }
+                            span ."text-pink-500" { // Kontener na ikonkę
+                                svg ."w-6 h-6 transform transition-transform duration-200 ease-in-out"
+                                    "x-bind:class"="open ? 'rotate-180' : ''" // Obrót ikonki
+                                    fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
+                                    path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
+                                }
+                            }
+                        }
+                        // Odpowiedź - rozwijana sekcja
+                        div ."p-5 sm:p-6 text-gray-700 leading-relaxed prose max-w-none" // prose dla formatowania tekstu
+                            "x-show"="open"
+                            "x-cloak"
+                            "x-transition:enter"="transition ease-out duration-300"
+                            "x-transition:enter-start"="opacity-0 max-h-0"
+                            "x-transition:enter-end"="opacity-100 max-h-screen"
+                            "x-transition:leave"="transition ease-in duration-200"
+                            "x-transition:leave-start"="opacity-100 max-h-screen"
+                            "x-transition:leave-end"="opacity-0 max-h-0"
+                            style="overflow: hidden;" {
+
+                            @for line in item.answer.lines() {
+                                (line) br;
+                            }
+                        }
+                    }
+                }
+        }
+            }
+    })
+}
+
+pub async fn shipping_returns_page_handler() -> Result<Markup, AppError> {
+    let shop_name = "MEG JONI";
+    let processing_time = "1-2 dni robocze";
+    let delivery_time = "1-2 dni robocze";
+    let free_shipping_threshold = "300 zł";
+    let contact_email_returns = "zwroty@megjoni.com";
+    let return_address_line1 = "MEG JONI - Zwroty";
+    let return_address_line2 = "ul. Magazynowa 5";
+    let return_address_line3 = "00-002 Miasto";
+    let link_to_terms = "/htmx/page/regulamin";
+
+    let page_title = "Wysyłka i Zwroty";
+    let page_subtitle = format!(
+        "Wszystko, co musisz wiedzieć o dostawie i zwrotach w {}",
+        shop_name
+    );
+
+    let shipping_section_title = "Informacje o Wysyłce";
+    let shipping_area = "Realizujemy wysyłki na terenie całej Polski.".to_string();
+    let shipping_carriers_intro = "Korzystamy z usług zaufanych partnerów logistycznych, aby Twoje zamówienie dotarło bezpiecznie i na czas. Dostępne opcje to:".to_string();
+    let shipping_carriers_list = ["Paczkomaty InPost 24/7".to_string()];
+    let shipping_costs_text = format!(
+        "Koszty wysyłki są obliczane automatycznie podczas składania zamówienia i zależą od wybranej metody dostawy \
+        oraz wagi/gabarytów paczki. Dokładny koszt zobaczysz przed finalizacją zakupu. \
+        Pamiętaj, że dla wszystkich zamówień powyżej {} dostawa jest całkowicie darmowa!",
+        free_shipping_threshold
+    );
+    let processing_time_text = format!(
+        "Staramy się, aby każde zamówienie zostało przygotowane i wysłane jak najszybciej. \
+        Standardowy czas realizacji (przygotowanie paczki do nadania) wynosi {}.",
+        processing_time
+    );
+    let delivery_time_text = format!(
+        "Po nadaniu przesyłki, przewidywany czas dostawy przez naszych partnerów logistycznych to zwykle {}.",
+        delivery_time
+    );
+    let tracking_text =
+        "Gdy tylko Twoje zamówienie zostanie wysłane, otrzymasz od nas wiadomość e-mail, bądź poinformujemy Cie na komunikatorze WhatsApp/Messenger/Instagram".to_string();
+    let packaging_text = "Każde vintage cudo pakujemy z najwyższą starannością, używając (tam gdzie to możliwe) \
+        materiałów przyjaznych środowisku, aby Twoje nowe nabytki dotarły do Ciebie w nienaruszonym stanie.".to_string();
+
+    let returns_section_title = "Zwroty i Odstąpienie od Umowy";
+    let right_to_return_text = format!(
+        "Rozumiemy, że czasem coś może nie pasować idealnie. Zgodnie z obowiązującym prawem, jako Konsument masz \
+        14 dni kalendarzowych na odstąpienie od umowy sprzedaży (zwrot towaru) bez podawania przyczyny, licząc od dnia, \
+        w którym otrzymałeś/aś przesyłkę. Pełne informacje na ten temat znajdziesz w naszym Regulaminie Sklepu (link poniżej)."
+    );
+    let return_conditions_heading = "Warunki Zwrotu:";
+    let return_conditions_list = [
+        "Produkt nie może nosić żadnych nowych śladów użytkowania poza tymi, które wynikały z jego charakteru vintage i były jasno opisane na stronie produktu.".to_string(),
+        "Produkt powinien posiadać wszystkie oryginalne metki i oznaczenia (jeśli były dołączone).".to_string(),
+        "Produkt musi być kompletny i zwrócony w stanie umożliwiającym jego dalszą odsprzedaż.".to_string(),
+        "Prosimy o staranne zapakowanie zwracanego towaru, aby nie uległ uszkodzeniu podczas transportu.".to_string()
+    ];
+    let return_procedure_heading = "Procedura Zwrotu - krok po kroku:";
+    let return_procedure_steps = [
+        format!("1. Poinformuj nas: Skontaktuj się z nami mailowo na adres {} w ciągu 14 dni od otrzymania towaru, informując o chęci dokonania zwrotu. Podaj numer zamówienia i zwracane produkty. Możesz skorzystać ze wzoru formularza odstąpienia od umowy dostępnego w Regulaminie Sklepu, ale nie jest to obowiązkowe.", contact_email_returns),
+        "2. Przygotuj paczkę: Starannie zapakuj zwracane produkty wraz z dowodem zakupu lub jego kopią oraz (opcjonalnie) wypełnionym formularzem zwrotu.".to_string(),
+        format!("3. Odeślij produkt: Wyślij paczkę na adres: {}, {}, {}. Pamiętaj, że bezpośredni koszt odesłania produktu ponosi Klient. Nie przyjmujemy przesyłek za pobraniem.", return_address_line1, return_address_line2, return_address_line3),
+        "4. Oczekuj na zwrot środków: Po otrzymaniu i pozytywnym zweryfikowaniu przesyłki zwrotnej, niezwłocznie (nie później niż w ciągu 14 dni) zwrócimy Ci należność za produkty oraz pierwotne koszty najtańszej oferowanej przez nas formy dostawy. Zwrot nastąpi tą samą metodą płatności, jakiej użyłeś/aś przy zakupie, chyba że wspólnie ustalimy inaczej.".to_string()
+    ];
+    let non_returnable_heading = "Produkty niepodlegające zwrotowi:";
+    let non_returnable_text = "Ze względu na charakter naszych produktów (odzież używana/vintage), większość z nich podlega standardowej procedurze zwrotu. Wyjątki mogą dotyczyć np. bielizny ze względów higienicznych, jeśli została rozpakowana z zapieczętowanego opakowania – o takich sytuacjach zawsze informujemy w opisie produktu.".to_string();
+
+    let complaints_section_title = "Reklamacje";
+    let complaints_text = format!(
+        "W MEG JONI przykładamy ogromną wagę do jakości i dokładności opisów naszych unikatowych produktów. \
+        Jeśli jednak zdarzy się, że otrzymany towar posiada wadę, która nie została ujawniona w opisie, lub jest \
+        niezgodny z zamówieniem, masz pełne prawo do złożenia reklamacji. Szczegółowe informacje dotyczące procedury \
+        reklamacyjnej, Twoich praw oraz naszych obowiązków znajdziesz w §6 naszego Regulaminu Sklepu, dostępnego tutaj: \
+        <a href='{0}' class='text-pink-600 hover:text-pink-700 hover:underline' \"hx-get\"='{0}' \"hx-target\"='#content' \"hx-swap\"='innerHTML' \"hx-push-url\"='{0}'>Regulamin Sklepu</a>.",
+        link_to_terms
+    );
+
+    Ok(html! {
+        div ."max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16" {
+            div ."text-center mb-12" {
+                h1 ."text-4xl sm:text-5xl font-bold tracking-tight text-gray-900" { (page_title) }
+                p ."mt-3 text-lg text-gray-600" { (page_subtitle) }
+            }
+
+            div ."space-y-8" {
+                // Sekcja Wysyłka
+                div "x-data"="{ open: true }" ."bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden" {
+                    button type="button" "@click"="open = !open" class="w-full flex justify-between items-center p-5 sm:p-6 text-left hover:bg-gray-50 focus:outline-none" {
+                        h2 ."text-2xl sm:text-3xl font-semibold text-pink-600" { (shipping_section_title) }
+                        svg ."w-6 h-6 text-pink-500 transform transition-transform duration-200" "x-bind:class"="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
+                            path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
+                        }
+                    }
+                    div ."px-5 sm:px-6 pb-6 pt-3 prose prose-lg max-w-none text-gray-700 leading-relaxed"
+                        "x-show"="open" "x-cloak"
+                        "x-transition:enter"="transition ease-out duration-300" "x-transition:enter-start"="opacity-0 max-h-0" "x-transition:enter-end"="opacity-100 max-h-[1000px]"
+                        "x-transition:leave"="transition ease-in duration-200" "x-transition:leave-start"="opacity-100 max-h-[1000px]" "x-transition:leave-end"="opacity-0 max-h-0"
+                        style="overflow: hidden;" {
+
+                        h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { "Obszar dostawy" }
+                        p { (shipping_area) }
+                        h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { "Dostępni przewoźnicy" }
+                        p { (shipping_carriers_intro) }
+                        ul ."list-disc pl-5 space-y-1" {
+                            @for carrier in &shipping_carriers_list {
+                                li { (carrier) }
+                            }
+                        }
+                        h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { "Koszty wysyłki" }
+                        p { (shipping_costs_text) }
+                        h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { "Czas realizacji i dostawy" }
+                        p { (processing_time_text) }
+                        p { (delivery_time_text) }
+                        h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { "Śledzenie przesyłki" }
+                        p { (tracking_text) }
+                        h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { "Pakowanie" }
+                        p { (packaging_text) }
+                    }
+                }
+
+                // Sekcja Zwroty
+                div "x-data"="{ open: false }" ."bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden" {
+                    button type="button" "@click"="open = !open" class="w-full flex justify-between items-center p-5 sm:p-6 text-left hover:bg-gray-50 focus:outline-none" {
+                        h2 ."text-2xl sm:text-3xl font-semibold text-pink-600" { (returns_section_title) }
+                        svg ."w-6 h-6 text-pink-500 transform transition-transform duration-200" "x-bind:class"="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
+                            path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
+                        }
+                    }
+                    div ."px-5 sm:px-6 pb-6 pt-3 prose prose-lg max-w-none text-gray-700 leading-relaxed"
+                        "x-show"="open" "x-cloak"
+                        "x-transition:enter"="transition ease-out duration-300" "x-transition:enter-start"="opacity-0 max-h-0" "x-transition:enter-end"="opacity-100 max-h-[1500px]"
+                        "x-transition:leave"="transition ease-in duration-200" "x-transition:leave-start"="opacity-100 max-h-[1500px]" "x-transition:leave-end"="opacity-0 max-h-0"
+                        style="overflow: hidden;" {
+
+                        p { (right_to_return_text) }
+                        h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { (return_conditions_heading) }
+                        ul ."list-disc pl-5 space-y-1" {
+                            @for condition in &return_conditions_list {
+                                li { (condition) }
+                            }
+                        }
+                        h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { (return_procedure_heading) }
+                        ol ."list-decimal pl-5 space-y-2" {
+                            @for step in &return_procedure_steps {
+                                li { (step) }
+                            }
+                        }
+                        h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { (non_returnable_heading) }
+                        p { (non_returnable_text) }
+                    }
+                }
+
+                // Sekcja Reklamacje
+                div ."p-6 bg-white rounded-lg shadow-lg border border-gray-200" {
+                    h2 ."text-2xl sm:text-3xl font-semibold text-pink-600 mb-3" { (complaints_section_title) }
+                    p ."text-gray-700 leading-relaxed" { (PreEscaped(&complaints_text)) }
+                }
+            }
+        }
+    })
+}
+
+pub async fn my_account_page_handler(
+    claims: TokenClaims, // Ten handler jest chroniony, wymaga zalogowanego użytkownika
+) -> Result<Markup, AppError> {
+    tracing::info!(
+        "MAUD: Użytkownik ID {} wszedł na stronę Moje Konto",
+        claims.sub
+    );
+
+    // Definicje linków dla paska bocznego
+    let sidebar_links = vec![
+        (
+            "Moje Zamówienia",
+            "/htmx/moje-konto/zamowienia",
+            "/moje-konto/zamowienia",
+        ),
+        ("Moje Dane", "/htmx/moje-konto/dane", "/moje-konto/dane"),
+        ("Adresy", "/htmx/moje-konto/adresy", "/moje-konto/adresy"),
+    ];
+    let default_section_url = "/htmx/moje-konto/zamowienia"; // Domyślnie ładujemy zamówienia
+
+    Ok(html! {
+        div ."max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-8 sm:py-10" {
+            h1 ."text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 mb-8 text-center md:text-left" { "Moje Konto" }
+
+            div ."flex flex-col md:flex-row gap-6 lg:gap-8" {
+                // --- Panel boczny (Sidebar) ---
+                aside ."w-full md:w-1/4 lg:w-1/5 bg-white p-4 sm:p-6 rounded-lg shadow-md md:sticky md:top-20 md:self-start" {
+                    nav {
+                        ul ."space-y-2" {
+                            @for (label, hx_get_url, push_url) in sidebar_links {
+                                li {
+                                    a href=(push_url) // href dla nawigacji i SEO
+                                       "hx-get"=(hx_get_url)
+                                       "hx-target"="#my-account-content"
+                                       "hx-swap"="innerHTML"
+                                       "hx-push-url"=(push_url) // Aktualizuje URL przeglądarki
+                                       "hx-indicator"="#my-account-content-spinner"
+                                       // Prosty sposób na podświetlenie aktywnego linku (wymagałby logiki po stronie klienta lub serwera)
+                                       // Na razie zostawiamy podstawowe style
+                                       class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-pink-500" {
+                                        (label)
+                                    }
+                                }
+                            }
+                            // Link Wyloguj
+                            li ."pt-4 mt-4 border-t border-gray-200" {
+                                a href="/wyloguj" // TODO: Zaimplementuj endpoint wylogowania (np. POST, który czyści token)
+                                   // Alternatywnie, jeśli wylogowanie jest GET i od razu przekierowuje:
+                                   // "hx-boost"="true" hx-confirm="Czy na pewno chcesz się wylogować?"
+                                   class="block px-3 py-2 rounded-md text-red-600 hover:bg-red-50 hover:text-red-700 font-medium transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-red-500" {
+                                    "Wyloguj"
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- Główny obszar treści dla sekcji "Moje Konto" ---
+                main #my-account-content ."w-full md:w-3/4 lg:w-4/5 bg-white p-4 sm:p-6 rounded-lg shadow-md min-h-[300px]"
+                     "hx-get"=(default_section_url) // Załaduj domyślną sekcję (zamówienia)
+                     "hx-trigger"="load"             // Zrób to od razu po załadowaniu tego fragmentu
+                     "hx-swap"="innerHTML" {
+                    // Wskaźnik ładowania dla początkowej zawartości sekcji
+                    div #my-account-content-spinner .flex.justify-center.items-center.h-40 {
+                        svg class="animate-spin h-8 w-8 text-pink-600" xmlns="http://www.w3.org/2000/svg" fill="none" "viewBox"="0 0 24 24" {
+                            circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" "stroke-width"="4";
+                            path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z";
+                        }
+                    }
+                }
+            }
+        }
+    })
+}
+
+// src/htmx_handlers.rs
+// ... (istniejące importy: Markup, html, AppError, PreEscaped itd.) ...
+
+pub async fn login_page_htmx_handler() -> Result<Markup, AppError> {
+    tracing::info!("MAUD: Żądanie strony logowania HTMX");
+
+    let page_title = "Logowanie do MEG JONI";
+    let form_target_id = "login-messages"; // ID elementu na komunikaty z formularza
+    let api_login_endpoint = "/api/auth/login"; // Endpoint API do logowania
+    let registration_htmx_endpoint = "/htmx/page/rejestracja"; // Endpoint HTMX do strony rejestracji
+    let registration_url = "/rejestracja"; // URL dla paska adresu przeglądarki
+
+    Ok(html! {
+        div ."min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8" {
+            div ."sm:mx-auto sm:w-full sm:max-w-md" {
+                // Logo lub nazwa sklepu - możesz dodać, jeśli chcesz
+                // img ."mx-auto h-12 w-auto" src="/static/logo.png" alt="MEG JONI";
+                h2 ."mt-6 text-center text-3xl font-extrabold text-gray-900" { (page_title) }
+            }
+
+            div ."mt-8 sm:mx-auto sm:w-full sm:max-w-md" {
+                div ."bg-white py-8 px-4 shadow-xl rounded-lg sm:px-10" {
+                    // Miejsce na komunikaty o błędach/sukcesie z logowania
+                    div #(form_target_id) ."mb-4 text-sm";
+
+                    form // Formularz HTMX
+                        "hx-post"=(api_login_endpoint)
+                        "hx-target"=(format!("#{}", form_target_id)) // Celuje w diva z komunikatami
+                        "hx-swap"="innerHTML"
+                        // Po udanym logowaniu, JS powinien przechwycić token i zaktualizować stan Alpine
+                        // Możesz dodać event, np. hx-on::after-request="handleLoginResponse(event)"
+                        // gdzie handleLoginResponse to Twoja funkcja JS w index.html
+                        class="space-y-6" {
+
+                        div {
+                            label for="email" ."block text-sm font-medium text-gray-700" { "Adres e-mail" }
+                            div ."mt-1" {
+                                input #email name="email" type="email" autocomplete="email" required
+                                       class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                            }
+                        }
+
+                        div {
+                            label for="password" ."block text-sm font-medium text-gray-700" { "Hasło" }
+                            div ."mt-1" {
+                                input #password name="password" type="password" autocomplete="current-password" required
+                                       class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                            }
+                        }
+
+                        // Opcjonalnie: "Zapamiętaj mnie" i "Zapomniałeś hasła?"
+                        // div ."flex items-center justify-between" {
+                        //     div ."flex items-center" {
+                        //         input #remember-me name="remember-me" type="checkbox" class="h-4 w-4 text-pink-600 focus:ring-pink-500 border-gray-300 rounded";
+                        //         label for="remember-me" ."ml-2 block text-sm text-gray-900" { "Zapamiętaj mnie" }
+                        //     }
+                        //     div ."text-sm" {
+                        //         a href="#" class="font-medium text-pink-600 hover:text-pink-500" { "Zapomniałeś/aś hasła?" }
+                        //     }
+                        // }
+
+                        div {
+                            button type="submit"
+                                   class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-colors duration-150" {
+                                "Zaloguj się"
+                            }
+                        }
+                    }
+
+                    div ."mt-6" {
+                        div ."relative" {
+                            div ."absolute inset-0 flex items-center" {
+                                div ."w-full border-t border-gray-300";
+                            }
+                            div ."relative flex justify-center text-sm" {
+                                span ."px-2 bg-white text-gray-500" { "Lub" }
+                            }
+                        }
+
+                        div ."mt-6 text-center" {
+                            p ."text-sm text-gray-600" {
+                                "Nie masz jeszcze konta? "
+                                a href=(registration_url)
+                                   "hx-get"=(registration_htmx_endpoint)
+                                   "hx-target"="#content" // Zakładając, że #content to główny kontener
+                                   "hx-swap"="innerHTML"
+                                   "hx-push-url"=(registration_url)
+                                   class="font-medium text-pink-600 hover:text-pink-500 hover:underline" {
+                                    "Zarejestruj się"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    })
+}
+
+pub async fn registration_page_htmx_handler() -> Result<Markup, AppError> {
+    tracing::info!("MAUD: Żądanie strony rejestracji HTMX");
+
+    let page_title = "Załóż konto w MEG JONI";
+    let form_target_id = "registration-messages"; // ID elementu na komunikaty z formularza
+    let api_register_endpoint = "/api/auth/register"; // Endpoint API do rejestracji
+    let login_htmx_endpoint = "/htmx/page/logowanie"; // Endpoint HTMX do strony logowania
+    let login_url = "/logowanie"; // URL dla paska adresu przeglądarki
+
+    Ok(html! {
+        div ."min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8" {
+            div ."sm:mx-auto sm:w-full sm:max-w-md" {
+                h2 ."mt-6 text-center text-3xl font-extrabold text-gray-900" { (page_title) }
+            }
+
+            div ."mt-8 sm:mx-auto sm:w-full sm:max-w-md" {
+                div ."bg-white py-8 px-4 shadow-xl rounded-lg sm:px-10" {
+                    // Miejsce na komunikaty o błędach/sukcesie z rejestracji
+                    div #(form_target_id) ."mb-4 text-sm";
+
+                    form // Formularz HTMX
+                        "hx-post"=(api_register_endpoint)
+                        "hx-target"=(format!("#{}", form_target_id))
+                        "hx-swap"="innerHTML"
+                        // Po udanej rejestracji API może zwrócić info, a JS może przekierować lub
+                        // poinformować o konieczności potwierdzenia email itp.
+                        // Można dodać: hx-on::after-request="handleRegistrationResponse(event)"
+                        class="space-y-6" {
+
+                        // Możesz dodać pola Imię, Nazwisko, jeśli są wymagane przy rejestracji
+                        // div {
+                        //     label for="first_name" ."block text-sm font-medium text-gray-700" { "Imię" }
+                        //     div ."mt-1" {
+                        //         input #first_name name="first_name" type="text" autocomplete="given-name" required
+                        //                class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm ...";
+                        //     }
+                        // }
+
+                        div {
+                            label for="reg-email" ."block text-sm font-medium text-gray-700" { "Adres e-mail" }
+                            div ."mt-1" {
+                                input #reg-email name="email" type="email" autocomplete="email" required
+                                       class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                            }
+                        }
+
+                        div {
+                            label for="reg-password" ."block text-sm font-medium text-gray-700" { "Hasło" }
+                            div ."mt-1" {
+                                input #reg-password name="password" type="password" autocomplete="new-password" required minlength="8"
+                                       class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                                p ."mt-1 text-xs text-gray-500" { "Minimum 8 znaków." }
+                            }
+                        }
+
+                        // Opcjonalnie: Potwierdzenie hasła
+                        // div {
+                        //     label for="confirm_password" ."block text-sm font-medium text-gray-700" { "Potwierdź hasło" }
+                        //     div ."mt-1" {
+                        //         input #confirm_password name="confirm_password" type="password" autocomplete="new-password" required minlength="8"
+                        //                class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm ...";
+                        //     }
+                        // }
+
+                        // Opcjonalnie: Zgody (np. na regulamin, politykę prywatności)
+                        // div ."space-y-2" {
+                        //     div ."flex items-start" {
+                        //         div ."flex items-center h-5" {
+                        //             input #terms name="terms" type="checkbox" required class="focus:ring-pink-500 h-4 w-4 text-pink-600 border-gray-300 rounded";
+                        //         }
+                        //         div ."ml-3 text-sm" {
+                        //             label for="terms" ."font-medium text-gray-700" { "Akceptuję " }
+                        //             a href="/htmx/page/regulamin" target="_blank" class="text-pink-600 hover:underline" { "Regulamin sklepu" }
+                        //             " oraz "
+                        //             a href="/htmx/page/polityka-prywatnosci" target="_blank" class="text-pink-600 hover:underline" { "Politykę prywatności" }
+                        //             span ."text-red-500" { "*" }
+                        //         }
+                        //     }
+                        // }
+
+
+                        div {
+                            button type="submit"
+                                   class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-colors duration-150" {
+                                "Zarejestruj się"
+                            }
+                        }
+                    }
+
+                    div ."mt-6 text-center" {
+                        p ."text-sm text-gray-600" {
+                            "Masz już konto? "
+                            a href=(login_url)
+                               "hx-get"=(login_htmx_endpoint)
+                               "hx-target"="#content"
+                               "hx-swap"="innerHTML"
+                               "hx-push-url"=(login_url)
+                               class="font-medium text-pink-600 hover:text-pink-500 hover:underline" {
+                                "Zaloguj się"
+                            }
+                        }
+                    }
                 }
             }
         }

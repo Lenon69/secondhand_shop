@@ -87,20 +87,4 @@ impl ListingParams {
             }
         })
     }
-    // Konstruktor używany w htmx_handlers (jeśli potrzebny)
-    pub fn new_with_gender_and_default(gender: Option<ProductGender>) -> Self {
-        Self {
-            gender,
-            limit: None,
-            offset: None,
-            category: None,
-            condition: None,
-            status: None,
-            price_min: None,
-            price_max: None,
-            search: None,
-            sort_by: None,
-            order: None,
-        }
-    }
 }

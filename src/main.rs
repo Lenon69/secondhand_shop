@@ -3,12 +3,15 @@
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
 use axum::response::Html;
-use axum::routing::{delete, get, post};
+use axum::routing::{RouterIntoService, delete, get, post};
 use dotenvy::dotenv;
 use htmx_handlers::{
-    about_us_page_handler, add_item_to_cart_htmx_handler, gender_page_handler,
-    get_cart_details_htmx_handler, get_product_detail_htmx_handler, list_products_htmx_handler,
-    privacy_policy_page_handler, remove_item_from_cart_htmx_handler, terms_of_service_page_handler,
+    about_us_page_handler, add_item_to_cart_htmx_handler, contact_page_handler, faq_page_handler,
+    gender_page_handler, get_cart_details_htmx_handler, get_product_detail_htmx_handler,
+    list_products_htmx_handler, login_page_htmx_handler, my_account_page_handler,
+    privacy_policy_page_handler, registration_page_htmx_handler,
+    remove_item_from_cart_htmx_handler, shipping_returns_page_handler,
+    terms_of_service_page_handler,
 };
 // use htmx_handlers::*;
 use reqwest::StatusCode;
@@ -129,12 +132,6 @@ async fn main() {
         )
         .route("/api/cart/merge", post(merge_cart_handler))
         .route("/", get(serve_index))
-        .route("/htmx/page/o-nas", get(about_us_page_handler))
-        .route("/htmx/page/regulamin", get(terms_of_service_page_handler))
-        .route(
-            "/htmx/page/polityka-prywatnosci",
-            get(privacy_policy_page_handler),
-        )
         .route("/htmx/dla/{gender_slug}", get(gender_page_handler))
         .route(
             "/htmx/cart/add/{product_id}",
@@ -149,6 +146,24 @@ async fn main() {
         .route(
             "/htmx/produkt/{product_id}",
             get(get_product_detail_htmx_handler),
+        )
+        .route(
+            "/htmx/page/polityka-prywatnosci",
+            get(privacy_policy_page_handler),
+        )
+        .route("/htmx/page/o-nas", get(about_us_page_handler))
+        .route("/htmx/page/regulamin", get(terms_of_service_page_handler))
+        .route("/htmx/page/kontakt", get(contact_page_handler))
+        .route("/htmx/page/faq", get(faq_page_handler))
+        .route(
+            "/htmx/page/wysylka-i-zwroty",
+            get(shipping_returns_page_handler),
+        )
+        .route("/htmx/page/moje-konto", get(my_account_page_handler))
+        .route("/htmx/page/logowanie", get(login_page_htmx_handler))
+        .route(
+            "/htmx/page/rejestracja",
+            get(registration_page_htmx_handler),
         )
         .nest_service("/static", ServeDir::new("static"))
         .layer(TraceLayer::new_for_http())

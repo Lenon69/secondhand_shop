@@ -140,7 +140,7 @@ impl From<User> for UserPublic {
 }
 
 /// Status zamówienia
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, Display)]
 #[sqlx(type_name = "order_status_enum")]
 #[sqlx(rename_all = "lowercase")]
 pub enum OrderStatus {
