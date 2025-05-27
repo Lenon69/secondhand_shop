@@ -2237,9 +2237,6 @@ pub async fn my_account_page_handler(
     })
 }
 
-// src/htmx_handlers.rs
-// ... (istniejące importy: Markup, html, AppError, PreEscaped itd.) ...
-
 pub async fn login_page_htmx_handler() -> Result<Markup, AppError> {
     tracing::info!("MAUD: Żądanie strony logowania HTMX");
 
@@ -2360,9 +2357,6 @@ pub async fn registration_page_htmx_handler() -> Result<Markup, AppError> {
                         "hx-post"=(api_register_endpoint)
                         "hx-target"=(format!("#{}", form_target_id))
                         "hx-swap"="innerHTML"
-                        // Po udanej rejestracji API może zwrócić info, a JS może przekierować lub
-                        // poinformować o konieczności potwierdzenia email itp.
-                        // Można dodać: hx-on::after-request="handleRegistrationResponse(event)"
                         class="space-y-6" {
 
                         // Możesz dodać pola Imię, Nazwisko, jeśli są wymagane przy rejestracji
@@ -2438,6 +2432,95 @@ pub async fn registration_page_htmx_handler() -> Result<Markup, AppError> {
                             }
                         }
                     }
+                }
+            }
+        }
+    })
+}
+
+pub async fn my_orders_htmx_handler(
+    State(app_state): State<AppState>,
+    claims: TokenClaims, // Wymagane zalogowanie, Axum zajmie się autoryzacją
+) -> Result<Markup, AppError> {
+    let user_id = claims.sub;
+    tracing::info!("MAUD: Użytkownik ID {} żąda listy swoich zamówień", user_id);
+
+    // 1. Pobierz zamówienia użytkownika z bazy danych
+    let orders: Vec<Order> = sqlx::query_as::<_, Order>(
+        r#"
+            SELECT id, user_id, order_date, status, total_price, 
+                   shipping_address_line1, shipping_address_line2, shipping_city, 
+                   shipping_postal_code, shipping_country, created_at, updated_at
+            FROM orders
+            WHERE user_id = $1
+            ORDER BY order_date DESC
+        "#,
+    )
+    .bind(user_id)
+    .fetch_all(&app_state.db_pool)
+    .await?; // Znak zapytania skonwertuje błąd sqlx::Error na AppError (jeśli masz implementację From<sqlx::Error> for AppError)
+
+    // 2. Wyrenderuj HTML za pomocą Maud
+    Ok(html! {
+        div {
+            h2 ."text-2xl sm:text-3xl font-semibold text-gray-800 mb-6" { "Moje Zamówienia" }
+            @if orders.is_empty() {
+                p ."text-gray-600 py-4" { "Nie złożyłeś/aś jeszcze żadnych zamówień." }
+            } @else {
+                div ."space-y-6" {
+                    @for order_item in &orders {
+                        // Przygotowanie wartości do wyświetlenia, aby uniknąć problemów z Option wprost w Maud
+                        @let order_id_display = order_item.id.to_string().chars().take(8).collect::<String>();
+                        // Używamy to_string() na wyniku format(), aby zapewnić, że to String
+                        @let order_date_display = order_item.order_date.format("%d-%m-%Y %H:%M").to_string();
+                        @let order_status_display = order_item.status.to_string(); // Zakłada, że OrderStatus implementuje Display
+                        @let order_total_display = format_price_maud(order_item.total_price);
+
+                        @let status_classes = match order_item.status {
+                            // Użyj pełnej ścieżki, jeśli OrderStatus jest w innym module i niezaimportowany bezpośrednio
+                            // np. crate::models::OrderStatus::Pending
+                            OrderStatus::Pending => "bg-yellow-100 text-yellow-800",
+                            OrderStatus::Processing => "bg-blue-100 text-blue-800",
+                            OrderStatus::Shipped => "bg-green-100 text-green-800",
+                            OrderStatus::Delivered => "bg-emerald-100 text-emerald-800",
+                            OrderStatus::Cancelled => "bg-red-100 text-red-800",
+                        };
+
+                        div ."border border-gray-200 rounded-lg p-4 sm:p-6 hover:shadow-lg transition-shadow duration-200 ease-in-out bg-white" {
+                            div ."flex flex-col sm:flex-row justify-between sm:items-center mb-3 pb-3 border-b border-gray-100" {
+                                div {
+                                    h3 ."text-lg font-semibold text-pink-600" {
+                                        "Zamówienie #" (order_id_display)
+                                    }
+                                    p ."text-sm text-gray-500" { "Data złożenia: " (order_date_display) }
+                                }
+                                div ."mt-2 sm:mt-0 text-left sm:text-right" {
+                                    span class=(format!("px-3 py-1 text-xs font-semibold rounded-full {}", status_classes)) {
+                                        (order_status_display)
+                                    }
+                                }
+                            }
+                            div ."flex flex-col sm:flex-row justify-between items-start sm:items-center" {
+                                div ."text-sm text-gray-700" {
+                                    p { "Suma: " strong { (order_total_display) } }
+                                }
+                                div ."mt-3 sm:mt-0" {
+                                    // TODO: Zaimplementuj handler /htmx/moje-konto/zamowienie-szczegoly/{order_id}
+                                    // Ten handler powinien być chroniony i renderować szczegóły zamówienia za pomocą Maud
+                                    a href=(format!("/moje-konto/zamowienia/{}", order_item.id)) // URL dla paska adresu
+                                       "hx-get"=(format!("/htmx/moje-konto/zamowienie-szczegoly/{}", order_item.id))
+                                       "hx-target"="#my-account-content" // Podmienia zawartość w głównym obszarze "Moje Konto"
+                                       "hx-swap"="innerHTML"
+                                       "hx-push-url"=(format!("/moje-konto/zamowienia/{}", order_item.id))
+                                       class="text-sm text-pink-600 hover:text-pink-700 hover:underline font-medium py-2 px-3 rounded-md hover:bg-pink-50 transition-colors" {
+                                        "Zobacz szczegóły"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // TODO: Rozważ dodanie paginacji dla zamówień, jeśli lista może być bardzo długa
+                    // Paginacja również używałaby HTMX, celując w ten sam div lub jego rodzica.
                 }
             }
         }

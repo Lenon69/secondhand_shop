@@ -1,0 +1,233 @@
+[33mcommit 64c532c40ce9f0150a2d7c78d8be971f14a14ed7[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Tue May 27 12:24:04 2025 +0200
+
+    Save before optimization changes
+
+[33mcommit 9546803491fbe5da201eba6942906878c5f98344[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Sun May 25 11:58:09 2025 +0200
+
+    Added privacy_policy and terms_of_service pages
+
+[33mcommit af263c38912d293a3777c16e49873426d13c891b[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Sat May 24 23:14:13 2025 +0200
+
+    All works
+
+[33mcommit 9844f1094e3047a5b1b1dd81b04fad7ac7067ddf[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Sat May 24 21:22:04 2025 +0200
+
+    Images managment works
+
+[33mcommit c62b26bdbe8b51ad7765576f9d14f8b1ae000637[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Sat May 24 21:05:49 2025 +0200
+
+    Main changes - page works!
+
+[33mcommit 1241c001bf2363cd05106dc8bc9412085e5347ca[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Fri May 23 19:21:02 2025 +0200
+
+    Fixed some features
+
+[33mcommit b0be2843e39f818a5a8b57a5e7f83e8a43a7677c[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Fri May 23 14:17:24 2025 +0200
+
+    Added gender
+
+[33mcommit e9a4b13fb19ba5bf5190cf5c3ab0e4b00265216f[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Fri May 23 13:35:07 2025 +0200
+
+    Added polish strum ProductCondition
+
+[33mcommit 246dc64a0b2be7866af9dbe74009f0c04816020c[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Fri May 23 12:02:19 2025 +0200
+
+    Major features added
+
+[33mcommit 05f121c32753586042e2775a5fb3c5264ad59f85[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Fri May 23 11:32:59 2025 +0200
+
+    Added major features
+
+[33mcommit c09e9ba4f613a2e77c958a5193642c348011a2fc[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Tue May 20 15:55:43 2025 +0200
+
+    Fixed all bugs
+
+[33mcommit 67c1401909839267f6f9fb0802774f5f2e2f74d9[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Tue May 20 13:24:34 2025 +0200
+
+    Added fixes
+
+[33mcommit d0b4036c2b02fdb3e00d18fff9e19261c42fad06[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Tue May 20 11:00:10 2025 +0200
+
+    Added guest cart and merge with loign
+
+[33mcommit b97538be42eb4a6e24f22d8790839ce677aaca5c[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Mon May 19 22:32:36 2025 +0200
+
+    Second init
+
+[33mcommit f009f6749e324edc4e5407201a6ea1f0e21cae70[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Sat May 17 12:23:55 2025 +0200
+
+    TESTS
+
+[33mcommit 2282a6102f215e0f49e09651e6ad217c0ed441d5[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Sat May 17 09:51:27 2025 +0200
+
+    added new features
+
+[33mcommit b3f17aec92ea6aa9345f46c05fee3da1dfdfc593[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Sat May 17 08:24:38 2025 +0200
+
+    Fixed some bugs
+
+[33mcommit 5c40a5432117d520374619d4ce77174510285529[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Sat May 17 08:20:57 2025 +0200
+
+    Some changes
+
+[33mcommit cd18529fcea98ca1fbef12873b14ad81afff8a13[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Wed May 14 11:34:57 2025 +0200
+
+    Fixed adding items to cart. Problem with SQLx query solved
+
+[33mcommit b00efe885d18380e57ab3f151e5c8810bbbda792[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Wed May 14 10:52:11 2025 +0200
+
+    Added fixed add_item_to_cart_handler
+
+[33mcommit 9945f66cadef269c049a6cf160a917e81309d877[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Tue May 13 21:21:15 2025 +0200
+
+    Fixed not working miagration for DataBase
+
+[33mcommit 47c1eb65f1c2f4f43b4a41b9eddeaa4935953106[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Sun May 11 12:41:15 2025 +0200
+
+    Fixed delete_image_from_cloudinary
+
+[33mcommit 4dc8d9020f36b83b805ea1b392e11bda1118933d[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Sat May 10 13:21:24 2025 +0200
+
+    Add multiple images works correctly
+
+[33mcommit 5a8b04a8f8507b0b15e5682c71b8872c836ee33b[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Thu May 8 22:30:13 2025 +0200
+
+    Upload Image functionality works!
+
+[33mcommit 7f22d4a365218611ebedce3908cab7fc7209d49a[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Thu May 8 20:42:41 2025 +0200
+
+    Semi-added Upload Image
+
+[33mcommit bc33212249f326752bb4bf7057d78795627b3982[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Wed May 7 14:30:26 2025 +0200
+
+    Fixed typo for create_order_handler
+
+[33mcommit 1656ff193dad6845583aaeb1fd8f0472d8a0fae3[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Wed May 7 13:55:19 2025 +0200
+
+    Added create_order_handler
+
+[33mcommit e3fd4223a81a31dcf9f75fa1fc78b91b1a10d337[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Wed May 7 09:09:36 2025 +0200
+
+    Test with endpoints - works correctly!
+
+[33mcommit 5daa3c19bfeb216f29bd9152b9b8d08da9d11b92[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Tue May 6 22:36:14 2025 +0200
+
+    Main changes - endpoints works!
+
+[33mcommit ce0e324ca590e5a63315d118e1a47b20d1273c5c[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Tue May 6 18:19:38 2025 +0200
+
+    Main changes
+
+[33mcommit db4c0ddcd3560e54bc9ac9dfd53ed020ee8d011e[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Tue May 6 00:37:34 2025 +0200
+
+    Main changes, divide into modules
+
+[33mcommit 9059ca36e958c6b22523821068eed83ff42bcee7[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Mon May 5 10:01:00 2025 +0200
+
+    Some changes
+
+[33mcommit 992e2c2a8f92728050d70f8767545885cd52fdf0[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Mon May 5 08:57:36 2025 +0200
+
+    Remove private keys
+
+[33mcommit 940a216aec46139c7fdb7c00b3c0a1a0425edad3[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Mon May 5 08:53:09 2025 +0200
+
+    Main Changes - create_product works!
+
+[33mcommit 8d1b5bc001f8d50717a1eb4fc64356e60bb5e019[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Sun May 4 12:31:00 2025 +0200
+
+    Main changes
+
+[33mcommit 21c2971a92b9dca824737db4f8417fd462368748[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Wed Apr 30 14:28:04 2025 +0200
+
+    Added pagination and filters for product list
+
+[33mcommit c83aa98a6ee1e3478b468906f71c9dfc413a437d[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Wed Apr 30 13:03:44 2025 +0200
+
+    Commit before change list_product handler
+
+[33mcommit d4d35a63b3980b89984b063a5b11150cc61ce4f5[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Wed Apr 30 12:22:22 2025 +0200
+
+    Fundamental changes
+
+[33mcommit e44ad5e6d1db4d03f593db05a7096587bb0e8f3e[m
+Author: Lenon69 <fobix.lol@gmail.com>
+Date:   Wed Apr 30 10:37:59 2025 +0200
+
+    Init commit
