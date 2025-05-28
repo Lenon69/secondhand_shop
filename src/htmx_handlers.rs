@@ -2229,7 +2229,7 @@ pub async fn my_account_page_handler(claims: TokenClaims) -> Result<Markup, AppE
 pub async fn login_page_htmx_handler() -> Result<Markup, AppError> {
     tracing::info!("MAUD: Żądanie strony logowania HTMX");
 
-    let page_title = "Logowanie do MEG JONI";
+    let page_title = "Logowanie";
     let form_id = "login-form";
     let messages_id = "login-messages";
     let api_login_endpoint = "/api/auth/login";
@@ -2246,11 +2246,11 @@ pub async fn login_page_htmx_handler() -> Result<Markup, AppError> {
 
                     div #(messages_id) ."mb-4 text-sm min-h-[1.25em]"; // min-h-[1.25em] aby uniknąć skoku layoutu
 
-                    form id="login-form"
-                        "hx-post"=(api_login_endpoint)
-                        "hx-ext"="json-enc"
-                        "hx-target"=(format!("#{}", messages_id))
-                        "hx-swap"="innerHTML"
+                    form #(form_id)
+                        hx-post=(api_login_endpoint)
+                        hx-ext="json-enc"
+                        hx-target=(format!("#{}", messages_id))
+                        hx-swap="innerHTML"
                         class="space-y-6" {
 
                         div {
@@ -2288,10 +2288,10 @@ pub async fn login_page_htmx_handler() -> Result<Markup, AppError> {
                             p ."text-sm text-gray-600" {
                                 "Nie masz jeszcze konta? "
                                 a href=(registration_url)
-                                   "hx-get"=(registration_htmx_endpoint)
-                                   "hx-target"="#content"
-                                   "hx-swap"="innerHTML"
-                                   "hx-push-url"=(registration_url)
+                                   hx-get=(registration_htmx_endpoint)
+                                   hx-target="#content"
+                                   hx-swap="innerHTML"
+                                   hx-push-url=(registration_url)
                                    class="font-medium text-pink-600 hover:text-pink-500 hover:underline" {
                                     "Zarejestruj się"
                                 }
@@ -2307,7 +2307,7 @@ pub async fn login_page_htmx_handler() -> Result<Markup, AppError> {
 pub async fn registration_page_htmx_handler() -> Result<Markup, AppError> {
     tracing::info!("MAUD: Żądanie strony rejestracji HTMX");
 
-    let page_title = "Załóż konto w MEG JONI";
+    let page_title = "Załóż konto";
     let form_id = "registration-form";
     let messages_id = "registration-messages";
     let api_register_endpoint = "/api/auth/register";
@@ -2325,10 +2325,10 @@ pub async fn registration_page_htmx_handler() -> Result<Markup, AppError> {
                     div #(messages_id) ."mb-4 text-sm min-h-[1.25em]"; // Na komunikaty (sukces/błąd)
 
                     form #(form_id)
-                        "hx-post"=(api_register_endpoint)
-                        "hx-ext"="json-enc"
-                        "hx-target"=(format!("#{}", messages_id))
-                        "hx-swap"="innerHTML"
+                        hx-post=(api_register_endpoint)
+                        hx-ext="json-enc"
+                        hx-target=(format!("#{}", messages_id))
+                        hx-swap="innerHTML"
                         class="space-y-6" {
 
                         div {
@@ -2348,14 +2348,13 @@ pub async fn registration_page_htmx_handler() -> Result<Markup, AppError> {
                             }
                         }
 
-                        // TODO: Dodaj pole do potwierdzenia hasła (ważne!)
-                        // div {
-                        //     label for="confirm_password" ."block text-sm font-medium text-gray-700" { "Potwierdź hasło" }
-                        //     div ."mt-1" {
-                        //         input #confirm_password name="confirm_password" type="password" autocomplete="new-password" required minlength="8"
-                        //                class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm ...";
-                        //     }
-                        // }
+                        div {
+                            label for="confirm_password" ."block text-sm font-medium text-gray-700" { "Potwierdź hasło" }
+                            div ."mt-1" {
+                                input #confirm_password name="confirm_password" type="password" autocomplete="new-password" required minlength="8"
+                                       class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm ...";
+                            }
+                        }
 
                         // TODO: Dodaj checkboxy ze zgodami (Regulamin, Polityka Prywatności) - są one prawnie wymagane.
                         // div ."pt-2 space-y-2" {
