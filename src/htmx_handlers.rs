@@ -2162,55 +2162,47 @@ pub async fn shipping_returns_page_handler() -> Result<Markup, AppError> {
     })
 }
 
-pub async fn my_account_page_handler(
-    claims: TokenClaims, // Ten handler jest chroniony, wymaga zalogowanego użytkownika
-) -> Result<Markup, AppError> {
+pub async fn my_account_page_handler(claims: TokenClaims) -> Result<Markup, AppError> {
     tracing::info!(
         "MAUD: Użytkownik ID {} wszedł na stronę Moje Konto",
         claims.sub
     );
 
-    // Definicje linków dla paska bocznego
     let sidebar_links = vec![
         (
             "Moje Zamówienia",
             "/htmx/moje-konto/zamowienia",
             "/moje-konto/zamowienia",
         ),
-        ("Moje Dane", "/htmx/moje-konto/dane", "/moje-konto/dane"),
-        ("Adresy", "/htmx/moje-konto/adresy", "/moje-konto/adresy"),
+        ("Moje Dane", "/htmx/moje-konto/dane", "/moje-konto/dane"), // Placeholder, do zaimplementowania
+        ("Adresy", "/htmx/moje-konto/adresy", "/moje-konto/adresy"), // Placeholder, do zaimplementowania
     ];
-    let default_section_url = "/htmx/moje-konto/zamowienia"; // Domyślnie ładujemy zamówienia
+    let default_section_url = "/htmx/moje-konto/zamowienia";
 
     Ok(html! {
         div ."max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-8 sm:py-10" {
             h1 ."text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 mb-8 text-center md:text-left" { "Moje Konto" }
-
             div ."flex flex-col md:flex-row gap-6 lg:gap-8" {
-                // --- Panel boczny (Sidebar) ---
                 aside ."w-full md:w-1/4 lg:w-1/5 bg-white p-4 sm:p-6 rounded-lg shadow-md md:sticky md:top-20 md:self-start" {
                     nav {
                         ul ."space-y-2" {
                             @for (label, hx_get_url, push_url) in sidebar_links {
                                 li {
-                                    a href=(push_url) // href dla nawigacji i SEO
+                                    a href=(push_url)
                                        "hx-get"=(hx_get_url)
                                        "hx-target"="#my-account-content"
                                        "hx-swap"="innerHTML"
-                                       "hx-push-url"=(push_url) // Aktualizuje URL przeglądarki
+                                       "hx-push-url"=(push_url)
                                        "hx-indicator"="#my-account-content-spinner"
-                                       // Prosty sposób na podświetlenie aktywnego linku (wymagałby logiki po stronie klienta lub serwera)
-                                       // Na razie zostawiamy podstawowe style
                                        class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-pink-500" {
                                         (label)
                                     }
                                 }
                             }
-                            // Link Wyloguj
                             li ."pt-4 mt-4 border-t border-gray-200" {
-                                a href="/wyloguj" // TODO: Zaimplementuj endpoint wylogowania (np. POST, który czyści token)
-                                   // Alternatywnie, jeśli wylogowanie jest GET i od razu przekierowuje:
-                                   // "hx-boost"="true" hx-confirm="Czy na pewno chcesz się wylogować?"
+                                // --- POPRAWIONY LINK WYLOGOWANIA ---
+                                a href="#" // href nie jest już istotny dla nawigacji
+                                   "@click.prevent"="$dispatch('trigger-alpine-logout')" // Wywołuje zdarzenie dla Alpine.js
                                    class="block px-3 py-2 rounded-md text-red-600 hover:bg-red-50 hover:text-red-700 font-medium transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-red-500" {
                                     "Wyloguj"
                                 }
@@ -2218,13 +2210,10 @@ pub async fn my_account_page_handler(
                         }
                     }
                 }
-
-                // --- Główny obszar treści dla sekcji "Moje Konto" ---
                 main #my-account-content ."w-full md:w-3/4 lg:w-4/5 bg-white p-4 sm:p-6 rounded-lg shadow-md min-h-[300px]"
-                     "hx-get"=(default_section_url) // Załaduj domyślną sekcję (zamówienia)
-                     "hx-trigger"="load"             // Zrób to od razu po załadowaniu tego fragmentu
+                     "hx-get"=(default_section_url)
+                     "hx-trigger"="load"
                      "hx-swap"="innerHTML" {
-                    // Wskaźnik ładowania dla początkowej zawartości sekcji
                     div #my-account-content-spinner .flex.justify-center.items-center.h-40 {
                         svg class="animate-spin h-8 w-8 text-pink-600" xmlns="http://www.w3.org/2000/svg" fill="none" "viewBox"="0 0 24 24" {
                             circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" "stroke-width"="4";
@@ -2239,33 +2228,27 @@ pub async fn my_account_page_handler(
 
 pub async fn login_page_htmx_handler() -> Result<Markup, AppError> {
     tracing::info!("MAUD: Żądanie strony logowania HTMX");
-
     let page_title = "Logowanie do MEG JONI";
-    let form_target_id = "login-messages"; // ID elementu na komunikaty z formularza
-    let api_login_endpoint = "/api/auth/login"; // Endpoint API do logowania
-    let registration_htmx_endpoint = "/htmx/page/rejestracja"; // Endpoint HTMX do strony rejestracji
-    let registration_url = "/rejestracja"; // URL dla paska adresu przeglądarki
+    let form_id = "login-form"; // ID dla formularza
+    let messages_id = "login-messages"; // ID dla diva na komunikaty
+    let api_login_endpoint = "/api/auth/login";
+    let registration_htmx_endpoint = "/htmx/rejestracja"; // Zmieniono z /page/rejestracja
+    let registration_url = "/rejestracja";
 
     Ok(html! {
         div ."min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8" {
             div ."sm:mx-auto sm:w-full sm:max-w-md" {
-                // Logo lub nazwa sklepu - możesz dodać, jeśli chcesz
-                // img ."mx-auto h-12 w-auto" src="/static/logo.png" alt="MEG JONI";
                 h2 ."mt-6 text-center text-3xl font-extrabold text-gray-900" { (page_title) }
             }
-
             div ."mt-8 sm:mx-auto sm:w-full sm:max-w-md" {
                 div ."bg-white py-8 px-4 shadow-xl rounded-lg sm:px-10" {
-                    // Miejsce na komunikaty o błędach/sukcesie z logowania
-                    div #(form_target_id) ."mb-4 text-sm";
+                    // --- DIV NA KOMUNIKATY Z ODPOWIEDNIM ID ---
+                    div #(messages_id) ."mb-4 text-sm"; // np. text-red-600 dla błędów
 
-                    form // Formularz HTMX
+                    form id=(form_id) // --- DODANE ID FORMULARZA ---
                         "hx-post"=(api_login_endpoint)
-                        "hx-target"=(format!("#{}", form_target_id)) // Celuje w diva z komunikatami
+                        "hx-target"=(format!("#{}", messages_id)) // Celuje w diva z komunikatami dla błędów API
                         "hx-swap"="innerHTML"
-                        // Po udanym logowaniu, JS powinien przechwycić token i zaktualizować stan Alpine
-                        // Możesz dodać event, np. hx-on::after-request="handleLoginResponse(event)"
-                        // gdzie handleLoginResponse to Twoja funkcja JS w index.html
                         class="space-y-6" {
 
                         div {
@@ -2275,7 +2258,6 @@ pub async fn login_page_htmx_handler() -> Result<Markup, AppError> {
                                        class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
                             }
                         }
-
                         div {
                             label for="password" ."block text-sm font-medium text-gray-700" { "Hasło" }
                             div ."mt-1" {
@@ -2283,18 +2265,6 @@ pub async fn login_page_htmx_handler() -> Result<Markup, AppError> {
                                        class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
                             }
                         }
-
-                        // Opcjonalnie: "Zapamiętaj mnie" i "Zapomniałeś hasła?"
-                        // div ."flex items-center justify-between" {
-                        //     div ."flex items-center" {
-                        //         input #remember-me name="remember-me" type="checkbox" class="h-4 w-4 text-pink-600 focus:ring-pink-500 border-gray-300 rounded";
-                        //         label for="remember-me" ."ml-2 block text-sm text-gray-900" { "Zapamiętaj mnie" }
-                        //     }
-                        //     div ."text-sm" {
-                        //         a href="#" class="font-medium text-pink-600 hover:text-pink-500" { "Zapomniałeś/aś hasła?" }
-                        //     }
-                        // }
-
                         div {
                             button type="submit"
                                    class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-colors duration-150" {
@@ -2302,23 +2272,14 @@ pub async fn login_page_htmx_handler() -> Result<Markup, AppError> {
                             }
                         }
                     }
-
                     div ."mt-6" {
-                        div ."relative" {
-                            div ."absolute inset-0 flex items-center" {
-                                div ."w-full border-t border-gray-300";
-                            }
-                            div ."relative flex justify-center text-sm" {
-                                span ."px-2 bg-white text-gray-500" { "Lub" }
-                            }
-                        }
-
+                        div ."relative" { /* ... separator "Lub" ... */ }
                         div ."mt-6 text-center" {
                             p ."text-sm text-gray-600" {
                                 "Nie masz jeszcze konta? "
                                 a href=(registration_url)
-                                   "hx-get"=(registration_htmx_endpoint)
-                                   "hx-target"="#content" // Zakładając, że #content to główny kontener
+                                   "hx-get"=(registration_htmx_endpoint) // Używamy poprawionej ścieżki
+                                   "hx-target"="#content"
                                    "hx-swap"="innerHTML"
                                    "hx-push-url"=(registration_url)
                                    class="font-medium text-pink-600 hover:text-pink-500 hover:underline" {
@@ -2335,38 +2296,28 @@ pub async fn login_page_htmx_handler() -> Result<Markup, AppError> {
 
 pub async fn registration_page_htmx_handler() -> Result<Markup, AppError> {
     tracing::info!("MAUD: Żądanie strony rejestracji HTMX");
-
     let page_title = "Załóż konto w MEG JONI";
-    let form_target_id = "registration-messages"; // ID elementu na komunikaty z formularza
-    let api_register_endpoint = "/api/auth/register"; // Endpoint API do rejestracji
-    let login_htmx_endpoint = "/htmx/page/logowanie"; // Endpoint HTMX do strony logowania
-    let login_url = "/logowanie"; // URL dla paska adresu przeglądarki
+    let form_id = "registration-form"; // ID dla formularza
+    let messages_id = "registration-messages"; // ID dla diva na komunikaty
+    let api_register_endpoint = "/api/auth/register";
+    let login_htmx_endpoint = "/htmx/logowanie"; // Zmieniono z /page/logowanie
+    let login_url = "/logowanie";
 
     Ok(html! {
         div ."min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8" {
             div ."sm:mx-auto sm:w-full sm:max-w-md" {
                 h2 ."mt-6 text-center text-3xl font-extrabold text-gray-900" { (page_title) }
             }
-
             div ."mt-8 sm:mx-auto sm:w-full sm:max-w-md" {
                 div ."bg-white py-8 px-4 shadow-xl rounded-lg sm:px-10" {
-                    // Miejsce na komunikaty o błędach/sukcesie z rejestracji
-                    div #(form_target_id) ."mb-4 text-sm";
+                    // --- DIV NA KOMUNIKATY Z ODPOWIEDNIM ID ---
+                    div #(messages_id) ."mb-4 text-sm"; // np. text-green-600 dla sukcesu, text-red-600 dla błędów
 
-                    form // Formularz HTMX
+                    form id=(form_id) // --- DODANE ID FORMULARZA ---
                         "hx-post"=(api_register_endpoint)
-                        "hx-target"=(format!("#{}", form_target_id))
+                        "hx-target"=(format!("#{}", messages_id))
                         "hx-swap"="innerHTML"
                         class="space-y-6" {
-
-                        // Możesz dodać pola Imię, Nazwisko, jeśli są wymagane przy rejestracji
-                        // div {
-                        //     label for="first_name" ."block text-sm font-medium text-gray-700" { "Imię" }
-                        //     div ."mt-1" {
-                        //         input #first_name name="first_name" type="text" autocomplete="given-name" required
-                        //                class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm ...";
-                        //     }
-                        // }
 
                         div {
                             label for="reg-email" ."block text-sm font-medium text-gray-700" { "Adres e-mail" }
@@ -2375,7 +2326,6 @@ pub async fn registration_page_htmx_handler() -> Result<Markup, AppError> {
                                        class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
                             }
                         }
-
                         div {
                             label for="reg-password" ."block text-sm font-medium text-gray-700" { "Hasło" }
                             div ."mt-1" {
@@ -2384,33 +2334,6 @@ pub async fn registration_page_htmx_handler() -> Result<Markup, AppError> {
                                 p ."mt-1 text-xs text-gray-500" { "Minimum 8 znaków." }
                             }
                         }
-
-                        // Opcjonalnie: Potwierdzenie hasła
-                        // div {
-                        //     label for="confirm_password" ."block text-sm font-medium text-gray-700" { "Potwierdź hasło" }
-                        //     div ."mt-1" {
-                        //         input #confirm_password name="confirm_password" type="password" autocomplete="new-password" required minlength="8"
-                        //                class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm ...";
-                        //     }
-                        // }
-
-                        // Opcjonalnie: Zgody (np. na regulamin, politykę prywatności)
-                        // div ."space-y-2" {
-                        //     div ."flex items-start" {
-                        //         div ."flex items-center h-5" {
-                        //             input #terms name="terms" type="checkbox" required class="focus:ring-pink-500 h-4 w-4 text-pink-600 border-gray-300 rounded";
-                        //         }
-                        //         div ."ml-3 text-sm" {
-                        //             label for="terms" ."font-medium text-gray-700" { "Akceptuję " }
-                        //             a href="/htmx/page/regulamin" target="_blank" class="text-pink-600 hover:underline" { "Regulamin sklepu" }
-                        //             " oraz "
-                        //             a href="/htmx/page/polityka-prywatnosci" target="_blank" class="text-pink-600 hover:underline" { "Politykę prywatności" }
-                        //             span ."text-red-500" { "*" }
-                        //         }
-                        //     }
-                        // }
-
-
                         div {
                             button type="submit"
                                    class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-colors duration-150" {
@@ -2418,12 +2341,11 @@ pub async fn registration_page_htmx_handler() -> Result<Markup, AppError> {
                             }
                         }
                     }
-
                     div ."mt-6 text-center" {
                         p ."text-sm text-gray-600" {
                             "Masz już konto? "
                             a href=(login_url)
-                               "hx-get"=(login_htmx_endpoint)
+                               "hx-get"=(login_htmx_endpoint) // Używamy poprawionej ścieżki
                                "hx-target"="#content"
                                "hx-swap"="innerHTML"
                                "hx-push-url"=(login_url)

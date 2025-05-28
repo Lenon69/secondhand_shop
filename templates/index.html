@@ -79,21 +79,41 @@
         guestCartId: null,
         isAuthenticated: false,
 
-        activeImageModal: { // Stan modala jako pojedynczy obiekt
+        activeImageModal: { 
             isOpen: false,
             currentSrc: '',
             images: [],
             currentIndex: 0
         },
 
-        // Metody na głównym poziomie x-data
         initAlpine() {
             this.cartItemCount = parseInt(localStorage.getItem('alpineCartCount')) || 0;
             this.guestCartId = localStorage.getItem('guestCartId');
             this.isAuthenticated = !!localStorage.getItem('jwtToken'); 
             this.updateCartCounterVisuals();
+
+
+            this.$watch('cartItemCount', (value) => { localStorage.setItem('alpineCartCount', String(value)); this.updateCartCounterVisuals(); });
+            this.$watch('guestCartId', (value) => { if (value) { localStorage.setItem('guestCartId', value); } else { localStorage.removeItem('guestCartId'); } });
             
-        },
+        
+            window.addEventListener('authChangedClient', (event) => {
+                console.log('[Alpine] Odebrano zdarzenie authChangedClient, isAuthenticated:', event.detail.isAuthenticated);
+                this.isAuthenticated = event.detail.isAuthenticated;
+                this.updateCartCounterVisuals();
+                if (!this.isAuthenticated && (this.currentMobilePage === 'konto' || window.location.pathname.startsWith('/moje-konto'))) {
+                    htmx.ajax('GET', '/htmx/products?limit=9&sort_by=name&order=asc', { target: '#content', swap: 'innerHTML' });
+                    if (typeof htmx !== 'undefined' && htmx.history && htmx.history.push) { htmx.history.push('/', {}); }
+                    this.currentMobilePage = '';
+                } else if (this.isAuthenticated && (this.currentMobilePage === 'logowanie' || this.currentMobilePage === 'rejestracja')) {
+                    // Ta część może być teraz obsługiwana przez htmx:afterOnLoad po udanym logowaniu
+                    // htmx.ajax('GET', '/htmx/moje-konto', { target: '#content', swap: 'innerHTML' });
+                    // if (typeof htmx !== 'undefined' && htmx.history && htmx.history.push) { htmx.history.push('/moje-konto', {}); }
+                    // this.currentMobilePage = 'konto';
+                }
+            });
+        },        
+        
         updateCartCounterVisuals() {
             ['cart-count-bubble', 'cart-count-bubble-mobile'].forEach(id => {
                 const el = document.getElementById(id);
@@ -140,8 +160,17 @@
                 this.activeImageModal.currentIndex = (this.activeImageModal.currentIndex - 1 + this.activeImageModal.images.length) % this.activeImageModal.images.length;
                 this.activeImageModal.currentSrc = this.activeImageModal.images[this.activeImageModal.currentIndex];
             }
+        },
+        
+        clientSideLogout() {
+            console.log('Wykonywanie clientSideLogout...');
+            localStorage.removeItem('jwtToken'); 
+            window.dispatchEvent(new CustomEvent('authChangedClient', { detail: { isAuthenticated: false }}));
+            if (this.isMobileMenuOpen) this.isMobileMenuOpen = false;
         }
     }"
+    
+    
     x-init="
         initAlpine();
         $watch('cartItemCount', (value) => localStorage.setItem('alpineCartCount', value));
@@ -216,17 +245,17 @@
               </button>
             </form>
           </div>
-<div class="hidden lg:flex items-center space-x-4">
-    <a href="/moje-konto"
-       hx-get="/htmx/moje-konto"
-       hx-target="#content"
-       hx-swap="innerHTML"
-       hx-push-url="/moje-konto"
-       class="flex items-center space-x-1 text-gray-700 hover:text-pink-600 transition-colors"
-       aria-label="Moje konto">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>
-        <span class="text-sm">Konto</span>
-    </a>
+        <div class="hidden lg:flex items-center space-x-4">
+         <a  x-bind:href="isAuthenticated ? '/moje-konto' : '/logowanie'"
+            x-bind:hx-get="isAuthenticated ? '/htmx/moje-konto' : '/htmx/logowanie'"
+            hx-target="#content" hx-swap="innerHTML"
+            x-bind:hx-push-url="isAuthenticated ? '/moje-konto' : '/logowanie'"
+            @click="currentMobilePage = isAuthenticated ? 'konto' : 'logowanie'"
+            class="flex items-center space-x-1 text-gray-700 hover:text-pink-600 transition-colors"
+            aria-label="Moje konto">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>
+            <span class="text-sm" x-text="isAuthenticated ? 'Konto' : 'Zaloguj się'"></span>
+        </a>                        
     <button
         @click="cartOpen = true; $el.dispatchEvent(new CustomEvent('cartOpened', {bubbles: true, composed: true}))"
         class="relative flex items-center space-x-1 text-gray-700 hover:text-pink-600 transition-colors transform hover:scale-105 focus:outline-none"
@@ -530,16 +559,22 @@
                     stroke-linejoin="round"
                     d="15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
                   ></path>
-<a href="/moje-konto" {# Docelowy URL, który zobaczy użytkownik #}
-   hx-get="/htmx/moje-konto" {# Ścieżka do handlera HTMX #}
-   hx-target="#content" {# Główny kontener na stronie #}
-   hx-swap="innerHTML"
-   hx-push-url="/moje-konto" {# Aktualizuje URL w przeglądarce #}
-   class="flex items-center space-x-1 text-gray-700 hover:text-pink-600 transition-colors"
-   aria-label="Moje konto">
-    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>
-    <span class="text-sm">Konto</span>
-</a>            </div>
+           <a  x-bind:href="isAuthenticated ? '/moje-konto' : '/logowanie'"
+                x-bind:hx-get="isAuthenticated ? '/htmx/moje-konto' : '/htmx/logowanie'"
+                hx-target="#content" hx-swap="innerHTML"
+                x-bind:hx-push-url="isAuthenticated ? '/moje-konto' : '/logowanie'"
+                @click="isMobileMenuOpen = false; currentMobilePage = isAuthenticated ? 'konto' : 'logowanie'"
+                class="flex items-center text-base font-medium text-gray-700 hover:text-pink-700 w-full">
+                <svg class="w-6 h-6 mr-2 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"></path></svg>
+                <span x-text="isAuthenticated ? 'Moje Konto' : 'Zaloguj / Zarejestruj się'"></span>
+            </a>              
+            <div x-show="isAuthenticated" x-cloak class="mt-2 px-1">
+                <button @click="clientSideLogout()" class="w-full text-left flex items-center text-base font-medium text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-md">
+                    <svg class="w-6 h-6 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"></path></svg>
+                    Wyloguj
+                </button>
+            </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1067,13 +1102,94 @@
       });
 
       document.body.addEventListener("htmx:afterSwap", function (event) {
-        // Sprawdzamy, czy element, którego zawartość została podmieniona, to nasz główny kontener #content
-        // event.detail.target to element, który był celem operacji swap
         if (event.detail.target.id === "content") {
-          // Przewiń okno przeglądarki na samą górę
-          window.scrollTo({ top: 0, behavior: "smooth" }); // 'auto' dla natychmiastowego przewinięcia, 'smooth' dla płynnego
+          window.scrollTo({ top: 0, behavior: "smooth" }); 
         }
       });
+      
+      document.body.addEventListener('authChangedFromBackend', function(evt) {
+          console.log('[JS] Odebrano zdarzenie "authChangedFromBackend". Detail:', evt.detail);
+          if (evt.detail && typeof evt.detail.isAuthenticated !== 'undefined') {
+              if (evt.detail.token) { 
+                  localStorage.setItem('jwtToken', evt.detail.token); 
+              } else if (!evt.detail.isAuthenticated) { 
+                  localStorage.removeItem('jwtToken');
+              }
+              window.dispatchEvent(new CustomEvent('authChangedClient', { detail: { isAuthenticated: evt.detail.isAuthenticated }}));
+          }
+      });
+      
+      
+      // --- ROZBUDOWANY LISTENER htmx:afterOnLoad ---
+      document.body.addEventListener('htmx:afterOnLoad', function(evt) {
+        const targetElement = evt.detail.target;
+        const xhr = evt.detail.xhr;
+
+        if (!targetElement.closest('form')) return; 
+
+        const isLoginForm = targetElement.closest('form#login-form'); // Formularz logowania musi mieć id="login-form"
+        const isRegisterForm = targetElement.closest('form#registration-form'); // Formularz rejestracji musi mieć id="registration-form"
+        
+        let messagesEl = null;
+        if (isLoginForm) messagesEl = document.getElementById('login-messages'); // Div na komunikaty w formularzu logowania
+        if (isRegisterForm) messagesEl = document.getElementById('registration-messages'); // Div na komunikaty w formularzu rejestracji
+
+        if (evt.detail.successful) { // Żądanie HTTP 2xx
+            if (isLoginForm && xhr.responseText) {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.token) {
+                        console.log("Logowanie pomyślne, otrzymano token.");
+                        localStorage.setItem('jwtToken', response.token); // WAŻNE: Użyj poprawnego klucza!
+                        
+                        // Wywołaj zdarzenie, na które nasłuchuje Alpine, aby zaktualizować isAuthenticated i UI
+                        window.dispatchEvent(new CustomEvent('authChangedClient', { detail: { isAuthenticated: true }}));
+                        
+                        // Nie ma potrzeby ręcznego przekierowania przez htmx.ajax tutaj,
+                        // ponieważ listener na 'authChangedClient' w Alpine zajmie się nawigacją do /moje-konto
+                        // jeśli użytkownik był na stronie logowania/rejestracji.
+                        // Możemy też wyczyścić ewentualne komunikaty o błędach.
+                        if (messagesEl) messagesEl.innerHTML = ""; 
+
+                    } else if (response.message && messagesEl) { // API zwróciło 2xx ale z wiadomością o błędzie (np. walidacja po stronie serwera)
+                        messagesEl.innerHTML = '<p class="text-red-600">' + response.message + '</p>';
+                    }
+                } catch (e) {
+                    console.error('Błąd parsowania odpowiedzi JSON z /api/auth/login:', e);
+                    if(messagesEl) messagesEl.innerHTML = '<p class="text-red-600">Wystąpił nieoczekiwany błąd odpowiedzi serwera.</p>';
+                }
+            } else if (isRegisterForm && xhr.status === 201 && messagesEl) { // Pomyślna rejestracja (201 Created)
+                 try {
+                    const response = JSON.parse(xhr.responseText); // Możesz chcieć użyć danych użytkownika z odpowiedzi
+                    console.log("Rejestracja pomyślna:", response);
+                    messagesEl.innerHTML = '<p class="text-green-600">Rejestracja pomyślna! Możesz się teraz zalogować.</p>';
+                    // Opcjonalnie: wyczyść formularz rejestracji lub przekieruj na logowanie po chwili
+                    // setTimeout(() => {
+                    //    htmx.ajax('GET', '/htmx/logowanie', { target: '#content', swap: 'innerHTML' });
+                    //    if (typeof htmx !== 'undefined' && htmx.history && htmx.history.push) { 
+                    //         htmx.history.push('/logowanie', { source: targetElement }); 
+                    //    }
+                    // }, 2000);
+                 } catch(e) {
+                    messagesEl.innerHTML = '<p class="text-green-600">Rejestracja pomyślna! (Błąd przetwarzania odpowiedzi)</p>';
+                 }
+            }
+        } else { // Żądanie HTTP nie powiodło się (np. 400, 401, 422, 500)
+            if (messagesEl && xhr.responseText) {
+                try {
+                    const errorResponse = JSON.parse(xhr.responseText);
+                    if (errorResponse.message) {
+                        messagesEl.innerHTML = '<p class="text-red-600">' + errorResponse.message + '</p>';
+                    } else {
+                         messagesEl.innerHTML = '<p class="text-red-600">Wystąpił błąd ('+ xhr.status +'). Spróbuj ponownie.</p>';
+                    }
+                } catch (e) { // Odpowiedź błędu nie była JSONem lub brak pola message
+                     messagesEl.innerHTML = '<p class="text-red-600">Wystąpił nieoczekiwany błąd serwera ('+ xhr.status +').</p>';
+                }
+            }
+        }
+      });      
+      
     </script>
   </body>
 </html>
