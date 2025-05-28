@@ -17,10 +17,10 @@
       src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"
       defer
     ></script>
-    <script
-      src="https://unpkg.com/hyperscript.org@0.9.12/dist/hyperscript.min.js"
-      defer
-    ></script>
+    <!-- <script -->
+      <!-- src="https://unpkg.com/hyperscript.org@0.9.12/dist/hyperscript.min.js" -->
+      <!-- defer -->
+    <!-- ></script> -->
     <style type="text/tailwindcss">
       [x-cloak] {
         display: none !important;
@@ -541,39 +541,24 @@
             class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-700"
             >Kontakt</a
           >
-          <div class="pt-4 pb-3 border-t border-gray-200">
-            <div class="flex items-center px-3">
-              <a
-                href="#"
-                @click="isMobileMenuOpen = false"
-                class="flex items-center text-base font-medium text-gray-700 hover:text-pink-700"
-                ><svg
-                  class="w-6 h-6 mr-2"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-                  ></path>
-           <a  x-bind:href="isAuthenticated ? '/moje-konto' : '/logowanie'"
-                x-bind:hx-get="isAuthenticated ? '/htmx/moje-konto' : '/htmx/logowanie'"
-                hx-target="#content" hx-swap="innerHTML"
-                x-bind:hx-push-url="isAuthenticated ? '/moje-konto' : '/logowanie'"
-                @click="isMobileMenuOpen = false; currentMobilePage = isAuthenticated ? 'konto' : 'logowanie'"
-                class="flex items-center text-base font-medium text-gray-700 hover:text-pink-700 w-full">
-                <svg class="w-6 h-6 mr-2 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"></path></svg>
-                <span x-text="isAuthenticated ? 'Moje Konto' : 'Zaloguj / Zarejestruj się'"></span>
-            </a>              
-            <div x-show="isAuthenticated" x-cloak class="mt-2 px-1">
-                <button @click="clientSideLogout()" class="w-full text-left flex items-center text-base font-medium text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-md">
-                    <svg class="w-6 h-6 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"></path></svg>
-                    Wyloguj
-                </button>
-            </div>
+            <div class="pt-4 pb-3 border-t border-gray-200">
+                <div class="flex items-center px-3">
+                     <a  x-bind:href="isAuthenticated ? '/moje-konto' : '/logowanie'"
+                        x-bind:hx-get="isAuthenticated ? '/htmx/moje-konto' : '/htmx/logowanie'"
+                        hx-target="#content" hx-swap="innerHTML"
+                        x-bind:hx-push-url="isAuthenticated ? '/moje-konto' : '/logowanie'"
+                        @click="isMobileMenuOpen = false; currentMobilePage = isAuthenticated ? 'konto' : 'logowanie'"
+                        class="flex items-center text-base font-medium text-gray-700 hover:text-pink-700 w-full">
+                        <svg class="w-6 h-6 mr-2 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"></path></svg>
+                        <span x-text="isAuthenticated ? 'Moje Konto' : 'Zaloguj / Zarejestruj się'"></span>
+                    </a>
+                </div>
+                <div x-show="isAuthenticated" x-cloak class="mt-2 px-1"> 
+                    <button @click="clientSideLogout()" class="w-full text-left flex items-center text-base font-medium text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-md">
+                        <svg class="w-6 h-6 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"></path></svg>
+                        Wyloguj
+                    </button>
+                </div>
             </div>
           </div>
         </div>

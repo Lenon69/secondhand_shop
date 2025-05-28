@@ -2228,26 +2228,28 @@ pub async fn my_account_page_handler(claims: TokenClaims) -> Result<Markup, AppE
 
 pub async fn login_page_htmx_handler() -> Result<Markup, AppError> {
     tracing::info!("MAUD: Żądanie strony logowania HTMX");
+
     let page_title = "Logowanie do MEG JONI";
-    let form_id = "login-form"; // ID dla formularza
-    let messages_id = "login-messages"; // ID dla diva na komunikaty
+    let form_id = "login-form";
+    let messages_id = "login-messages";
     let api_login_endpoint = "/api/auth/login";
-    let registration_htmx_endpoint = "/htmx/rejestracja"; // Zmieniono z /page/rejestracja
+    let registration_htmx_endpoint = "/htmx/rejestracja"; // Bez /page/
     let registration_url = "/rejestracja";
 
     Ok(html! {
-        div ."min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8" {
-            div ."sm:mx-auto sm:w-full sm:max-w-md" {
-                h2 ."mt-6 text-center text-3xl font-extrabold text-gray-900" { (page_title) }
-            }
-            div ."mt-8 sm:mx-auto sm:w-full sm:max-w-md" {
-                div ."bg-white py-8 px-4 shadow-xl rounded-lg sm:px-10" {
-                    // --- DIV NA KOMUNIKATY Z ODPOWIEDNIM ID ---
-                    div #(messages_id) ."mb-4 text-sm"; // np. text-red-600 dla błędów
+        div ."min-h-[calc(100vh-var(--header-height,10rem))] w-full flex items-center justify-center p-4 bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-100" {
+            div ."w-full max-w-md" { // Ten div centruje kartę
+                div ."bg-white/80 backdrop-blur-md py-8 px-6 sm:px-10 shadow-2xl rounded-xl border border-gray-200" {
+                    div ."mb-8 text-center" {
+                        h2 ."text-3xl font-bold text-gray-900" { (page_title) }
+                    }
 
-                    form id=(form_id) // --- DODANE ID FORMULARZA ---
+                    div #(messages_id) ."mb-4 text-sm min-h-[1.25em]"; // min-h-[1.25em] aby uniknąć skoku layoutu
+
+                    form id="login-form"
                         "hx-post"=(api_login_endpoint)
-                        "hx-target"=(format!("#{}", messages_id)) // Celuje w diva z komunikatami dla błędów API
+                        "hx-ext"="json-enc"
+                        "hx-target"=(format!("#{}", messages_id))
                         "hx-swap"="innerHTML"
                         class="space-y-6" {
 
@@ -2255,30 +2257,38 @@ pub async fn login_page_htmx_handler() -> Result<Markup, AppError> {
                             label for="email" ."block text-sm font-medium text-gray-700" { "Adres e-mail" }
                             div ."mt-1" {
                                 input #email name="email" type="email" autocomplete="email" required
-                                       class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                                       class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400
+                                              focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 
+                                              transition duration-150 ease-in-out sm:text-sm";
                             }
                         }
+
                         div {
                             label for="password" ."block text-sm font-medium text-gray-700" { "Hasło" }
                             div ."mt-1" {
                                 input #password name="password" type="password" autocomplete="current-password" required
-                                       class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                                       class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400
+                                              focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 
+                                              transition duration-150 ease-in-out sm:text-sm";
                             }
                         }
+
                         div {
                             button type="submit"
-                                   class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-colors duration-150" {
+                                   class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white
+                                          bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 
+                                          transition-all duration-150 ease-in-out transform hover:scale-105" {
                                 "Zaloguj się"
                             }
                         }
                     }
-                    div ."mt-6" {
-                        div ."relative" { /* ... separator "Lub" ... */ }
-                        div ."mt-6 text-center" {
+
+                    div ."mt-6 pt-6 border-t border-gray-200" {
+                        div ."text-center" {
                             p ."text-sm text-gray-600" {
                                 "Nie masz jeszcze konta? "
                                 a href=(registration_url)
-                                   "hx-get"=(registration_htmx_endpoint) // Używamy poprawionej ścieżki
+                                   "hx-get"=(registration_htmx_endpoint)
                                    "hx-target"="#content"
                                    "hx-swap"="innerHTML"
                                    "hx-push-url"=(registration_url)
@@ -2296,25 +2306,27 @@ pub async fn login_page_htmx_handler() -> Result<Markup, AppError> {
 
 pub async fn registration_page_htmx_handler() -> Result<Markup, AppError> {
     tracing::info!("MAUD: Żądanie strony rejestracji HTMX");
+
     let page_title = "Załóż konto w MEG JONI";
-    let form_id = "registration-form"; // ID dla formularza
-    let messages_id = "registration-messages"; // ID dla diva na komunikaty
+    let form_id = "registration-form";
+    let messages_id = "registration-messages";
     let api_register_endpoint = "/api/auth/register";
-    let login_htmx_endpoint = "/htmx/logowanie"; // Zmieniono z /page/logowanie
+    let login_htmx_endpoint = "/htmx/logowanie"; // Bez /page/
     let login_url = "/logowanie";
 
     Ok(html! {
-        div ."min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8" {
-            div ."sm:mx-auto sm:w-full sm:max-w-md" {
-                h2 ."mt-6 text-center text-3xl font-extrabold text-gray-900" { (page_title) }
-            }
-            div ."mt-8 sm:mx-auto sm:w-full sm:max-w-md" {
-                div ."bg-white py-8 px-4 shadow-xl rounded-lg sm:px-10" {
-                    // --- DIV NA KOMUNIKATY Z ODPOWIEDNIM ID ---
-                    div #(messages_id) ."mb-4 text-sm"; // np. text-green-600 dla sukcesu, text-red-600 dla błędów
+        div ."min-h-[calc(100vh-var(--header-height,10rem))] w-full flex items-center justify-center p-4 bg-gradient-to-br from-teal-50 via-cyan-50 to-sky-100" {
+            div ."w-full max-w-md" {
+                div ."bg-white/80 backdrop-blur-md py-8 px-6 sm:px-10 shadow-2xl rounded-xl border border-gray-200" {
+                    div ."mb-8 text-center" {
+                        h2 ."text-3xl font-bold text-gray-900" { (page_title) }
+                    }
 
-                    form id=(form_id) // --- DODANE ID FORMULARZA ---
+                    div #(messages_id) ."mb-4 text-sm min-h-[1.25em]"; // Na komunikaty (sukces/błąd)
+
+                    form #(form_id)
                         "hx-post"=(api_register_endpoint)
+                        "hx-ext"="json-enc"
                         "hx-target"=(format!("#{}", messages_id))
                         "hx-swap"="innerHTML"
                         class="space-y-6" {
@@ -2323,34 +2335,55 @@ pub async fn registration_page_htmx_handler() -> Result<Markup, AppError> {
                             label for="reg-email" ."block text-sm font-medium text-gray-700" { "Adres e-mail" }
                             div ."mt-1" {
                                 input #reg-email name="email" type="email" autocomplete="email" required
-                                       class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                                       class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition duration-150 ease-in-out sm:text-sm";
                             }
                         }
+
                         div {
                             label for="reg-password" ."block text-sm font-medium text-gray-700" { "Hasło" }
                             div ."mt-1" {
                                 input #reg-password name="password" type="password" autocomplete="new-password" required minlength="8"
-                                       class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                                       class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition duration-150 ease-in-out sm:text-sm";
                                 p ."mt-1 text-xs text-gray-500" { "Minimum 8 znaków." }
                             }
                         }
+
+                        // TODO: Dodaj pole do potwierdzenia hasła (ważne!)
+                        // div {
+                        //     label for="confirm_password" ."block text-sm font-medium text-gray-700" { "Potwierdź hasło" }
+                        //     div ."mt-1" {
+                        //         input #confirm_password name="confirm_password" type="password" autocomplete="new-password" required minlength="8"
+                        //                class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm ...";
+                        //     }
+                        // }
+
+                        // TODO: Dodaj checkboxy ze zgodami (Regulamin, Polityka Prywatności) - są one prawnie wymagane.
+                        // div ."pt-2 space-y-2" {
+                        //    ... przykładowy checkbox ...
+                        // }
+
                         div {
                             button type="submit"
-                                   class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-colors duration-150" {
+                                   class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white
+                                          bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 
+                                          transition-all duration-150 ease-in-out transform hover:scale-105" {
                                 "Zarejestruj się"
                             }
                         }
                     }
-                    div ."mt-6 text-center" {
-                        p ."text-sm text-gray-600" {
-                            "Masz już konto? "
-                            a href=(login_url)
-                               "hx-get"=(login_htmx_endpoint) // Używamy poprawionej ścieżki
-                               "hx-target"="#content"
-                               "hx-swap"="innerHTML"
-                               "hx-push-url"=(login_url)
-                               class="font-medium text-pink-600 hover:text-pink-500 hover:underline" {
-                                "Zaloguj się"
+
+                    div ."mt-6 pt-6 border-t border-gray-200" {
+                        div ."text-center" {
+                            p ."text-sm text-gray-600" {
+                                "Masz już konto? "
+                                a href=(login_url)
+                                   "hx-get"=(login_htmx_endpoint)
+                                   "hx-target"="#content"
+                                   "hx-swap"="innerHTML"
+                                   "hx-push-url"=(login_url)
+                                   class="font-medium text-teal-600 hover:text-teal-500 hover:underline" {
+                                    "Zaloguj się"
+                                }
                             }
                         }
                     }
