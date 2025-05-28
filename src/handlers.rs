@@ -1,6 +1,6 @@
 // src/handlers.rs
-use axum::Json;
 use axum::response::IntoResponse;
+use axum::{Form, Json};
 use axum::{
     extract::{Multipart, Path, Query, State},
     http::{HeaderMap, StatusCode},
@@ -760,7 +760,7 @@ pub async fn delete_product_handler(
 }
 pub async fn register_handler(
     State(app_state): State<AppState>,
-    Json(payload): Json<RegistrationPayload>,
+    Form(payload): Form<RegistrationPayload>,
 ) -> Result<(StatusCode, Json<UserPublic>), AppError> {
     payload.validate()?;
 
@@ -803,7 +803,7 @@ pub async fn register_handler(
 
 pub async fn login_handler(
     State(app_state): State<AppState>,
-    Json(payload): Json<LoginPayload>,
+    Form(payload): Form<LoginPayload>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     payload.validate()?;
 

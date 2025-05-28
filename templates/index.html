@@ -21,6 +21,7 @@
       <!-- src="https://unpkg.com/hyperscript.org@0.9.12/dist/hyperscript.min.js" -->
       <!-- defer -->
     <!-- ></script> -->
+    <script src="app.js" defer></script>
     
     <style type="text/tailwindcss">
       [x-cloak] {
@@ -107,10 +108,9 @@
                     if (typeof htmx !== 'undefined' && htmx.history && htmx.history.push) { htmx.history.push('/', {}); }
                     this.currentMobilePage = '';
                 } else if (this.isAuthenticated && (this.currentMobilePage === 'logowanie' || this.currentMobilePage === 'rejestracja')) {
-                    // Ta część może być teraz obsługiwana przez htmx:afterOnLoad po udanym logowaniu
-                    // htmx.ajax('GET', '/htmx/moje-konto', { target: '#content', swap: 'innerHTML' });
-                    // if (typeof htmx !== 'undefined' && htmx.history && htmx.history.push) { htmx.history.push('/moje-konto', {}); }
-                    // this.currentMobilePage = 'konto';
+                    htmx.ajax('GET', '/htmx/moje-konto', { target: '#content', swap: 'innerHTML' });
+                    if (typeof htmx !== 'undefined' && htmx.history && htmx.history.push) { htmx.history.push('/moje-konto', {}); }
+                    this.currentMobilePage = 'konto';
                 }
             });
         },        
@@ -995,10 +995,10 @@
       </button>
     </div>
 
-    {# Komponent powiadomień, jeśli go używasz #}
     <div
       x-data="{ show: false, message: '', type: 'info', timeout: null }"
       x-init="$el.addEventListener('showMessage', (event) => {
+             console.log('[Alpine Toast] showMessage event received, detail:', event.detail); 
              message = event.detail.message;
              type = event.detail.type || 'info';
              show = true;
@@ -1028,6 +1028,7 @@
     <div
       x-data="{ show: false, message: '', type: 'info', timeout: null }"
       x-init="$el.addEventListener('showMessage', (event) => {
+             console.log('[Alpine Toast] showMessage event received, detail:', event.detail);
              message = event.detail.message;
              type = event.detail.type || 'info';
              show = true;
@@ -1073,84 +1074,6 @@
         if (jwtToken && event.detail.headers) {
             event.detail.headers['Authorization'] = 'Bearer ' + jwtToken;
         }
-
-        if (event.detail.elt && event.detail.verb) {
-            const formElement = event.detail.elt; // Teraz jest to bezpieczne
-
-            if (event.detail.verb.toLowerCase() === 'post' &&
-                formElement && (formElement.id === 'login-form' || formElement.id === 'registration-form')) {
-                
-                console.log('[HTMX Config] Próba modyfikacji żądania dla formularza:', formElement.id);
-                console.log('[HTMX Config] Pierwotne parametry:', event.detail.parameters);
-                console.log('[HTMX Config] Pierwotne nagłówki:', event.detail.headers);
-
-                // Ustawiamy Content-Type (upewnij się, że headers istnieje)
-                if (!event.detail.headers) {
-                    event.detail.headers = {};
-                }
-                event.detail.headers['Content-Type'] = 'application/json';
-                
-                
-                
-                
-                
-                
-                // Zbieramy dane z FormData do zwykłego obiektu JS
-                let payloadObject = {};
-                const formData = new FormData(formElement); // Odczytaj dane z formularza, który wywołał zdarzenie
-                for (const [key, value] of formData.entries()) {
-                    payloadObject[key] = value;
-                }
-        
-                // Usuń potencjalny parametr '_', który HTMX mógł dodać
-                if (payloadObject.hasOwnProperty('_')) {
-                    delete payloadObject['_'];
-                }
-                
-                  try {
-                      const jsonString = JSON.stringify(payloadObject);
-                      console.log('[HTMX Config] Serializowane parametry do stringa JSON:', jsonString);
-            
-                      event.detail.parameters = jsonString; 
-            
-                      // Alternatywnie, jeśli powyższe nie działa, można spróbować ustawić event.detail.body,
-                      // ale to jest mniej standardowe i może zależeć od wersji HTMX.
-                      // event.detail.body = jsonString; // Spróbuj tego, jeśli powyższe `parameters = jsonString` nie zadziała
-                      // if (event.detail.body) {
-                      //    delete event.detail.parameters; // Jeśli ustawiasz body, upewnij się, że parametry nie są wysyłane w inny sposób
-                      // }
-
-
-                  } catch (e) {
-                      console.error("Błąd podczas serializacji parametrów formularza do JSON:", e);
-                  }
-                
-                
-                
-                               
-
-                // Przekształć parametry formularza na string JSON
-                if (event.detail.parameters && typeof event.detail.parameters === 'object') {
-                    try {
-                        if (event.detail.parameters.hasOwnProperty('_')) {
-                            delete event.detail.parameters['_'];
-                        }
-                        // HTMX powinien automatycznie zserializować obiekt event.detail.parameters do JSON,
-                        // jeśli nagłówek Content-Type jest application/json.
-                        // Zostawiamy to zachowanie HTMX. Jeśli nadal będzie problem 415,
-                        // można tu wrócić do: event.detail.parameters = JSON.stringify(event.detail.parameters);
-                        
-                        console.log('[HTMX Config] Nagłówki PO modyfikacji dla formularza:', event.detail.headers);
-                        console.log('[HTMX Config] Parametry (przed automatyczną serializacją HTMX):', event.detail.parameters);
-
-                    } catch (e) {
-                        console.error("Błąd podczas przygotowywania parametrów formularza do JSON:", e);
-                    }
-                } else {
-                    console.warn("[HTMX Config] Oczekiwano obiektu w event.detail.parameters dla formularza, otrzymano:", typeof event.detail.parameters);
-                }
-            }
-        }
       }); // Koniec listenera htmx:configRequest
 
       document.body.addEventListener("updateCartCount", (htmxEvent) => {
@@ -1178,7 +1101,7 @@
 
       document.body.addEventListener('htmx:afterSwap', function(event) {
         if (event.detail.target.id === 'content' || event.detail.target.closest('#content')) {
-            window.scrollTo({ top: 0, behavior: 'auto' });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
       });
 
@@ -1194,72 +1117,6 @@
           }
       });
       
-      document.body.addEventListener('htmx:afterOnLoad', function(evt) {
-        // Upewnij się, że evt.detail i evt.detail.target istnieją
-        if (!evt.detail || !evt.detail.target) return;
-
-        const targetElement = evt.detail.target;
-        const xhr = evt.detail.xhr;
-
-        if (!targetElement.closest('form')) return; 
-
-        const isLoginForm = targetElement.closest('form#login-form');
-        const isRegisterForm = targetElement.closest('form#registration-form');
-        
-        let messagesEl = null;
-        if (isLoginForm) messagesEl = document.getElementById('login-messages');
-        if (isRegisterForm) messagesEl = document.getElementById('registration-messages');
-
-        if (evt.detail.successful) {
-            if (isLoginForm && xhr.responseText) {
-                try {
-                    const response = JSON.parse(xhr.responseText);
-                    if (response.token) {
-                        console.log("Logowanie pomyślne, otrzymano token (obsługa w htmx:afterOnLoad - do weryfikacji, czy potrzebne).");
-                        // Logika zapisu tokenu i zmiany stanu jest teraz głównie w 'authChangedFromBackend'
-                        // Ale jeśli API nie wysyła triggera, to można to zrobić tutaj:
-                        // localStorage.setItem('jwtToken', response.token);
-                        // window.dispatchEvent(new CustomEvent('authChangedClient', { detail: { isAuthenticated: true }}));
-                        // htmx.ajax('GET', '/htmx/moje-konto', { target: '#content', swap: 'innerHTML' });
-                        // if (typeof htmx !== 'undefined' && htmx.history && htmx.history.push) { 
-                        //      htmx.history.push('/moje-konto', { source: targetElement }); 
-                        // }
-                        if (messagesEl) messagesEl.innerHTML = ""; 
-                    } else if (response.message && messagesEl) {
-                        messagesEl.innerHTML = '<p class="text-red-600">' + response.message + '</p>';
-                    }
-                } catch (e) {
-                    console.error('Błąd parsowania odpowiedzi JSON z /api/auth/login:', e);
-                    if(messagesEl) messagesEl.innerHTML = '<p class="text-red-600">Wystąpił nieoczekiwany błąd odpowiedzi serwera.</p>';
-                }
-            } else if (isRegisterForm && xhr.status === 201 && messagesEl) {
-                 try {
-                    const response = JSON.parse(xhr.responseText);
-                    console.log("Rejestracja pomyślna:", response);
-                    messagesEl.innerHTML = '<p class="text-green-600">Rejestracja pomyślna! Możesz się teraz zalogować.</p>';
-                 } catch(e) {
-                    messagesEl.innerHTML = '<p class="text-green-600">Rejestracja pomyślna! (Błąd przetwarzania odpowiedzi)</p>';
-                 }
-            }
-        } else { 
-            if (messagesEl && xhr.responseText) {
-                try {
-                    const errorResponse = JSON.parse(xhr.responseText);
-                    if (errorResponse.message) {
-                        messagesEl.innerHTML = '<p class="text-red-600">' + errorResponse.message + '</p>';
-                    } else {
-                         messagesEl.innerHTML = '<p class="text-red-600">Wystąpił błąd ('+ xhr.status +'). Spróbuj ponownie.</p>';
-                    }
-                } catch (e) {
-                     if (xhr.status === 415 && messagesEl) { // Specjalna obsługa dla 415, jeśli JSON.parse zawiedzie
-                        messagesEl.innerHTML = '<p class="text-red-600">Błąd formatu danych (415). Skontaktuj się z administratorem.</p>';
-                     } else if (messagesEl) {
-                        messagesEl.innerHTML = '<p class="text-red-600">Wystąpił nieoczekiwany błąd serwera ('+ xhr.status +').</p>';
-                     }
-                }
-            }
-        }
-      });      
     </script>
     </body>
 </html>
