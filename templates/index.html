@@ -77,6 +77,7 @@
         isMobileMenuOpen: false,
         currentMobilePage: '',
         guestCartId: null,
+        isAuthenticated: false,
 
         activeImageModal: { // Stan modala jako pojedynczy obiekt
             isOpen: false,
@@ -89,9 +90,9 @@
         initAlpine() {
             this.cartItemCount = parseInt(localStorage.getItem('alpineCartCount')) || 0;
             this.guestCartId = localStorage.getItem('guestCartId');
+            this.isAuthenticated = !!localStorage.getItem('jwtToken'); 
             this.updateCartCounterVisuals();
             
-            // $watch jest metodą Alpine, nie trzeba jej definiować, wystarczy użyć w x-init
         },
         updateCartCounterVisuals() {
             ['cart-count-bubble', 'cart-count-bubble-mobile'].forEach(id => {
