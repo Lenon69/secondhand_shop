@@ -17,10 +17,6 @@
       src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"
       defer
     ></script>
-    <!-- <script -->
-      <!-- src="https://unpkg.com/hyperscript.org@0.9.12/dist/hyperscript.min.js" -->
-      <!-- defer -->
-    <!-- ></script> -->
     <script src="app.js" defer></script>
     
     <style type="text/tailwindcss">
@@ -997,16 +993,20 @@
 
     <div
       x-data="{ show: false, message: '', type: 'info', timeout: null }"
-      x-init="$el.addEventListener('showMessage', (event) => {
-             console.log('[Alpine Toast] showMessage event received, detail:', event.detail); 
-             message = event.detail.message;
-             type = event.detail.type || 'info';
-             show = true;
-             clearTimeout(timeout);
-             timeout = setTimeout(() => show = false, 3500);
-         })"
-      x-show="show"
-      x-transition:enter="transition ease-out duration-300"
+      x-init="window.addEventListener('showMessage', (event) => {
+             if (event.detail && typeof event.detail.message !== 'undefined') {
+                 console.log('<<<<< [Alpine Toast na Window] Odebrano zdarzenie showMessage >>>>>');
+                 console.log('Message:', event.detail.message, 'Type:', event.detail.type || 'info');
+                 
+                 message = event.detail.message;
+                 type = event.detail.type || 'info';
+                 show = true;
+                 clearTimeout(timeout);
+                 timeout = setTimeout(() => show = false, 3500);
+             } else {
+                 console.warn('[Alpine Toast na Window] Odebrano zdarzenie showMessage, ale brakuje event.detail.message. Pełne zdarzenie:', event);
+             }
+         })"      x-transition:enter="transition ease-out duration-300"
       x-transition:enter-start="opacity-0 transform translate-y-2"
       x-transition:enter-end="opacity-100 transform translate-y-0"
       x-transition:leave="transition ease-in duration-300"
@@ -1024,43 +1024,11 @@
     >
       <p x-text="message"></p>
     </div>
-
-    <div
-      x-data="{ show: false, message: '', type: 'info', timeout: null }"
-      x-init="$el.addEventListener('showMessage', (event) => {
-             console.log('[Alpine Toast] showMessage event received, detail:', event.detail);
-             message = event.detail.message;
-             type = event.detail.type || 'info';
-             show = true;
-             clearTimeout(timeout);
-             timeout = setTimeout(() => show = false, 3500);
-         })"
-      x-show="show"
-      x-transition:enter="transition ease-out duration-300"
-      x-transition:enter-start="opacity-0 transform translate-y-2"
-      x-transition:enter-end="opacity-100 transform translate-y-0"
-      x-transition:leave="transition ease-in duration-300"
-      x-transition:leave-start="opacity-100 transform translate-y-0"
-      x-transition:leave-end="opacity-0 transform translate-y-2"
-      class="fixed bottom-5 right-5 text-white px-4 py-3 rounded-md shadow-lg z-[100] text-sm"
-      :class="{
-             'bg-green-600': type === 'success',
-             'bg-red-600': type === 'error',
-             'bg-sky-600': type === 'info',
-             'bg-yellow-500 text-black': type === 'warning'
-         }"
-      role="alert"
-      x-cloak
-    >
-      <p x-text="message"></p>
-    </div>
-
+    
 <script>
       document.body.addEventListener("htmx:configRequest", (event) => {
-        // Upewnij się, że event.detail istnieje, zanim zaczniesz z niego korzystać
         if (!event.detail) {
-          // console.warn('[HTMX Config] Zdarzenie htmx:configRequest nie zawierało event.detail.');
-          return; // Wyjdź wcześnie, jeśli nie ma detali
+          return;
         }
 
         // Dodawanie X-Guest-Cart-Id (jeśli nagłówki istnieją)
@@ -1101,10 +1069,18 @@
 
       document.body.addEventListener('htmx:afterSwap', function(event) {
         if (event.detail.target.id === 'content' || event.detail.target.closest('#content')) {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+          // Czyścimy komunikaty tylko jeśli nie jesteśmy na stronie logowania/rejestracji
+          // lub jeśli załadowano nową zawartość do #content
+          if (!window.location.pathname.endsWith('/logowanie') && !window.location.pathname.endsWith('/rejestracja')) {
+              const loginMessages = document.getElementById('login-messages');
+              if (loginMessages) loginMessages.innerHTML = '';
+              const registrationMessages = document.getElementById('registration-messages');
+              if (registrationMessages) registrationMessages.innerHTML = '';
+          }
+          window.scrollTo({ top: 0, behavior: 'auto' });
         }
       });
-
+      
       document.body.addEventListener('authChangedFromBackend', function(evt) {
           console.log('[JS] Odebrano zdarzenie "authChangedFromBackend". Detail:', evt.detail);
           if (evt.detail && typeof evt.detail.isAuthenticated !== 'undefined') {

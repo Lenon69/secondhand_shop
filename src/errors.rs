@@ -49,6 +49,9 @@ pub enum AppError {
 
     #[error("Niepoprawny nagłówek")]
     BadRequest(String),
+
+    #[error("Błąd walidacji danych")]
+    Validation(String),
 }
 
 impl IntoResponse for AppError {
@@ -91,6 +94,7 @@ impl IntoResponse for AppError {
             AppError::UnauthorizedAccess(message) => (StatusCode::FORBIDDEN, message),
             AppError::InternalServerError(message) => (StatusCode::INTERNAL_SERVER_ERROR, message),
             AppError::BadRequest(message) => (StatusCode::BAD_REQUEST, message),
+            AppError::Validation(message) => (StatusCode::UNAUTHORIZED, message),
         };
 
         let body = Json(json!({ "error": error_message }));

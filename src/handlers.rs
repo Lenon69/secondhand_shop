@@ -1,3 +1,4 @@
+use axum::http::HeaderValue;
 // src/handlers.rs
 use axum::response::IntoResponse;
 use axum::{Form, Json};
@@ -761,54 +762,41 @@ pub async fn delete_product_handler(
 pub async fn register_handler(
     State(app_state): State<AppState>,
     Form(payload): Form<RegistrationPayload>,
-) -> Result<(StatusCode, Json<UserPublic>), AppError> {
-    payload.validate()?;
+) -> Result<impl IntoResponse, AppError> {
+    // 1. Walidacja danych wejściowych
+    if let Err(validation_errors) = payload.validate() {
+        tracing::warn!("Błąd walidacji danych rejestracji: {:?}", validation_errors);
+        let mut headers = HeaderMap::new();
+        headers.insert("HX-Reswap", HeaderValue::from_static("none"));
 
-    // Sprawdzanie czy użytkownik istnieje
-    let existing_user: Option<User> = sqlx::query_as(
-        r#"
-            SELECT id, email, password_hash, role, created_at, updated_at
-            FROM users
-            WHERE email = $1
-            "#,
-    )
-    .bind(&payload.email)
-    .fetch_optional(&app_state.db_pool)
-    .await?;
+        let mut error_message = "Niepoprawne dane w formularzu.".to_string();
+        if let Some(field_errors) = validation_errors.field_errors().values().next() {
+            if let Some(first_error) = field_errors.get(0) {
+                if let Some(msg) = &first_error.message {
+                    error_message = msg.to_string();
+                } else {
+                    error_message = first_error.code.to_string();
+                }
+            }
+        }
 
-    if existing_user.is_some() {
-        return Err(AppError::EmailAlreadyExists(
-            "Email już istnieje".to_string(),
+        let trigger_payload = json!({
+            "showMessage": {"message": error_message, "type": "error"}
+        });
+        if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
+            headers.insert("HX-Trigger", trigger_value);
+        }
+        return Ok((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            headers,
+            Json(
+                json!({ "error": "Validation failed", "details_str": validation_errors.to_string() }),
+            ), // Zmieniono "details" na "details_str" lub serializuj inaczej
         ));
     }
 
-    // Hash hasła
-    let password_hash = hash_password(&payload.password)?;
-
-    // Wstawianie nowego użytkownika (domyślnie rola Customer)
-    let new_user = sqlx::query_as::<_, User>(
-        r#"INSERT INTO users (email, password_hash)
-                VALUES ($1, $2)
-                RETURNING id, email, password_hash, role, created_at, updated_at"#,
-    )
-    .bind(&payload.email)
-    .bind(&password_hash)
-    .fetch_one(&app_state.db_pool)
-    .await?;
-
-    tracing::info!("Zarejestrowano nowego użytkownika: {}", new_user.email);
-
-    Ok((StatusCode::CREATED, Json(new_user.into())))
-}
-
-pub async fn login_handler(
-    State(app_state): State<AppState>,
-    Form(payload): Form<LoginPayload>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    payload.validate()?;
-
-    // Znajdywanie użytkownika po emailu
-    let user = sqlx::query_as::<_, User>(
+    // 2. Sprawdzanie czy użytkownik istnieje
+    let existing_user: Option<User> = sqlx::query_as(
         r#"
             SELECT id, email, password_hash, role, created_at, updated_at
             FROM users
@@ -817,26 +805,266 @@ pub async fn login_handler(
     )
     .bind(&payload.email)
     .fetch_optional(&app_state.db_pool)
-    .await?
-    .ok_or(AppError::InvalidLoginCredentials)?;
+    .await
+    .map_err(|e| {
+        tracing::error!(
+            "Błąd bazy danych podczas sprawdzania emaila {}: {:?}",
+            payload.email,
+            e
+        );
+        AppError::SqlxError(e)
+    })?;
 
-    // Weryfikacja hasła
-    if !verify_password(&user.password_hash, &payload.password)? {
-        return Err(AppError::InvalidLoginCredentials);
+    if existing_user.is_some() {
+        tracing::warn!("Próba rejestracji z istniejącym emailem: {}", payload.email);
+        let mut headers = HeaderMap::new();
+        headers.insert("HX-Reswap", HeaderValue::from_static("none"));
+        let trigger_payload = json!({
+            "showMessage": {"message": "Podany adres email jest już zarejestrowany.", "type": "error"}
+        });
+        if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
+            headers.insert("HX-Trigger", trigger_value);
+        }
+        return Ok((
+            StatusCode::CONFLICT,
+            headers,
+            Json(json!({"message": "Email już istnieje"})),
+        ));
     }
 
-    // Wygeneruj token JWT
-    let token = create_jwt(
-        user.id,
+    // 3. Hash hasła
+    let password_hash = match hash_password(&payload.password) {
+        Ok(ph) => ph,
+        Err(e) => {
+            tracing::error!("Błąd hashowania hasła: {:?}", e);
+            let mut headers = HeaderMap::new();
+            headers.insert("HX-Reswap", HeaderValue::from_static("none"));
+            let trigger_payload = json!({
+                "showMessage": {"message": "Błąd serwera podczas przetwarzania danych.", "type": "error"}
+            });
+            if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
+                headers.insert("HX-Trigger", trigger_value);
+            }
+            return Ok((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                headers,
+                Json(json!({"message": "Błąd serwera"})),
+            ));
+        }
+    };
+
+    // 4. Wstawianie nowego użytkownika
+    let new_user = match sqlx::query_as::<_, User>(
+        r#"INSERT INTO users (email, password_hash, role) 
+           VALUES ($1, $2, $3)
+           RETURNING id, email, password_hash, role, created_at, updated_at"#,
+    )
+    .bind(&payload.email)
+    .bind(&password_hash)
+    .bind(Role::Customer)
+    .fetch_one(&app_state.db_pool)
+    .await
+    {
+        Ok(user) => user,
+        Err(e) => {
+            tracing::error!("Błąd wstawiania nowego użytkownika do bazy danych: {:?}", e);
+            let mut headers = HeaderMap::new();
+            headers.insert("HX-Reswap", HeaderValue::from_static("none"));
+            let trigger_payload = json!({
+                "showMessage": {"message": "Nie udało się utworzyć konta. Spróbuj ponownie.", "type": "error"}
+            });
+            if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
+                headers.insert("HX-Trigger", trigger_value);
+            }
+            return Ok((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                headers,
+                Json(json!({"message": "Błąd bazy danych"})),
+            ));
+        }
+    };
+
+    tracing::info!(
+        "Zarejestrowano nowego użytkownika: {} (ID: {})",
+        new_user.email,
+        new_user.id
+    );
+
+    // 5. Sukces - przygotowanie odpowiedzi z nagłówkami HTMX
+    let mut headers = HeaderMap::new();
+    headers.insert("HX-Reswap", HeaderValue::from_static("none"));
+
+    let trigger_payload = json!({
+        "registrationComplete": { "userId": new_user.id.to_string() },
+        "showMessage": {"message": "Rejestracja pomyślna! Możesz się teraz zalogować.", "type": "success"}
+    });
+    if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
+        headers.insert("HX-Trigger", trigger_value);
+    }
+
+    let user_public_data: UserPublic = new_user.into();
+
+    // Zmieniona linia: user_public_data jest konwertowane na serde_json::Value
+    Ok((StatusCode::CREATED, headers, Json(json!(user_public_data))))
+}
+
+pub async fn login_handler(
+    State(app_state): State<AppState>,
+    Form(payload): Form<LoginPayload>,
+) -> Result<impl IntoResponse, AppError> {
+    // 1. Walidacja danych wejściowych
+    if let Err(validation_errors) = payload.validate() {
+        // Możesz chcieć przekształcić validation_errors na bardziej przyjazny komunikat
+        // lub zwrócić szczegóły błędów walidacji.
+        // Na razie zwracamy generyczny AppError::Validation.
+        tracing::warn!("Błąd walidacji danych logowania: {:?}", validation_errors);
+        let mut headers = HeaderMap::new();
+        headers.insert("HX-Reswap", HeaderValue::from_static("none"));
+        let trigger_payload = json!({
+            "showMessage": {"message": "Niepoprawne dane w formularzu.", "type": "error"}
+        });
+        if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
+            headers.insert("HX-Trigger", trigger_value);
+        }
+        // Użyj Statuscode::UNPROCESSABLE_ENTITY dla błędów walidacji, jeśli AppError::Validation tego nie robi.
+        // Tutaj zakładam, że AppError::Validation(validation_errors) poprawnie zwróci 422.
+        return Err(AppError::Validation("Błąd walidacji danych".to_string()));
+    }
+
+    // 2. Znajdowanie użytkownika po emailu
+    let user_optional = sqlx::query_as::<_, User>(
+        r#"
+            SELECT id, email, password_hash, role, created_at, updated_at
+            FROM users
+            WHERE email = $1
+        "#,
+    )
+    .bind(&payload.email)
+    .fetch_optional(&app_state.db_pool)
+    .await
+    .map_err(|e| {
+        tracing::error!(
+            "Błąd bazy danych podczas wyszukiwania użytkownika {}: {:?}",
+            payload.email,
+            e
+        );
+        AppError::SqlxError(e) // Lub bardziej generyczny błąd serwera
+    })?;
+
+    let user = match user_optional {
+        Some(u) => u,
+        None => {
+            // Użytkownik nie znaleziony
+            tracing::warn!(
+                "Nieudana próba logowania: użytkownik {} nie znaleziony.",
+                payload.email
+            );
+            let mut headers = HeaderMap::new();
+            headers.insert("HX-Reswap", HeaderValue::from_static("none"));
+            let trigger_payload = json!({
+                "showMessage": {"message": "Nieprawidłowy email lub hasło.", "type": "error"}
+            });
+            if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
+                headers.insert("HX-Trigger", trigger_value);
+            }
+            return Ok((
+                StatusCode::UNAUTHORIZED,
+                headers,
+                Json(json!({"message": "Nieprawidłowy email lub hasło."})),
+            ));
+        }
+    };
+
+    // 3. Weryfikacja hasła
+    match verify_password(&user.password_hash, &payload.password) {
+        Ok(is_valid) => {
+            if !is_valid {
+                tracing::warn!(
+                    "Nieudana próba logowania dla {}: nieprawidłowe hasło.",
+                    payload.email
+                );
+                let mut headers = HeaderMap::new();
+                headers.insert("HX-Reswap", HeaderValue::from_static("none"));
+                let trigger_payload = json!({
+                    "showMessage": {"message": "Nieprawidłowy email lub hasło.", "type": "error"}
+                });
+                if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
+                    headers.insert("HX-Trigger", trigger_value);
+                }
+                return Ok((
+                    StatusCode::UNAUTHORIZED,
+                    headers,
+                    Json(json!({"message": "Nieprawidłowy email lub hasło."})),
+                ));
+            }
+        }
+        Err(e) => {
+            tracing::error!(
+                "Błąd podczas weryfikacji hasła dla {}: {:?}",
+                payload.email,
+                e
+            );
+            // To jest błąd serwera, a nie błędne hasło per se
+            let mut headers = HeaderMap::new();
+            headers.insert("HX-Reswap", HeaderValue::from_static("none"));
+            let trigger_payload = json!({
+                "showMessage": {"message": "Błąd serwera podczas weryfikacji danych.", "type": "error"}
+            });
+            if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
+                headers.insert("HX-Trigger", trigger_value);
+            }
+            return Ok((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                headers,
+                Json(json!({"message": "Błąd serwera"})),
+            ));
+        }
+    }
+
+    // 4. Logowanie pomyślne - generowanie tokenu JWT
+    match create_jwt(
+        user.id, // Używamy ID i roli użytkownika pobranego z bazy
         user.role,
         &app_state.jwt_secret,
         app_state.jwt_expiration_hours,
-    )?;
+    ) {
+        Ok(token_str) => {
+            let mut headers = HeaderMap::new();
+            headers.insert("HX-Reswap", HeaderValue::from_static("none"));
 
-    tracing::info!("Zalogowano użytkownika: {}", user.email);
+            let trigger_payload = json!({
+                "loginSuccessDetails": {"token": token_str}, // Przekazujemy token do JS
+                "showMessage": {"message": "Zalogowano pomyślnie!", "type": "success"}
+            });
+            if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
+                headers.insert("HX-Trigger", trigger_value);
+            }
 
-    // Zwróć token w odpowiedzi JSON
-    Ok(Json(serde_json::json!({ "token": token })))
+            tracing::info!(
+                "Użytkownik {} ({}) zalogowany pomyślnie.",
+                user.email,
+                user.id
+            );
+            // Ciało odpowiedzi może być puste lub zawierać potwierdzenie, HTMX go nie podmieni.
+            Ok((StatusCode::OK, headers, Json(json!({"status": "success"}))))
+        }
+        Err(e) => {
+            tracing::error!("Błąd generowania tokenu JWT dla {}: {:?}", user.email, e);
+            let mut headers = HeaderMap::new();
+            headers.insert("HX-Reswap", HeaderValue::from_static("none"));
+            let trigger_payload = json!({
+                "showMessage": {"message": "Błąd serwera podczas finalizowania logowania.", "type": "error"}
+            });
+            if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
+                headers.insert("HX-Trigger", trigger_value);
+            }
+            Ok((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                headers,
+                Json(json!({"message": "Błąd serwera"})),
+            ))
+        }
+    }
 }
 
 pub async fn protected_route_handler(claims: TokenClaims) -> Result<Json<Value>, AppError> {
