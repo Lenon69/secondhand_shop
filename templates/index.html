@@ -17,7 +17,7 @@
       src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"
       defer
     ></script>
-    <script src="app.js" defer></script>
+    <script src="/static/app.js" defer></script>
     
     <style type="text/tailwindcss">
       [x-cloak] {
@@ -1090,7 +1090,7 @@
               const registrationMessages = document.getElementById('registration-messages');
               if (registrationMessages) registrationMessages.innerHTML = '';
           }
-          window.scrollTo({ top: 0, behavior: 'auto' });
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         }
       });
       

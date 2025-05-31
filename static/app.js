@@ -49,7 +49,7 @@ document.body.addEventListener("htmx:afterSwap", function (event) {
       );
       if (registrationMessages) registrationMessages.innerHTML = "";
     }
-    window.scrollTo({ top: 0, behavior: "auto" });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 });
 
@@ -76,10 +76,7 @@ document.body.addEventListener("authChangedFromBackend", function (evt) {
 
 // Listener dla "loginSuccessDetails" (z HX-Trigger od serwera)
 document.body.addEventListener("loginSuccessDetails", function (evt) {
-  console.log(
-    '<<<<< [App.js] "loginSuccessDetails" EVENT RECEIVED >>>>>. Detail:',
-    JSON.stringify(evt.detail),
-  );
+  console.log("Detail:", evt.detail);
   if (evt.detail && evt.detail.token) {
     localStorage.setItem("jwtToken", evt.detail.token);
     window.dispatchEvent(
