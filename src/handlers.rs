@@ -1034,7 +1034,7 @@ pub async fn login_handler(
 
             let trigger_payload = json!({
                 "loginSuccessDetails": {"token": token_str}, // Przekazujemy token do JS
-                "showMessage": {"message": "Zalogowano pomyślnie!", "type": "success"}
+                "showMessage": {"message": "Zalogowano pomyslnie!", "type": "success"}
             });
             if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
                 headers.insert("HX-Trigger", trigger_value);

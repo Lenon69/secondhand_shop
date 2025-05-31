@@ -162,3 +162,24 @@ document.body.addEventListener("registrationComplete", function (evt) {
     }
   }, 1500);
 });
+
+document.body.addEventListener("htmx:afterOnLoad", function (evt) {
+  const response = evt.detail.xhr.responseText;
+
+  try {
+    const json = JSON.parse(response);
+
+    if (json.showMessage) {
+      wndow.dispatchEvent(
+        new CustomEvent("showMessage", {
+          detail: {
+            message: json.showMessage.message,
+            type: json.showMessage.type || "info",
+          },
+        }),
+      );
+    }
+  } catch (_) {
+    // Niepoprawny JSON – ignorujemy
+  }
+});

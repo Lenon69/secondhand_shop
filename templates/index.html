@@ -875,6 +875,7 @@
               hx-swap="innerHTML"
               hx-push-url="/checkout"
               id="checkout-link"
+              @click="cartOpen = false"
               class="flex items-center justify-center rounded-md border border-transparent bg-green-600 px-6 py-3 text-base font-medium text-white shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors"
             >
               Przejdź do kasy</a
@@ -995,42 +996,49 @@
         </svg>
       </button>
     </div>
+<div
+  x-data="{
+    show: false,
+    message: '',
+    type: 'info',
+    timeout: 1500,
+    hideTimeoutId: null
+  }"
+  x-init="
+    console.log('🔥 Alpine zainicjalizowany!');
+    window.addEventListener('showMessage', (event) => {
+      if (event.detail && event.detail.message) {
+        message = event.detail.message;
+        type = event.detail.type || 'info';
+        show = true;
 
-    <div
-      x-data="{ show: false, message: '', type: 'info', timeout: null }"
-      x-init="window.addEventListener('showMessage', (event) => {
-             if (event.detail && typeof event.detail.message !== 'undefined') {
-                 console.log('<<<<< [Alpine Toast na Window] Odebrano zdarzenie showMessage >>>>>');
-                 console.log('Message:', event.detail.message, 'Type:', event.detail.type || 'info');
-                 
-                 message = event.detail.message;
-                 type = event.detail.type || 'info';
-                 show = true;
-                 clearTimeout(timeout);
-                 timeout = setTimeout(() => show = false, 3500);
-             } else {
-                 console.warn('[Alpine Toast na Window] Odebrano zdarzenie showMessage, ale brakuje event.detail.message. Pełne zdarzenie:', event);
-             }
-         })"      x-transition:enter="transition ease-out duration-300"
-      x-transition:enter-start="opacity-0 transform translate-y-2"
-      x-transition:enter-end="opacity-100 transform translate-y-0"
-      x-transition:leave="transition ease-in duration-300"
-      x-transition:leave-start="opacity-100 transform translate-y-0"
-      x-transition:leave-end="opacity-0 transform translate-y-2"
-      class="fixed bottom-5 right-5 text-white px-4 py-3 rounded-md shadow-lg z-[100] text-sm"
-      :class="{
-             'bg-green-600': type === 'success',
-             'bg-red-600': type === 'error',
-             'bg-sky-600': type === 'info',
-             'bg-yellow-500 text-black': type === 'warning'
-         }"
-      role="alert"
-      x-cloak
-    >
-      <p x-text="message"></p>
-    </div>
-    
-<script>
+        if (hideTimeoutId) clearTimeout(hideTimeoutId);
+        hideTimeoutId = setTimeout(() => {
+          console.log('⏲️ Ukrywam wiadomość');
+          show = false;
+        }, timeout);
+      }
+    });
+  "
+  x-show="show"
+  x-transition:enter="transition ease-out duration-300"
+  x-transition:enter-start="opacity-0 transform translate-y-2"
+  x-transition:enter-end="opacity-100 transform translate-y-0"
+  x-transition:leave="transition ease-in duration-300"
+  x-transition:leave-start="opacity-100 transform translate-y-0"
+  x-transition:leave-end="opacity-0 transform translate-y-2"
+  class="fixed bottom-5 right-5 text-white px-4 py-3 rounded-md shadow-lg z-[100] text-sm"
+  :class="{
+    'bg-green-600': type === 'success',
+    'bg-red-600': type === 'error',
+    'bg-sky-600': type === 'info',
+    'bg-yellow-500 text-black': type === 'warning'
+  }"
+  role="alert"
+  x-cloak
+>
+  <p x-text="message"></p>
+</div><script>
       document.body.addEventListener("htmx:configRequest", (event) => {
         if (!event.detail) {
           return;

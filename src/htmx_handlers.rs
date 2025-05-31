@@ -243,7 +243,6 @@ pub struct DetailViewParams {
     pub return_params: Option<String>,
 }
 
-// Funkcja pomocnicza do formatowania ceny (można ją umieścić gdzieś indziej, np. w utils)
 fn format_price_maud(price: i64) -> String {
     format!("{:.2}", (price as f64) / 100.0).replace('.', ",") + " zł"
 }
@@ -750,7 +749,7 @@ pub async fn add_item_to_cart_htmx_handler(
             "newCartTotalPrice": cart_details.total_price,
             "newGuestCartId": new_guest_cart_id_to_set // Przekaż nowe lub istniejące ID gościa
         },
-        "showMessage": { // Opcjonalna wiadomość o sukcesie
+        "showMessage": {
             "type": "success",
             "message": "Dodano produkt do koszyka!"
         }
@@ -2023,7 +2022,10 @@ pub async fn shipping_returns_page_handler() -> Result<Markup, AppError> {
     let shipping_section_title = "Informacje o Wysyłce";
     let shipping_area = "Realizujemy wysyłki na terenie całej Polski.".to_string();
     let shipping_carriers_intro = "Korzystamy z usług zaufanych partnerów logistycznych, aby Twoje zamówienie dotarło bezpiecznie i na czas. Dostępne opcje to:".to_string();
-    let shipping_carriers_list = ["Paczkomaty InPost 24/7".to_string()];
+    let shipping_carriers_list = [
+        "Paczkomaty InPost 24/7".to_string(),
+        "Poczta Polska".to_string(),
+    ];
     let shipping_costs_text = format!(
         "Koszty wysyłki są obliczane automatycznie podczas składania zamówienia i zależą od wybranej metody dostawy \
         oraz wagi/gabarytów paczki. Dokładny koszt zobaczysz przed finalizacją zakupu. \
@@ -2731,14 +2733,6 @@ pub async fn checkout_page_handler(
                             }
                         }
 
-                        // Sekcja uwag
-                        div ."bg-white p-6 rounded-lg shadow-sm border border-gray-200 mt-6" {
-                            label for="notes" class="block text-sm font-medium text-gray-700 mb-2" {
-                                "Uwagi do zamówienia (opcjonalnie)"
-                            }
-                            textarea id="notes" name="notes" rows="3"
-                                      class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
-                        }
 
                         // Przyciski
                         div ."mt-8 flex flex-col sm:flex-row-reverse justify-between gap-4" {
