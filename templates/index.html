@@ -1014,7 +1014,6 @@
 
         if (hideTimeoutId) clearTimeout(hideTimeoutId);
         hideTimeoutId = setTimeout(() => {
-          console.log('⏲️ Ukrywam wiadomość');
           show = false;
         }, timeout);
       }
@@ -1038,7 +1037,8 @@
   x-cloak
 >
   <p x-text="message"></p>
-</div><script>
+</div>
+    <script>
       document.body.addEventListener("htmx:configRequest", (event) => {
         if (!event.detail) {
           return;
@@ -1080,20 +1080,6 @@
         }
       });
 
-      document.body.addEventListener('htmx:afterSwap', function(event) {
-        if (event.detail.target.id === 'content' || event.detail.target.closest('#content')) {
-          // Czyścimy komunikaty tylko jeśli nie jesteśmy na stronie logowania/rejestracji
-          // lub jeśli załadowano nową zawartość do #content
-          if (!window.location.pathname.endsWith('/logowanie') && !window.location.pathname.endsWith('/rejestracja')) {
-              const loginMessages = document.getElementById('login-messages');
-              if (loginMessages) loginMessages.innerHTML = '';
-              const registrationMessages = document.getElementById('registration-messages');
-              if (registrationMessages) registrationMessages.innerHTML = '';
-          }
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-      });
-      
       document.body.addEventListener('authChangedFromBackend', function(evt) {
           console.log('[JS] Odebrano zdarzenie "authChangedFromBackend". Detail:', evt.detail);
           if (evt.detail && typeof evt.detail.isAuthenticated !== 'undefined') {

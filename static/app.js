@@ -180,3 +180,24 @@ document.body.addEventListener("htmx:afterOnLoad", function (evt) {
     // Niepoprawny JSON – ignorujemy
   }
 });
+
+document.body.addEventListener("htmx:responseError", function (evt) {
+  const xhr = evt.detail.xhr;
+
+  if (xhr.status === 401) {
+    console.warn("🔥 Otrzymano 401 Unauthorized – przekierowanie do logowania");
+    window.dispatchEvent(
+      new CustomEvent("showMessage", {
+        detail: {
+          message: "Twoja sesja wygasła. Zaloguj się ponownie.",
+          type: "warning",
+        },
+      }),
+    );
+
+    // Przekieruj po krótkim czasie
+    setTimeout(() => {
+      window.location.href = "/logowanie";
+    }, 1000);
+  }
+});

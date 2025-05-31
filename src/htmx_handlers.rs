@@ -2176,8 +2176,8 @@ pub async fn my_account_page_handler(claims: TokenClaims) -> Result<Markup, AppE
             "/htmx/moje-konto/zamowienia",
             "/moje-konto/zamowienia",
         ),
-        ("Moje Dane", "/htmx/moje-konto/dane", "/moje-konto/dane"), // Placeholder, do zaimplementowania
-        ("Adresy", "/htmx/moje-konto/adresy", "/moje-konto/adresy"), // Placeholder, do zaimplementowania
+        ("Moje Dane", "/htmx/moje-konto/dane", "/moje-konto/dane"), // todo!, do zaimplementowania
+        ("Adresy", "/htmx/moje-konto/adresy", "/moje-konto/adresy"), // todo!, do zaimplementowania
     ];
     let default_section_url = "/htmx/moje-konto/zamowienia";
 
@@ -2203,8 +2203,9 @@ pub async fn my_account_page_handler(claims: TokenClaims) -> Result<Markup, AppE
                             }
                             li ."pt-4 mt-4 border-t border-gray-200" {
                                 // --- POPRAWIONY LINK WYLOGOWANIA ---
-                                a href="#" // href nie jest już istotny dla nawigacji
+                                a href="#"
                                    "@click.prevent"="$dispatch('trigger-alpine-logout')" // Wywołuje zdarzenie dla Alpine.js
+                                   "@click"="clientSideLogout()"
                                    class="block px-3 py-2 rounded-md text-red-600 hover:bg-red-50 hover:text-red-700 font-medium transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-red-500" {
                                     "Wyloguj"
                                 }
@@ -2754,7 +2755,7 @@ pub async fn checkout_page_handler(
 
                 // --- Prawa kolumna: Podsumowanie zamówienia ---
                 div ."lg:w-1/3" {
-                    div ."bg-white p-6 rounded-lg shadow-md border border-gray-200 sticky top-4" {
+                    div ."bg-white p-6 rounded-lg shadow-md border border-gray-200 sticky top-40" {
                         h2 ."text-xl font-semibold text-gray-800 mb-4" { "Twoje zamówienie" }
 
                         // Lista produktów
