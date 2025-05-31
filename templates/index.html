@@ -870,11 +870,27 @@
           <div class="mt-6">
             <a
               href="/checkout"
+              hx-get="/htmx/checkout"
+              hx-target="#content"
+              hx-swap="innerHTML"
+              hx-push-url="/checkout"
+              id="checkout-link"
+              hx-headers='{"x-guest-cart-id": "{{ guest_cart_id }}"}'
               class="flex items-center justify-center rounded-md border border-transparent bg-green-600 px-6 py-3 text-base font-medium text-white shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors"
             >
-              Do kasy</a
+              Przejdź do kasy</a
             >
-          </div>
+              <script>
+              document.getElementById('checkout-link').addEventListener('click', function(e) {
+                  const guestCartId = localStorage.getItem('guestCartId');
+                  if (guestCartId) {
+                      this.setAttribute('hx-get', `/htmx/checkout?guest_cart_id=${guestCartId}`);
+                  } else {
+                      this.setAttribute('hx-get', '/htmx/checkout');
+                  }
+              });
+              </script>
+            </div>
           <div
             class="mt-6 flex justify-center text-center text-sm text-gray-500"
           >

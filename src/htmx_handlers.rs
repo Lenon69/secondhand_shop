@@ -884,7 +884,7 @@ pub async fn remove_item_from_cart_htmx_handler(
         },
         "showMessage": {
             "type": "info",
-            "message": "Produkt usunięty z koszyka."
+            "message": "Produkt usuniety z koszyka."
         }
     });
 
@@ -2479,4 +2479,370 @@ pub async fn my_orders_htmx_handler(
             }
         }
     })
+}
+
+pub async fn checkout_page_handler(
+    State(app_state): State<AppState>,
+    user_claims_result: Result<TokenClaims, AppError>,
+    guest_cart_id_header: Option<TypedHeader<XGuestCartId>>,
+) -> Result<(HeaderMap, Markup), AppError> {
+    tracing::info!("MAUD: /htmx/checkout - żądanie strony kasy");
+
+    // 1. Pobierz dane koszyka (podobnie jak w get_cart_details_htmx_handler)
+    let mut conn = app_state.db_pool.acquire().await.map_err(|e| {
+        tracing::error!("MAUD Checkout: Nie można uzyskać połączenia z puli: {}", e);
+        AppError::InternalServerError("Błąd serwera przy ładowaniu koszyka".to_string())
+    })?;
+
+    let mut cart_details_response: Option<CartDetailsResponse> = None;
+    let mut final_guest_cart_id_for_trigger: Option<Uuid> = None;
+
+    if let Ok(claims) = user_claims_result {
+        // Użytkownik jest zalogowany
+        let user_id = claims.sub;
+        if let Some(cart) =
+            sqlx::query_as::<_, ShoppingCart>("SELECT * FROM shopping_carts WHERE user_id = $1")
+                .bind(user_id)
+                .fetch_optional(&mut *conn)
+                .await?
+        {
+            cart_details_response =
+                Some(cart_utils::build_cart_details_response(&cart, &mut conn).await?);
+        }
+    } else if let Some(TypedHeader(XGuestCartId(guest_id))) = guest_cart_id_header {
+        // Użytkownik-gość z istniejącym ID koszyka
+        final_guest_cart_id_for_trigger = Some(guest_id);
+        if let Some(cart) = sqlx::query_as::<_, ShoppingCart>(
+            "SELECT * FROM shopping_carts WHERE guest_session_id = $1",
+        )
+        .bind(guest_id)
+        .fetch_optional(&mut *conn)
+        .await?
+        {
+            cart_details_response =
+                Some(cart_utils::build_cart_details_response(&cart, &mut conn).await?);
+        }
+    }
+
+    let items = cart_details_response
+        .as_ref()
+        .map_or_else(Vec::new, |cdr| cdr.items.clone());
+    let total_items = cart_details_response
+        .as_ref()
+        .map_or(0, |cdr| cdr.total_items);
+    let total_price = cart_details_response
+        .as_ref()
+        .map_or(0, |cdr| cdr.total_price);
+
+    // Przygotuj nagłówek HX-Trigger
+    let mut headers = HeaderMap::new();
+    let trigger_payload = serde_json::json!({
+        "updateCartCount": {
+            "newCount": total_items,
+            "newCartTotalPrice": total_price,
+            "newGuestCartId": final_guest_cart_id_for_trigger
+        }
+    });
+    if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
+        headers.insert("HX-Trigger", trigger_value);
+    }
+
+    // 2. Sprawdź czy koszyk nie jest pusty
+    if items.is_empty() {
+        let markup = html! {
+            div ."max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 text-center" {
+                div ."bg-white p-8 rounded-lg shadow-lg border border-gray-200 inline-block" {
+                    h2 ."text-2xl font-bold text-gray-800 mb-4" { "Twój koszyk jest pusty" }
+                    p ."text-gray-600 mb-6" { "Nie możesz przejść do kasy z pustym koszykiem." }
+                    a href="/"
+                       "hx-get"="/htmx/products?limit=9"
+                       "hx-target"="#content"
+                       "hx-swap"="innerHTML"
+                       "hx-push-url"="/"
+                       class="inline-block bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200" {
+                        "Przejdź do sklepu"
+                    }
+                }
+            }
+        };
+        return Ok((headers, markup));
+    }
+
+    // 3. Renderuj formularz kasy
+    let markup = html! {
+        div ."max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12" {
+            div ."flex flex-col lg:flex-row gap-8" {
+                // --- Lewa kolumna: Formularz danych ---
+                div ."lg:w-2/3" {
+                    h1 ."text-2xl sm:text-3xl font-bold text-gray-900 mb-6" { "Dane do zamówienia" }
+
+                    form #checkout-form
+                         "hx-post"="/api/orders"
+                         "hx-ext"="json-enc"
+                         "hx-target"="this"
+                         "hx-swap"="outerHTML"
+                         class="space-y-6" {
+
+                        // Sekcja dostawy
+                        fieldset ."bg-white p-6 rounded-lg shadow-sm border border-gray-200" {
+                            legend ."text-lg font-semibold text-gray-800 px-2" { "Dane dostawy" }
+
+                            div ."grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4" {
+                                div {
+                                    label for="shipping_first_name" class="block text-sm font-medium text-gray-700 mb-1" { "Imię *" }
+                                    input type="text" id="shipping_first_name" name="shipping_first_name" required
+                                           class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                }
+                                div {
+                                    label for="shipping_last_name" class="block text-sm font-medium text-gray-700 mb-1" { "Nazwisko *" }
+                                    input type="text" id="shipping_last_name" name="shipping_last_name" required
+                                           class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                }
+                            }
+
+                            div ."mt-4" {
+                                label for="shipping_address_line1" class="block text-sm font-medium text-gray-700 mb-1" { "Adres (ulica i numer) *" }
+                                input type="text" id="shipping_address_line1" name="shipping_address_line1" required
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                            }
+
+                            div ."mt-4" {
+                                label for="shipping_address_line2" class="block text-sm font-medium text-gray-700 mb-1" { "Adres cd. (opcjonalnie)" }
+                                input type="text" id="shipping_address_line2" name="shipping_address_line2"
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                            }
+
+                            div ."grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4" {
+                                div {
+                                    label for="shipping_city" class="block text-sm font-medium text-gray-700 mb-1" { "Miasto *" }
+                                    input type="text" id="shipping_city" name="shipping_city" required
+                                           class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                }
+                                div {
+                                    label for="shipping_postal_code" class="block text-sm font-medium text-gray-700 mb-1" { "Kod pocztowy *" }
+                                    input type="text" id="shipping_postal_code" name="shipping_postal_code" required
+                                           class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                }
+                                div {
+                                    label for="shipping_country" class="block text-sm font-medium text-gray-700 mb-1" { "Kraj *" }
+                                    select id="shipping_country" name="shipping_country" required
+                                            class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500" {
+                                        option value="Polska" selected { "Polska" }
+                                        option value="Niemcy" { "Niemcy" }
+                                        option value="Czechy" { "Czechy" }
+                                        option value="Słowacja" { "Słowacja" }
+                                        option value="Inny" { "Inny" }
+                                    }
+                                }
+                            }
+
+                            div ."mt-4" {
+                                label for="shipping_phone" class="block text-sm font-medium text-gray-700 mb-1" { "Telefon *" }
+                                input type="tel" id="shipping_phone" name="shipping_phone" required
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                            }
+                        }
+
+                        // Sekcja faktury
+                        fieldset ."bg-white p-6 rounded-lg shadow-sm border border-gray-200 mt-6" {
+                            legend ."text-lg font-semibold text-gray-800 px-2" { "Dane do faktury" }
+
+                            div ."flex items-center mb-4" {
+                                input type="checkbox" id="billing_same_as_shipping" name="billing_same_as_shipping" checked
+                                       class="h-4 w-4 text-pink-600 focus:ring-pink-500 border-gray-300 rounded"
+                                       "@click"="document.getElementById('billing-fields').classList.toggle('hidden')";
+                                label for="billing_same_as_shipping" class="ml-2 block text-sm text-gray-700" {
+                                    "Takie same jak dane dostawy"
+                                }
+                            }
+
+                            div #billing-fields class="hidden" {
+                                div ."grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4" {
+                                    div {
+                                        label for="billing_first_name" class="block text-sm font-medium text-gray-700 mb-1" { "Imię" }
+                                        input type="text" id="billing_first_name" name="billing_first_name"
+                                               class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                    }
+                                    div {
+                                        label for="billing_last_name" class="block text-sm font-medium text-gray-700 mb-1" { "Nazwisko" }
+                                        input type="text" id="billing_last_name" name="billing_last_name"
+                                               class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                    }
+                                }
+
+                                div ."mt-4" {
+                                    label for="billing_address_line1" class="block text-sm font-medium text-gray-700 mb-1" { "Adres (ulica i numer)" }
+                                    input type="text" id="billing_address_line1" name="billing_address_line1"
+                                           class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                }
+
+                                div ."mt-4" {
+                                    label for="billing_address_line2" class="block text-sm font-medium text-gray-700 mb-1" { "Adres cd. (opcjonalnie)" }
+                                    input type="text" id="billing_address_line2" name="billing_address_line2"
+                                           class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                }
+
+                                div ."grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4" {
+                                    div {
+                                        label for="billing_city" class="block text-sm font-medium text-gray-700 mb-1" { "Miasto" }
+                                        input type="text" id="billing_city" name="billing_city"
+                                               class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                    }
+                                    div {
+                                        label for="billing_postal_code" class="block text-sm font-medium text-gray-700 mb-1" { "Kod pocztowy" }
+                                        input type="text" id="billing_postal_code" name="billing_postal_code"
+                                               class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                    }
+                                    div {
+                                        label for="billing_country" class="block text-sm font-medium text-gray-700 mb-1" { "Kraj" }
+                                        select id="billing_country" name="billing_country"
+                                                class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500" {
+                                            option value="Polska" selected { "Polska" }
+                                            option value="Niemcy" { "Niemcy" }
+                                            option value="Czechy" { "Czechy" }
+                                            option value="Słowacja" { "Słowacja" }
+                                            option value="Inny" { "Inny" }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Sekcja płatności
+                        fieldset ."bg-white p-6 rounded-lg shadow-sm border border-gray-200 mt-6" {
+                            legend ."text-lg font-semibold text-gray-800 px-2" { "Metoda płatności" }
+
+                            div ."space-y-4 mt-4" {
+                                div ."flex items-center" {
+                                    input type="radio" id="payment_blik" name="payment_method" value="blik" checked
+                                           class="h-4 w-4 text-pink-600 focus:ring-pink-500 border-gray-300";
+                                    label for="payment_blik" class="ml-3 block text-sm font-medium text-gray-700" {
+                                        "BLIK"
+                                        span class="text-xs text-gray-500 ml-1" { "(Zalecane)" }
+                                    }
+                                }
+                                div ."flex items-center" {
+                                    input type="radio" id="payment_transfer" name="payment_method" value="transfer"
+                                           class="h-4 w-4 text-pink-600 focus:ring-pink-500 border-gray-300";
+                                    label for="payment_transfer" class="ml-3 block text-sm font-medium text-gray-700" {
+                                        "Przelew tradycyjny"
+                                    }
+                                }
+                            }
+                        }
+
+                        // Sekcja uwag
+                        div ."bg-white p-6 rounded-lg shadow-sm border border-gray-200 mt-6" {
+                            label for="notes" class="block text-sm font-medium text-gray-700 mb-2" {
+                                "Uwagi do zamówienia (opcjonalnie)"
+                            }
+                            textarea id="notes" name="notes" rows="3"
+                                      class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                        }
+
+                        // Przyciski
+                        div ."mt-8 flex flex-col sm:flex-row-reverse justify-between gap-4" {
+                            button type="submit"
+                                   class="w-full sm:w-auto px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-all duration-200 transform hover:scale-105" {
+                                "Złóż zamówienie i zapłać"
+                            }
+                            a href="/"
+                               "hx-get"="/htmx/products?limit=9"
+                               "hx-target"="#content"
+                               "hx-swap"="innerHTML"
+                               "hx-push-url"="/"
+                               class="w-full sm:w-auto px-6 py-3 border border-gray-300 rounded-md shadow-sm text-base font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 text-center" {
+                                "Wróć do sklepu"
+                            }
+                        }
+                    }
+                }
+
+                // --- Prawa kolumna: Podsumowanie zamówienia ---
+                div ."lg:w-1/3" {
+                    div ."bg-white p-6 rounded-lg shadow-md border border-gray-200 sticky top-4" {
+                        h2 ."text-xl font-semibold text-gray-800 mb-4" { "Twoje zamówienie" }
+
+                        // Lista produktów
+                        div ."border-b border-gray-200 pb-4 mb-4" {
+                            ul role="list" class="divide-y divide-gray-200" {
+                                @for item in &items {
+                                    li class="py-3 flex justify-between" {
+                                        div class="flex" {
+                                            @if !item.product.images.is_empty() {
+                                                img src=(item.product.images[0]) alt=(item.product.name)
+                                                     class="h-16 w-16 flex-shrink-0 rounded-md border border-gray-200 object-cover";
+                                            } @else {
+                                                div class="h-16 w-16 flex-shrink-0 rounded-md border border-gray-200 bg-gray-100 flex items-center justify-center" {
+                                                    span class="text-xs text-gray-500" { "Brak zdjęcia" }
+                                                }
+                                            }
+                                            div class="ml-4" {
+                                                h3 class="text-sm font-medium text-gray-900" { (item.product.name) }
+                                                p class="text-xs text-gray-500 mt-1" {
+                                                    (item.product.category.to_string())
+                                                }
+                                            }
+                                        }
+                                        p class="text-sm font-medium text-gray-900" {
+                                            (format_price_maud(item.product.price))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Podsumowanie cen
+                        div class="space-y-3" {
+                            div class="flex justify-between" {
+                                span class="text-sm text-gray-600" { "Suma częściowa" }
+                                span class="text-sm font-medium text-gray-900" {
+                                    (format_price_maud(total_price))
+                                }
+                            }
+                            div class="flex justify-between" {
+                                span class="text-sm text-gray-600" { "Dostawa" }
+                                span class="text-sm font-medium text-gray-900" {
+                                    "Darmowa"
+                                }
+                            }
+                            div class="flex justify-between border-t border-gray-200 pt-3" {
+                                span class="text-base font-semibold text-gray-900" { "Do zapłaty" }
+                                span class="text-base font-semibold text-pink-600" {
+                                    (format_price_maud(total_price))
+                                }
+                            }
+                        }
+
+                        // Dodatkowe informacje
+                        div class="mt-6 pt-6 border-t border-gray-200" {
+                            p class="text-xs text-gray-500" {
+                                "Klikając „Złóż zamówienie i zapłać”, akceptujesz "
+                                a href="/htmx/page/regulamin"
+                                   "hx-get"="/htmx/page/regulamin"
+                                   "hx-target"="#content"
+                                   "hx-swap"="innerHTML"
+                                   "hx-push-url"="/regulamin"
+                                   class="text-pink-600 hover:underline" {
+                                    "Regulamin sklepu"
+                                }
+                                " oraz "
+                                a href="/htmx/page/polityka-prywatnosci"
+                                   "hx-get"="/htmx/page/polityka-prywatnosci"
+                                   "hx-target"="#content"
+                                   "hx-swap"="innerHTML"
+                                   "hx-push-url"="/polityka-prywatnosci"
+                                   class="text-pink-600 hover:underline" {
+                                    "Politykę prywatności"
+                                }
+                                "."
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    Ok((headers, markup))
 }

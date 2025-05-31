@@ -1,5 +1,4 @@
 // Plik app.js - UPROSZCZONA WERSJA STEROWANA ZDARZENIAMI Z SERWERA
-
 console.log(
   "APP.JS (Simplified Server-Driven) LOADED. Timestamp:",
   new Date().toLocaleTimeString(),
@@ -169,3 +168,16 @@ console.log(
   "MEG JONI app.js (Simplified Server-Driven v2) loaded. Timestamp:",
   new Date().toLocaleTimeString(),
 );
+
+document.body.addEventListener("htmx:configRequest", function (evt) {
+  console.log("HTMX Request path:", evt.detail.path);
+  // Zmień 'guest_cart_id' na 'guestCartId'
+  const guestCartId = localStorage.getItem("guestCartId");
+  console.log("Guest cart ID from localStorage:", guestCartId);
+
+  if (guestCartId && evt.detail.path.includes("/htmx/checkout")) {
+    evt.detail.headers["x-guest-cart-id"] = guestCartId;
+    console.log("Added header x-guest-cart-id:", guestCartId);
+    console.log("All headers:", evt.detail.headers);
+  }
+});
