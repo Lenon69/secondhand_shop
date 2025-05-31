@@ -75,28 +75,24 @@
 
               // 🛒 Koszyk
               cartOpen: false,
-              cartItemCount: 0,
+              cartItemCount: parseInt(localStorage.getItem('alpineCartCount')) || 0,
               guestCartId: localStorage.getItem('guestCartId'),
 
               // 📱 Menu mobilne
               isMobileMenuOpen: false,
-              currentMobilePage: '',
+              currentMobilePage: '', // Można by to spróbować powiązać z aktualnym URL przez HTMX
 
               // 🖼️ Modal obrazka
-              activeImageModal: { 
+              activeImageModal: {
                   isOpen: false,
                   currentSrc: '',
                   images: [],
                   currentIndex: 0
               },
 
-              // 🔁 Inicjalizacja Alpine
+              // Inicjalizacja specyficzna dla Alpine, która nie jest globalna
               initAlpine() {
-                  // Odczytaj z localStorage
-                  this.cartItemCount = parseInt(localStorage.getItem('alpineCartCount')) || 0;
-                  this.isAuthenticated = !!localStorage.getItem('jwtToken');
-
-                  // Reakcja na zmiany stanu
+                  // Reakcja na zmiany stanu lokalne dla Alpine
                   this.$watch('cartItemCount', value => {
                       localStorage.setItem('alpineCartCount', String(value));
                       this.updateCartCounterVisuals();
@@ -107,31 +103,33 @@
                       else localStorage.removeItem('guestCartId');
                   });
 
-                  // Nasłuch na zdarzenie zmiany autoryzacji
+                  // Nasłuch na zdarzenie zmiany autoryzacji TYLKO do aktualizacji stanu Alpine
                   window.addEventListener('authChangedClient', event => {
                       console.log('[Alpine] Odebrano authChangedClient, isAuthenticated:', event.detail.isAuthenticated);
                       this.isAuthenticated = event.detail.isAuthenticated;
-                      this.updateCartCounterVisuals();
+                      this.updateCartCounterVisuals(); // Zaktualizuj UI
 
-                      setTimeout(() => {
-                          if (
-                              !this.isAuthenticated &&
-                              (this.currentMobilePage === 'konto' || window.location.pathname.startsWith('/moje-konto'))
-                          ) {
-                              this.navigateTo('/', '/htmx/products?limit=9&sort_by=name&order=asc');
+                      // Logika nawigacji po wylogowaniu/zalogowaniu z poziomu Alpine, jeśli konieczna
+                      // np. jeśli użytkownik jest na stronie /moje-konto i się wyloguje
+                      // LUB jeśli app.js nie obsłużył przekierowania (np. błąd)
+                      // Ale generalnie, app.js powinien być głównym sterownikiem nawigacji po auth.
+                       setTimeout(() => {
+                          const path = window.location.pathname;
+                          if (!this.isAuthenticated && (path.startsWith('/moje-konto') || path.startsWith('/checkout'))) {
+                              // Jeśli app.js nie przekierował, a jesteśmy na chronionej stronie, Alpine może to zrobić
+                              this.navigateToHtmx('/', '/htmx/products?limit=9&sort_by=name&order=asc');
                               this.currentMobilePage = '';
-                          } else if (
-                              this.isAuthenticated &&
-                              (this.currentMobilePage === 'logowanie' || this.currentMobilePage === 'rejestracja')
-                          ) {
-                              this.navigateTo('/moje-konto', '/htmx/moje-konto');
-                              this.currentMobilePage = 'konto';
+                          } else if (this.isAuthenticated && (path.startsWith('/logowanie') || path.startsWith('/rejestracja'))) {
+                               this.navigateToHtmx('/moje-konto', '/htmx/moje-konto');
+                               this.currentMobilePage = 'konto';
                           }
-                      }, 100); // Drobne opóźnienie, aby Alpine zdążył zareagować
+                      }, 150); // Drobne opóźnienie, aby dać app.js szansę na działanie
+                  });
+                  window.addEventListener('trigger-alpine-logout', () => {
+                      this.clientSideLogout();
                   });
               },
 
-              // 🔁 Aktualizacja widoczności licznika koszyka
               updateCartCounterVisuals() {
                   ['cart-count-bubble', 'cart-count-bubble-mobile'].forEach(id => {
                       const el = document.getElementById(id);
@@ -139,24 +137,23 @@
                   });
               },
 
-              // 📦 Obsługa aktualizacji z HTMX
               handleHtmxCartUpdate(detail) {
                   if (detail?.newCount !== undefined) {
                       this.cartItemCount = parseInt(detail.newCount) || 0;
-                      if (detail.newGuestCartId && this.guestCartId !== detail.newGuestCartId) {
-                          this.guestCartId = detail.newGuestCartId;
-                      }
+                  }
+                  if (detail?.newGuestCartId && this.guestCartId !== detail.newGuestCartId) {
+                      this.guestCartId = detail.newGuestCartId;
                   }
               },
 
-              // 🧭 Nawigacja z HTMX + historia
-              navigateTo(pushUrl, htmxUrl) {
+              navigateToHtmx(pushUrl, htmxUrl) { // Zmieniono nazwę dla jasności
+                  if (window.location.pathname === pushUrl) return; // Nie rób nic, jeśli już tam jesteśmy
                   htmx.ajax('GET', htmxUrl, {
                       target: '#content',
                       swap: 'innerHTML'
                   });
-                  if (htmx.history?.push) {
-                      htmx.history.push(pushUrl, {});
+                  if (htmx.history?.push && pushUrl) { // Upewnij się, że pushUrl jest zdefiniowany
+                      htmx.history.push(pushUrl);
                   }
               },
 
@@ -213,7 +210,6 @@
         window.addEventListener('authChangedClient', syncAuth);
         window.addEventListener('logoutClient', () => isAuthenticated = false);
 
-        // 🛒 Watchery dla localStorage (opcjonalne, ale mamy je już w initAlpine)
         $watch('cartItemCount', val => localStorage.setItem('alpineCartCount', val));
         $watch('guestCartId', val => val
             ? localStorage.setItem('guestCartId', val)

@@ -309,3 +309,20 @@ pub struct CheckoutFormData {
     pub payment_method: String,
     pub notes: Option<String>,
 }
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct CartItemWithProduct {
+    pub cart_item_id: Uuid,      // ci.id AS cart_item_id
+    pub added_at: DateTime<Utc>, // ci.added_at
+    pub cart_id: Uuid,           // ci.cart_id
+
+    pub product_id: Uuid, // p.id AS product_id (aby odróżnić od ci.product_id jeśli byłby potrzebny)
+    pub name: String,     // p.name
+    pub description: String, // p.description
+    pub price: i64,       // p.price
+    pub gender: ProductGender, // p.gender
+    pub condition: ProductCondition, // p.condition
+    pub category: Category, // p.category
+    pub status: ProductStatus, // p.status
+    pub images: Vec<String>, // p.images
+}

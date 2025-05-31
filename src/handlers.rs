@@ -1283,20 +1283,48 @@ pub async fn create_order_handler(
     // 8. Przygotuj odpowiedź OrderDetailsResponse
     let mut order_items_details_public: Vec<OrderItemDetailsPublic> =
         Vec::with_capacity(created_order_items_db.len());
-    for item_db in created_order_items_db {
-        let product = sqlx::query_as::<_, Product>(
-            // Potrzebujemy produktu do CartItemPublic
-            "SELECT * FROM products WHERE id = $1",
-        )
-        .bind(item_db.product_id)
-        .fetch_one(&app_state.db_pool) // Poza transakcją, bo już zatwierdzona
-        .await?;
 
-        order_items_details_public.push(OrderItemDetailsPublic {
-            order_item_id: item_db.id,
-            product,
-            price_at_purchase: item_db.price_at_purchase,
-        });
+    if !created_order_items_db.is_empty() {
+        // Sprawdź, czy są jakieś pozycje
+        let product_ids_for_response: Vec<Uuid> = created_order_items_db
+            .iter()
+            .map(|oi_db| oi_db.product_id)
+            .collect();
+
+        let products_for_response =
+            sqlx::query_as::<_, Product>("SELECT * FROM products WHERE id = ANY($1)")
+                .bind(&product_ids_for_response)
+                .fetch_all(&app_state.db_pool) // Poza transakcją
+                .await?;
+
+        let products_map_for_response: std::collections::HashMap<Uuid, Product> =
+            products_for_response
+                .into_iter()
+                .map(|p| (p.id, p))
+                .collect();
+
+        for item_db in created_order_items_db {
+            // created_order_items_db już istnieje
+            if let Some(product) = products_map_for_response.get(&item_db.product_id) {
+                order_items_details_public.push(OrderItemDetailsPublic {
+                    order_item_id: item_db.id,
+                    product: product.clone(),
+                    price_at_purchase: item_db.price_at_purchase,
+                });
+            } else {
+                // To byłby poważny błąd, produkt powinien istnieć, skoro był w zamówieniu
+                tracing::error!(
+                    "Krytyczny błąd: Produkt (ID: {}) dla pozycji zamówienia (ID: {}) nie znaleziony po utworzeniu zamówienia. OrderID: {}.",
+                    item_db.product_id,
+                    item_db.id,
+                    order.id
+                );
+                // Można zwrócić błąd lub kontynuować z brakującym produktem (co jest gorsze)
+                return Err(AppError::InternalServerError(
+                    "Błąd spójności danych po utworzeniu zamówienia.".to_string(),
+                ));
+            }
+        }
     }
 
     let response = OrderDetailsResponse {

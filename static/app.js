@@ -1,30 +1,20 @@
-// Plik app.js - UPROSZCZONA WERSJA STEROWANA ZDARZENIAMI Z SERWERA
-// Listener htmx:configRequest (tylko dla globalnych nagłówków - BEZ ZMIAN)
+// Plik app.js
 document.body.addEventListener("htmx:configRequest", (event) => {
   if (!event.detail || !event.detail.headers) return;
-
-  // Dodawanie X-Guest-Cart-Id
   const guestCartId = localStorage.getItem("guestCartId");
   if (guestCartId) event.detail.headers["X-Guest-Cart-Id"] = guestCartId;
-
-  // Dodawanie tokenu JWT
   const jwtToken = localStorage.getItem("jwtToken");
   if (jwtToken) event.detail.headers["Authorization"] = "Bearer " + jwtToken;
 });
 
-// Listener updateCartCount (dla koszyka - BEZ ZMIAN)
 document.body.addEventListener("updateCartCount", (htmxEvent) => {
   if (!htmxEvent.detail) return;
-
-  // Emitowanie zdarzenia "js-update-cart"
   document.body.dispatchEvent(
     new CustomEvent("js-update-cart", {
       detail: htmxEvent.detail,
       bubbles: true,
     }),
   );
-
-  // Aktualizacja ceny w koszyku
   if (typeof htmxEvent.detail.newCartTotalPrice !== "undefined") {
     const el = document.getElementById("cart-subtotal-price");
     if (el)
@@ -35,7 +25,6 @@ document.body.addEventListener("updateCartCount", (htmxEvent) => {
   }
 });
 
-// Listener htmx:afterSwap (dla przewijania i czyszczenia - BEZ ZMIAN)
 document.body.addEventListener("htmx:afterSwap", function (event) {
   if (
     event.detail.target.id === "content" ||
@@ -56,56 +45,104 @@ document.body.addEventListener("htmx:afterSwap", function (event) {
   }
 });
 
-// Listener authChangedFromBackend (dla stanu Alpine - BEZ ZMIAN)
-document.body.addEventListener("authChangedFromBackend", function (evt) {
-  if (evt.detail && typeof evt.detail.isAuthenticated !== "undefined") {
-    if (evt.detail.token) localStorage.setItem("jwtToken", evt.detail.token);
-    else if (!evt.detail.isAuthenticated) localStorage.removeItem("jwtToken");
-    window.dispatchEvent(
-      new CustomEvent("authChangedClient", {
-        detail: { isAuthenticated: evt.detail.isAuthenticated },
-      }),
-    );
-    if (evt.detail.isAuthenticated && evt.detail.redirectUrl) {
-      const pushUrl = evt.detail.pushUrl || evt.detail.redirectUrl;
-      htmx.ajax("GET", evt.detail.redirectUrl, {
+// Centralny listener do obsługi zmian autoryzacji i przekierowań
+document.addEventListener("authChangedClient", (event) => {
+  console.log(
+    "authChangedClient: isAuthenticated:",
+    event.detail.isAuthenticated,
+    "redirectUrl:",
+    event.detail.redirectUrl,
+    "current window.location.pathname:",
+    window.location.pathname,
+  );
+
+  const isAuthenticated = event.detail.isAuthenticated;
+  let redirectUrl = event.detail.redirectUrl; // URL przekazany z backendu/loginSuccessDetails
+  let pushUrl = event.detail.pushUrl || redirectUrl; // pushUrl przekazany lub taki sam jak redirectUrl
+
+  if (isAuthenticated) {
+    if (!redirectUrl) {
+      // Jeśli nie ma konkretnego przekierowania, idź do moje-konto
+      redirectUrl = "/htmx/moje-konto";
+      pushUrl = "/moje-konto";
+    }
+  } else {
+    // Dla wylogowania, zawsze na stronę logowania, chyba że specjalny redirect
+    if (!redirectUrl) {
+      redirectUrl = "/htmx/logowanie";
+      pushUrl = "/logowanie";
+    }
+  }
+
+  if (redirectUrl) {
+    // Sprawdź, czy aktualna strona to już docelowy URL, aby uniknąć pętli
+    if (window.location.pathname !== pushUrl) {
+      console.log(
+        "authChangedClient: Performing HTMX redirect to",
+        redirectUrl,
+        "pushing",
+        pushUrl,
+      );
+      htmx.ajax("GET", redirectUrl, {
         target: "#content",
         swap: "innerHTML",
         pushUrl: pushUrl,
       });
+    } else {
+      console.log(
+        "authChangedClient: Already on target page or no redirect needed.",
+        pushUrl,
+      );
+      // Można rozważyć odświeżenie zawartości, jeśli strona ta sama, ale wymaga aktualizacji
+      htmx.trigger(document.getElementById("content"), "reload-content");
     }
   }
 });
 
-// Listener dla "loginSuccessDetails" (z HX-Trigger od serwera)
-document.body.addEventListener("loginSuccessDetails", function (evt) {
-  console.log("Detail:", evt.detail);
-  if (evt.detail && evt.detail.token) {
-    localStorage.setItem("jwtToken", evt.detail.token);
+document.body.addEventListener("authChangedFromBackend", function (evt) {
+  if (evt.detail && typeof evt.detail.isAuthenticated !== "undefined") {
+    if (evt.detail.token) {
+      localStorage.setItem("jwtToken", evt.detail.token);
+    } else if (!evt.detail.isAuthenticated) {
+      localStorage.removeItem("jwtToken");
+    }
+    // Przekazujemy informację o przekierowaniu do centralnego listenera
     window.dispatchEvent(
       new CustomEvent("authChangedClient", {
-        detail: { isAuthenticated: true },
+        detail: {
+          isAuthenticated: evt.detail.isAuthenticated,
+          redirectUrl: evt.detail.redirectUrl, // Przekaż redirectUrl
+          pushUrl: evt.detail.pushUrl, // Przekaż pushUrl
+        },
       }),
     );
+  }
+});
+
+document.body.addEventListener("loginSuccessDetails", function (evt) {
+  console.log("loginSuccessDetails: Detail:", evt.detail);
+  if (evt.detail && evt.detail.token) {
+    localStorage.setItem("jwtToken", evt.detail.token);
     // Powiadomienie o sukcesie jest już wywołane przez serwerowy trigger "showMessage"
-    // Przekierowanie po krótkim opóźnieniu, aby użytkownik zobaczył powiadomienie
+    // Nie przekierowujemy od razu, pozwalamy na wyświetlenie komunikatu "showMessage"
+    // Wysyłamy zdarzenie, które może być przechwycone przez Alpine.js lub inny centralny handler
+    // aby zaktualizować stan i potencjalnie przekierować PO wyświetleniu komunikatu.
     setTimeout(() => {
-      if (window.htmx) {
-        window.htmx.ajax("GET", "/htmx/moje-konto", {
-          target: "#content",
-          swap: "innerHTML",
-          pushUrl: "/moje-konto",
-        });
-      }
-    }, 700); // Krótsze opóźnienie
+      window.dispatchEvent(
+        new CustomEvent("authChangedClient", {
+          detail: {
+            isAuthenticated: true,
+            redirectUrl: "/htmx/moje-konto", // Domyślne przekierowanie po logowaniu
+            pushUrl: "/moje-konto",
+          },
+        }),
+      );
+    }, 700); // Opóźnienie na wyświetlenie komunikatu
   } else {
     console.error(
       "[App.js] loginSuccessDetails event, but NO TOKEN:",
       evt.detail,
     );
-    // To zdarzenie nie powinno być wywołane przez serwer, jeśli nie ma tokenu.
-    //
-    // Jeśli jednak, to pokażemy błąd.
     window.dispatchEvent(
       new CustomEvent("showMessage", {
         detail: {
@@ -117,7 +154,6 @@ document.body.addEventListener("loginSuccessDetails", function (evt) {
   }
 });
 
-// Listener dla "registrationComplete" (z HX-Trigger od serwera po udanej rejestracji)
 document.body.addEventListener("registrationComplete", function (evt) {
   console.log(
     '<<<<< [App.js] "registrationComplete" EVENT RECEIVED >>>>>. Detail:',
@@ -127,10 +163,10 @@ document.body.addEventListener("registrationComplete", function (evt) {
   if (form && form.reset) {
     form.reset();
   }
-  // Przekierowanie na stronę "Moje Konto" po udanej rejestracji i krótkim opóźnieniu
   setTimeout(() => {
     if (window.htmx) {
-      window.htmx.ajax("GET", "/htmx/logowanie", {
+      htmx.ajax("GET", "/htmx/logowanie", {
+        // Przekierowanie na logowanie po rejestracji
         target: "#content",
         swap: "innerHTML",
         pushUrl: "/logowanie",
@@ -139,16 +175,10 @@ document.body.addEventListener("registrationComplete", function (evt) {
   }, 1500);
 });
 
-function getJwtToken() {
-  return localStorage.getItem("jwtToken");
-}
-
 document.body.addEventListener("htmx:afterOnLoad", function (evt) {
   const response = evt.detail.xhr.responseText;
-
   try {
     const json = JSON.parse(response);
-
     if (json.showMessage) {
       window.dispatchEvent(
         new CustomEvent("showMessage", {
@@ -166,61 +196,29 @@ document.body.addEventListener("htmx:afterOnLoad", function (evt) {
 
 document.body.addEventListener("htmx:responseError", function (evt) {
   const xhr = evt.detail.xhr;
-
   if (xhr.status === 401) {
-    console.warn("🔥 Otrzymano 401 Unauthorized – przekierowanie do logowania");
+    console.warn("🔥 Otrzymano 401 Unauthorized – sesja mogła wygasnąć.");
+    localStorage.removeItem("jwtToken"); // Wyczyść token na kliencie
+    window.dispatchEvent(
+      new CustomEvent("authChangedClient", {
+        // Poinformuj Alpine.js i inne części o zmianie
+        detail: {
+          isAuthenticated: false,
+          redirectUrl: "/htmx/logowanie", // Sugeruj przekierowanie na logowanie
+          pushUrl: "/logowanie",
+        },
+      }),
+    );
     window.dispatchEvent(
       new CustomEvent("showMessage", {
         detail: {
-          message: "Twoja sesja wygasła. Zaloguj się ponownie.",
+          message:
+            "Twoja sesja wygasła lub nie masz uprawnień. Zaloguj się ponownie.",
           type: "warning",
         },
       }),
     );
-
-    // Przekieruj po krótkim czasie
-    setTimeout(() => {
-      window.location.href = "/logowanie";
-    }, 1000);
+    // Nie przekierowujemy tutaj bezpośrednio, pozwalamy authChangedClient to obsłużyć
   }
-});
-
-window.dispatchEvent(
-  new CustomEvent("authChangedClient", {
-    detail: { isAuthenticated: true },
-  }),
-);
-
-window.dispatchEvent(new CustomEvent("logoutClient"));
-
-document
-  .querySelector('a[href="/moje-konto"]')
-  .addEventListener("click", function (event) {
-    event.preventDefault();
-    htmx.ajax("GET", "/htmx/moje-konto", {
-      headers: {
-        Authorization: "Bearer " + getJwtToken(), // Funkcja, która pobiera JWT z pamięci
-      },
-      target: "#content",
-      swap: "innerHTML",
-    });
-  });
-
-document.addEventListener("authChangedClient", (event) => {
-  console.log("Status autoryzacji:", event.detail.isAuthenticated);
-  if (event.detail.isAuthenticated) {
-    // Przekierowanie na stronę konta po zalogowaniu
-    htmx.ajax("GET", "/htmx/moje-konto", {
-      target: "#content",
-      swap: "innerHTML",
-    });
-    htmx.history.push("/moje-konto");
-  } else {
-    // W przeciwnym razie wyświetlenie strony logowania
-    htmx.ajax("GET", "/htmx/logowanie", {
-      target: "#content",
-      swap: "innerHTML",
-    });
-    htmx.history.push("/logowanie");
-  }
+  // Można tu dodać obsługę innych błędów, np. 403, 500 i wyświetlać odpowiednie komunikaty
 });
