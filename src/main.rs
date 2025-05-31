@@ -189,7 +189,7 @@ async fn main() {
 }
 
 async fn serve_index() -> Result<Html<String>, StatusCode> {
-    match tokio::fs::read_to_string("templates/index.html").await {
+    match tokio::fs::read_to_string("static/index.html").await {
         Ok(content) => Ok(Html(content)),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }

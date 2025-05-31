@@ -1,14 +1,13 @@
 // Plik app.js - UPROSZCZONA WERSJA STEROWANA ZDARZENIAMI Z SERWERA
-console.log(
-  "APP.JS (Simplified Server-Driven) LOADED. Timestamp:",
-  new Date().toLocaleTimeString(),
-);
-
 // Listener htmx:configRequest (tylko dla globalnych nagłówków - BEZ ZMIAN)
 document.body.addEventListener("htmx:configRequest", (event) => {
   if (!event.detail || !event.detail.headers) return;
+
+  // Dodawanie X-Guest-Cart-Id
   const guestCartId = localStorage.getItem("guestCartId");
   if (guestCartId) event.detail.headers["X-Guest-Cart-Id"] = guestCartId;
+
+  // Dodawanie tokenu JWT
   const jwtToken = localStorage.getItem("jwtToken");
   if (jwtToken) event.detail.headers["Authorization"] = "Bearer " + jwtToken;
 });
@@ -16,12 +15,16 @@ document.body.addEventListener("htmx:configRequest", (event) => {
 // Listener updateCartCount (dla koszyka - BEZ ZMIAN)
 document.body.addEventListener("updateCartCount", (htmxEvent) => {
   if (!htmxEvent.detail) return;
+
+  // Emitowanie zdarzenia "js-update-cart"
   document.body.dispatchEvent(
     new CustomEvent("js-update-cart", {
       detail: htmxEvent.detail,
       bubbles: true,
     }),
   );
+
+  // Aktualizacja ceny w koszyku
   if (typeof htmxEvent.detail.newCartTotalPrice !== "undefined") {
     const el = document.getElementById("cart-subtotal-price");
     if (el)
@@ -160,6 +163,10 @@ document.body.addEventListener("registrationComplete", function (evt) {
   }, 1500);
 });
 
+function getJwtToken() {
+  return localStorage.getItem("jwtToken");
+}
+
 document.body.addEventListener("htmx:afterOnLoad", function (evt) {
   const response = evt.detail.xhr.responseText;
 
@@ -167,7 +174,7 @@ document.body.addEventListener("htmx:afterOnLoad", function (evt) {
     const json = JSON.parse(response);
 
     if (json.showMessage) {
-      wndow.dispatchEvent(
+      window.dispatchEvent(
         new CustomEvent("showMessage", {
           detail: {
             message: json.showMessage.message,
@@ -199,5 +206,45 @@ document.body.addEventListener("htmx:responseError", function (evt) {
     setTimeout(() => {
       window.location.href = "/logowanie";
     }, 1000);
+  }
+});
+
+window.dispatchEvent(
+  new CustomEvent("authChangedClient", {
+    detail: { isAuthenticated: true },
+  }),
+);
+
+window.dispatchEvent(new CustomEvent("logoutClient"));
+
+document
+  .querySelector('a[href="/moje-konto"]')
+  .addEventListener("click", function (event) {
+    event.preventDefault();
+    htmx.ajax("GET", "/htmx/moje-konto", {
+      headers: {
+        Authorization: "Bearer " + getJwtToken(), // Funkcja, która pobiera JWT z pamięci
+      },
+      target: "#content",
+      swap: "innerHTML",
+    });
+  });
+
+document.addEventListener("authChangedClient", (event) => {
+  console.log("Status autoryzacji:", event.detail.isAuthenticated);
+  if (event.detail.isAuthenticated) {
+    // Przekierowanie na stronę konta po zalogowaniu
+    htmx.ajax("GET", "/htmx/moje-konto", {
+      target: "#content",
+      swap: "innerHTML",
+    });
+    htmx.history.push("/moje-konto");
+  } else {
+    // W przeciwnym razie wyświetlenie strony logowania
+    htmx.ajax("GET", "/htmx/logowanie", {
+      target: "#content",
+      swap: "innerHTML",
+    });
+    htmx.history.push("/logowanie");
   }
 });
