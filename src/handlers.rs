@@ -820,7 +820,7 @@ pub async fn register_handler(
         let mut headers = HeaderMap::new();
         headers.insert("HX-Reswap", HeaderValue::from_static("none"));
         let trigger_payload = json!({
-            "showMessage": {"message": "Podany adres email jest już zarejestrowany.", "type": "error"}
+            "showMessage": {"message": "Podany adres email jest juz zarejestrowany.", "type": "error"}
         });
         if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
             headers.insert("HX-Trigger", trigger_value);
@@ -896,7 +896,7 @@ pub async fn register_handler(
 
     let trigger_payload = json!({
         "registrationComplete": { "userId": new_user.id.to_string() },
-        "showMessage": {"message": "Rejestracja pomyślna! Możesz się teraz zalogować.", "type": "success"}
+        "showMessage": {"message": "Rejestracja pomyslna! Mozesz sie teraz zalogowac.", "type": "success"}
     });
     if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
         headers.insert("HX-Trigger", trigger_value);

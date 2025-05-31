@@ -2174,7 +2174,6 @@ pub async fn my_account_page_handler(claims: TokenClaims) -> Result<Markup, AppE
             "/moje-konto/zamowienia",
         ),
         ("Moje Dane", "/htmx/moje-konto/dane", "/moje-konto/dane"), // todo!, do zaimplementowania
-        ("Adresy", "/htmx/moje-konto/adresy", "/moje-konto/adresy"), // todo!, do zaimplementowania
     ];
     let default_section_url = "/htmx/moje-konto/zamowienia";
 
@@ -2202,7 +2201,7 @@ pub async fn my_account_page_handler(claims: TokenClaims) -> Result<Markup, AppE
                                 // --- POPRAWIONY LINK WYLOGOWANIA ---
                                 a href="#"
                                    "@click.prevent"="$dispatch('trigger-alpine-logout')" // Wywołuje zdarzenie dla Alpine.js
-                                   "@click"="clientSideLogout()"
+                                   // "@click"="clientSideLogout()"
                                    class="block px-3 py-2 rounded-md text-red-600 hover:bg-red-50 hover:text-red-700 font-medium transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-red-500" {
                                     "Wyloguj"
                                 }
