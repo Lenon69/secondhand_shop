@@ -127,33 +127,9 @@ document.body.addEventListener("registrationComplete", function (evt) {
   if (form && form.reset) {
     form.reset();
   }
-  // Powiadomienie "showMessage" o sukcesie rejestracji powinno być już wywołane przez serwer.
   // Przekierowanie na stronę "Moje Konto" po udanej rejestracji i krótkim opóźnieniu
   setTimeout(() => {
     if (window.htmx) {
-      // Najpierw wywołujemy zdarzenie, że użytkownik jest zalogowany (zakładając, że rejestracja = logowanie)
-      // Jeśli serwer nie zwraca tokenu przy rejestracji, to ten krok trzeba pominąć lub obsłużyć inaczej.
-      // Na razie zakładamy, że po rejestracji użytkownik nie jest automatycznie logowany,
-      // więc tylko pokazujemy "dymek" i resetujemy formularz.
-      // Jeśli chcesz automatyczne logowanie i przekierowanie, serwer przy rejestracji
-      // musiałby również wysłać zdarzenie `loginSuccessDetails` z tokenem.
-      // LUB przekierowujemy na stronę logowania:
-      // window.htmx.ajax('GET', '/htmx/logowanie', {
-      //   target: '#content', swap: 'innerHTML', pushUrl: '/logowanie'
-      // });
-      // LUB, jeśli rejestracja oznacza automatyczne zalogowanie i serwer wysłałby loginSuccessDetails:
-      // (to by było obsługiwane przez listener loginSuccessDetails)
-
-      // Na razie, po prostu pokazujemy sukces i resetujemy.
-      // Jeśli chcesz przekierowanie na moje-konto, serwer musi wysłać loginSuccessDetails z tokenem
-      // albo musisz tutaj wywołać logikę logowania.
-      // Dla uproszczenia, na razie nie ma przekierowania po rejestracji.
-      // Jeśli chcesz przekierowanie na moje-konto po rejestracji, musisz zmodyfikować backend,
-      // aby po rejestracji zwracał również token i wywoływał `loginSuccessDetails`.
-      // LUB, jeśli rejestracja nie loguje automatycznie, przekieruj na stronę logowania:
-      console.log(
-        "[App.js registrationComplete] Przekierowanie na stronę logowania po rejestracji.",
-      );
       window.htmx.ajax("GET", "/htmx/logowanie", {
         target: "#content",
         swap: "innerHTML",

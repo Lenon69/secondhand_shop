@@ -548,14 +548,12 @@ pub async fn get_cart_details_htmx_handler(
                 div ."ml-4 flex flex-1 flex-col" {
                     div {
                         div ."flex justify-between text-sm font-medium text-gray-800" {
-                            h3 ."group" { // Dodajemy 'group' dla efektu hover na linku wewnątrz
-                                // --- Nazwa produktu jako link ---
+                            h3 ."group" {
                                 a href=(format!("/produkty/{}", item.product.id)) // Fallback URL
                                    "hx-get"=(format!("/htmx/produkt/{}", item.product.id))
                                    "hx-target"="#content"
                                    "hx-swap"="innerHTML"
                                    "hx-push-url"=(format!("/produkty/{}", item.product.id))
-                                   // "hx-indicator"=".page-load-spinner"
                                    "@click"="if(typeof cartOpen !== 'undefined') cartOpen = false" // Zamknij koszyk (Alpine.js)
                                   class="hover:text-pink-600 transition-colors group-hover:underline" {
                                     (item.product.name)
@@ -563,8 +561,7 @@ pub async fn get_cart_details_htmx_handler(
                             }
                             p ."ml-4 whitespace-nowrap" { (format_price_maud(item.product.price)) }
                         }
-                        // Można tu dodać np. kategorię, jeśli jest potrzebna w skróconym widoku koszyka
-                        // p ."mt-1 text-xs text-gray-500" { (item.product.category.to_string()) }
+                        p ."mt-1 text-xs text-gray-500" { (item.product.category.to_string()) }
                     }
                     div ."flex flex-1 items-end justify-between text-xs mt-2" { // Dodano mt-2 dla odstępu
                         div ."flex" {
@@ -580,7 +577,7 @@ pub async fn get_cart_details_htmx_handler(
                 }
             }
         }
-    }            // Suma częściowa jest teraz zarządzana przez Alpine.js w index.html na podstawie danych z HX-Trigger
+    }
         }
     };
     Ok((headers, markup))
@@ -2417,7 +2414,6 @@ pub async fn my_orders_htmx_handler(
     .fetch_all(&app_state.db_pool)
     .await?; // Znak zapytania skonwertuje błąd sqlx::Error na AppError (jeśli masz implementację From<sqlx::Error> for AppError)
 
-    // 2. Wyrenderuj HTML za pomocą Maud
     Ok(html! {
         div {
             h2 ."text-2xl sm:text-3xl font-semibold text-gray-800 mb-6" { "Moje Zamówienia" }
