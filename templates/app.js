@@ -104,6 +104,7 @@ document.body.addEventListener("loginSuccessDetails", function (evt) {
       evt.detail,
     );
     // To zdarzenie nie powinno być wywołane przez serwer, jeśli nie ma tokenu.
+    //
     // Jeśli jednak, to pokażemy błąd.
     window.dispatchEvent(
       new CustomEvent("showMessage", {
@@ -160,24 +161,4 @@ document.body.addEventListener("registrationComplete", function (evt) {
       });
     }
   }, 1500);
-});
-
-// Usunęliśmy htmx:afterOnLoad. Komponent Alpine.js w index.html nasłuchuje na `window` dla `showMessage`.
-
-console.log(
-  "MEG JONI app.js (Simplified Server-Driven v2) loaded. Timestamp:",
-  new Date().toLocaleTimeString(),
-);
-
-document.body.addEventListener("htmx:configRequest", function (evt) {
-  console.log("HTMX Request path:", evt.detail.path);
-  // Zmień 'guest_cart_id' na 'guestCartId'
-  const guestCartId = localStorage.getItem("guestCartId");
-  console.log("Guest cart ID from localStorage:", guestCartId);
-
-  if (guestCartId && evt.detail.path.includes("/htmx/checkout")) {
-    evt.detail.headers["x-guest-cart-id"] = guestCartId;
-    console.log("Added header x-guest-cart-id:", guestCartId);
-    console.log("All headers:", evt.detail.headers);
-  }
 });
