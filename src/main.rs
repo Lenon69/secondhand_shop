@@ -9,8 +9,8 @@ use htmx_handlers::{
     about_us_page_handler, add_item_to_cart_htmx_handler, checkout_page_handler,
     contact_page_handler, faq_page_handler, gender_page_handler, get_cart_details_htmx_handler,
     get_product_detail_htmx_handler, list_products_htmx_handler, login_page_htmx_handler,
-    my_account_data_htmx_handler, my_account_page_handler, my_orders_htmx_handler,
-    privacy_policy_page_handler, registration_page_htmx_handler,
+    my_account_data_htmx_handler, my_account_page_handler, my_order_details_htmx_handler,
+    my_orders_htmx_handler, privacy_policy_page_handler, registration_page_htmx_handler,
     remove_item_from_cart_htmx_handler, shipping_returns_page_handler,
     terms_of_service_page_handler,
 };
@@ -170,6 +170,10 @@ async fn main() {
         .route("/htmx/moje-konto/zamowienia", get(my_orders_htmx_handler))
         .route("/htmx/moje-konto/dane", get(my_account_data_htmx_handler))
         .route("/htmx/checkout", get(checkout_page_handler))
+        .route(
+            "/htmx/moje-konto/zamowienie-szczegoly/{order_id}",
+            get(my_order_details_htmx_handler),
+        )
         .nest_service("/static", ServeDir::new("static"))
         .layer(TraceLayer::new_for_http())
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024))

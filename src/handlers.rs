@@ -1236,7 +1236,7 @@ pub async fn create_order_handler(
     }
 
     // TODO: Dodaj logikę dla kosztów dostawy - na razie total_price to suma produktów
-    let shipping_cost: i64 = 0; // Placeholder - zaimplementuj wybór i koszt dostawy
+    let shipping_cost: i64 = 1500; // Placeholder - zaimplementuj wybór i koszt dostawy
     let final_total_price = total_price_items + shipping_cost;
 
     // 3. Wstaw rekord do tabeli `orders`
@@ -1249,12 +1249,10 @@ pub async fn create_order_handler(
                 id, user_id, guest_email, guest_session_id, status, total_price,
                 shipping_first_name, shipping_last_name,
                 shipping_address_line1, shipping_address_line2,
-                shipping_city, shipping_postal_code, shipping_country
-                -- shipping_phone, -- Dodaj, jeśli masz tę kolumnę
-                -- Tutaj dodaj pola dla adresu do faktury, jeśli są oddzielne i zapisywane w `orders`
-                -- billing_first_name, billing_last_name, etc.
+                shipping_city, shipping_postal_code, shipping_country,
+                shipping_phone
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         "#,
     )
     .bind(order_id)
@@ -1266,11 +1264,13 @@ pub async fn create_order_handler(
     .bind(&payload.shipping_first_name)
     .bind(&payload.shipping_last_name)
     .bind(&payload.shipping_address_line1)
-    .bind(option_string_empty_as_none(payload.shipping_address_line2.clone()))
+    .bind(option_string_empty_as_none(
+        payload.shipping_address_line2.clone(),
+    ))
     .bind(&payload.shipping_city)
     .bind(&payload.shipping_postal_code)
     .bind(&payload.shipping_country)
-    // .bind(&payload.shipping_phone) // Odkomentuj, jeśli masz kolumnę
+    .bind(&payload.shipping_phone)
     .execute(&mut *tx)
     .await?;
 
@@ -1330,7 +1330,7 @@ pub async fn create_order_handler(
     // Na razie prosty komunikat i sugestia przeładowania strony przez JS klienta
     let success_payload = serde_json::json!({
         "showMessage": {
-            "message": "Twoje zamówienie zostało pomyślnie złożone!",
+            "message": "Twoje zamowienie zostalo pomyslnie zlozone!",
             "type": "success"
         },
         "orderPlaced": { // Niestandardowe zdarzenie, które JS może obsłużyć

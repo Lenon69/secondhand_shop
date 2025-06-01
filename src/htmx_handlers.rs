@@ -1,6 +1,8 @@
 // src/htmx_handlers.rs
 //
 
+use std::collections::HashMap;
+
 #[allow(unused_imports)]
 use axum::{
     extract::{Path, Query, State},
@@ -17,7 +19,9 @@ use strum::IntoEnumIterator;
 use urlencoding::encode;
 use uuid::Uuid;
 
-use crate::models::{ProductGender, ProductStatus, UserShippingDetails};
+use crate::models::{
+    OrderItem, OrderItemDetailsPublic, ProductGender, ProductStatus, UserShippingDetails,
+};
 #[allow(unused_imports)]
 use crate::{
     auth_models::TokenClaims,
@@ -2397,49 +2401,64 @@ pub async fn registration_page_htmx_handler() -> Result<Markup, AppError> {
 
 pub async fn my_orders_htmx_handler(
     State(app_state): State<AppState>,
-    claims: TokenClaims, // Wymagane zalogowanie, Axum zajmie się autoryzacją
+    claims: TokenClaims, // Wymagane zalogowanie
 ) -> Result<Markup, AppError> {
     let user_id = claims.sub;
     tracing::info!("MAUD: Użytkownik ID {} żąda listy swoich zamówień", user_id);
 
     // 1. Pobierz zamówienia użytkownika z bazy danych
+    // Zaktualizuj listę kolumn w SELECT, aby pasowała do pełnej struktury `Order`
     let orders: Vec<Order> = sqlx::query_as::<_, Order>(
         r#"
-            SELECT id, user_id, order_date, status, total_price, 
-                   shipping_address_line1, shipping_address_line2, shipping_city, 
-                   shipping_postal_code, shipping_country, created_at, updated_at
+            SELECT
+                id,
+                user_id,    -- To pole jest teraz Option<Uuid> w strukturze Order
+                order_date,
+                status,
+                total_price,
+                shipping_first_name,    -- NOWE POLE
+                shipping_last_name,     -- NOWE POLE
+                shipping_address_line1,
+                shipping_address_line2,
+                shipping_city,
+                shipping_postal_code,
+                shipping_country,
+                shipping_phone,         -- NOWE POLE
+                guest_email,            -- NOWE POLE
+                guest_session_id,       -- NOWE POLE
+                created_at,
+                updated_at
             FROM orders
-            WHERE user_id = $1
+            WHERE user_id = $1 -- Nadal filtrujemy po user_id dla "Moich Zamówień"
             ORDER BY order_date DESC
         "#,
     )
     .bind(user_id)
     .fetch_all(&app_state.db_pool)
-    .await?; // Znak zapytania skonwertuje błąd sqlx::Error na AppError (jeśli masz implementację From<sqlx::Error> for AppError)
+    .await?;
 
     Ok(html! {
-        div {
+        div { // Główny kontener dla tej sekcji, może mieć ID jeśli jest potrzebne dla hx-target z innego miejsca
             h2 ."text-2xl sm:text-3xl font-semibold text-gray-800 mb-6" { "Moje Zamówienia" }
             @if orders.is_empty() {
                 p ."text-gray-600 py-4" { "Nie złożyłeś/aś jeszcze żadnych zamówień." }
             } @else {
                 div ."space-y-6" {
                     @for order_item in &orders {
-                        // Przygotowanie wartości do wyświetlenia, aby uniknąć problemów z Option wprost w Maud
+                        // Przygotowanie wartości do wyświetlenia
+                        // Dla order_id można nadal używać skróconej wersji
                         @let order_id_display = order_item.id.to_string().chars().take(8).collect::<String>();
-                        // Używamy to_string() na wyniku format(), aby zapewnić, że to String
                         @let order_date_display = order_item.order_date.format("%d-%m-%Y %H:%M").to_string();
                         @let order_status_display = order_item.status.to_string(); // Zakłada, że OrderStatus implementuje Display
-                        @let order_total_display = format_price_maud(order_item.total_price);
+                        @let order_total_display = format_price_maud(order_item.total_price); // Użyj swojej funkcji formatującej
 
                         @let status_classes = match order_item.status {
-                            // Użyj pełnej ścieżki, jeśli OrderStatus jest w innym module i niezaimportowany bezpośrednio
-                            // np. crate::models::OrderStatus::Pending
                             OrderStatus::Pending => "bg-yellow-100 text-yellow-800",
                             OrderStatus::Processing => "bg-blue-100 text-blue-800",
                             OrderStatus::Shipped => "bg-green-100 text-green-800",
                             OrderStatus::Delivered => "bg-emerald-100 text-emerald-800",
                             OrderStatus::Cancelled => "bg-red-100 text-red-800",
+                            // Dodaj inne statusy, jeśli masz
                         };
 
                         div ."border border-gray-200 rounded-lg p-4 sm:p-6 hover:shadow-lg transition-shadow duration-200 ease-in-out bg-white" {
@@ -2458,14 +2477,17 @@ pub async fn my_orders_htmx_handler(
                             }
                             div ."flex flex-col sm:flex-row justify-between items-start sm:items-center" {
                                 div ."text-sm text-gray-700" {
+                                    // Możesz tutaj dodać więcej informacji, np. kto zamawiał, jeśli to potrzebne
+                                    // np. jeśli order_item.shipping_first_name.is_some() ...
                                     p { "Suma: " strong { (order_total_display) } }
                                 }
                                 div ."mt-3 sm:mt-0" {
-                                    // TODO: Zaimplementuj handler /htmx/moje-konto/zamowienie-szczegoly/{order_id}
-                                    // Ten handler powinien być chroniony i renderować szczegóły zamówienia za pomocą Maud
-                                    a href=(format!("/moje-konto/zamowienia/{}", order_item.id)) // URL dla paska adresu
+                                    // Link do szczegółów zamówienia - bez zmian, ale handler docelowy
+                                    // /htmx/moje-konto/zamowienie-szczegoly/{order_id}
+                                    // będzie musiał być świadomy pełnej struktury Order.
+                                    a href=(format!("/moje-konto/zamowienia/{}", order_item.id))
                                        "hx-get"=(format!("/htmx/moje-konto/zamowienie-szczegoly/{}", order_item.id))
-                                       "hx-target"="#my-account-content" // Podmienia zawartość w głównym obszarze "Moje Konto"
+                                       "hx-target"="#my-account-content" // Celuje w główny obszar treści "Moje Konto"
                                        "hx-swap"="innerHTML"
                                        "hx-push-url"=(format!("/moje-konto/zamowienia/{}", order_item.id))
                                        class="text-sm text-pink-600 hover:text-pink-700 hover:underline font-medium py-2 px-3 rounded-md hover:bg-pink-50 transition-colors" {
@@ -2475,8 +2497,6 @@ pub async fn my_orders_htmx_handler(
                             }
                         }
                     }
-                    // TODO: Rozważ dodanie paginacji dla zamówień, jeśli lista może być bardzo długa
-                    // Paginacja również używałaby HTMX, celując w ten sam div lub jego rodzica.
                 }
             }
         }
@@ -3027,6 +3047,212 @@ pub async fn my_account_data_htmx_handler(
                         span { "Zapisz zmiany" }
                         // Opcjonalny spinner dla przycisku (jeśli chcesz)
                         // span class="htmx-indicator ml-2" { /* SVG spinnera */ }
+                    }
+                }
+            }
+        }
+    })
+}
+
+pub async fn my_order_details_htmx_handler(
+    State(app_state): State<AppState>,
+    claims: TokenClaims,
+    Path(order_id): Path<Uuid>,
+) -> Result<Markup, AppError> {
+    let user_id = claims.sub;
+    tracing::info!(
+        "MAUD: Użytkownik ID {} żąda szczegółów zamówienia ID {}",
+        user_id,
+        order_id
+    );
+
+    // 1. Pobierz zamówienie z bazy danych
+    // Upewnij się, że SELECT zawiera wszystkie pola zdefiniowane w strukturze Order
+    let order_opt = sqlx::query_as::<_, Order>(
+        r#"
+            SELECT
+                id, user_id, order_date, status, total_price,
+                shipping_first_name, shipping_last_name,
+                shipping_address_line1, shipping_address_line2,
+                shipping_city, shipping_postal_code, shipping_country, shipping_phone,
+                guest_email, guest_session_id,
+                created_at, updated_at
+            FROM orders
+            WHERE id = $1
+        "#,
+    )
+    .bind(order_id)
+    .fetch_optional(&app_state.db_pool)
+    .await?;
+
+    let order = match order_opt {
+        Some(o) => o,
+        None => {
+            tracing::warn!(
+                "Nie znaleziono zamówienia o ID: {} (żąądane przez user_id: {})",
+                order_id,
+                user_id
+            );
+            return Err(AppError::NotFound);
+        }
+    };
+
+    // 2. Autoryzacja: Sprawdź, czy zalogowany użytkownik jest właścicielem zamówienia
+    // Dla "Moje Zamówienia", user_id w zamówieniu musi pasować i nie być None.
+    if order.user_id != Some(user_id) {
+        tracing::warn!(
+            "Nieautoryzowany dostęp do zamówienia: order_id={}, user_id={}, order_owner_id={:?}",
+            order_id,
+            user_id,
+            order.user_id
+        );
+        return Err(AppError::UnauthorizedAccess(
+            "Nie masz uprawnień do tego zamówienia.".to_string(),
+        ));
+    }
+
+    // 3. Pobierz pozycje zamówienia (order_items)
+    let order_items_db = sqlx::query_as::<_, OrderItem>(
+        r#"
+            SELECT id, order_id, product_id, price_at_purchase
+            FROM order_items
+            WHERE order_id = $1
+            ORDER BY id -- lub inna spójna kolejność
+        "#,
+    )
+    .bind(order_id)
+    .fetch_all(&app_state.db_pool)
+    .await?;
+
+    // 4. Przygotuj OrderItemDetailsPublic (pobierz produkty dla pozycji)
+    let mut items_details_public: Vec<OrderItemDetailsPublic> =
+        Vec::with_capacity(order_items_db.len());
+
+    if !order_items_db.is_empty() {
+        let product_ids: Vec<Uuid> = order_items_db.iter().map(|item| item.product_id).collect();
+
+        let products_db = sqlx::query_as::<_, Product>(
+            // Upewnij się, że SELECT zawiera wszystkie pola struktury Product
+            r#"
+                SELECT id, name, description, price, gender, condition, category, status, images
+                FROM products
+                WHERE id = ANY($1)
+            "#,
+        )
+        .bind(&product_ids)
+        .fetch_all(&app_state.db_pool)
+        .await?;
+
+        let products_map: HashMap<Uuid, Product> =
+            products_db.into_iter().map(|p| (p.id, p)).collect();
+
+        for item_db in order_items_db {
+            if let Some(product) = products_map.get(&item_db.product_id) {
+                items_details_public.push(OrderItemDetailsPublic {
+                    order_item_id: item_db.id,
+                    product: product.clone(), // Klonujemy produkt
+                    price_at_purchase: item_db.price_at_purchase,
+                });
+            } else {
+                // Ta sytuacja nie powinna mieć miejsca, jeśli dane są spójne (produkt istnieje)
+                tracing::error!(
+                    "Krytyczny błąd: Produkt (ID: {}) dla pozycji zamówienia (ID: {}) nie został znaleziony. OrderID: {}.",
+                    item_db.product_id,
+                    item_db.id,
+                    order_id
+                );
+                // Można zwrócić błąd lub pominąć tę pozycję
+            }
+        }
+    }
+
+    // Dane do wyświetlenia
+    let order_id_display_short = order.id.to_string().chars().take(8).collect::<String>();
+    let order_date_display = order.order_date.format("%d-%m-%Y %H:%M").to_string();
+    let order_status_display = order.status.to_string();
+    let order_total_display = format_price_maud(order.total_price);
+
+    let status_classes = match order.status {
+        OrderStatus::Pending => "bg-yellow-100 text-yellow-800",
+        OrderStatus::Processing => "bg-blue-100 text-blue-800",
+        OrderStatus::Shipped => "bg-green-100 text-green-800",
+        OrderStatus::Delivered => "bg-emerald-100 text-emerald-800",
+        OrderStatus::Cancelled => "bg-red-100 text-red-800",
+    };
+
+    Ok(html! {
+        div #order-details-section ."bg-white p-4 sm:p-6 rounded-lg shadow-md" {
+            // Nagłówek i przycisk powrotu
+            div ."flex justify-between items-center mb-6 pb-4 border-b border-gray-200" {
+                h2 ."text-2xl sm:text-3xl font-semibold text-gray-800" {
+                    "Szczegóły zamówienia #" (order_id_display_short)
+                }
+                a href="/moje-konto/zamowienia"
+                   hx-get="/htmx/moje-konto/zamowienia"
+                   hx-target="#my-account-content"
+                   hx-swap="innerHTML"
+                   hx-push-url="/moje-konto/zamowienia"
+                   class="text-sm text-pink-600 hover:text-pink-700 hover:underline" {
+                    "← Wróć do listy zamówień"
+                }
+            }
+
+            // Podstawowe informacje o zamówieniu
+            div ."grid grid-cols-1 md:grid-cols-2 gap-6 mb-6" {
+                div ."space-y-2" {
+                    p ."text-sm text-gray-600" { "Data złożenia:" strong ."text-gray-900 ml-1" { (order_date_display) } }
+                    p ."text-sm text-gray-600" { "Status:"
+                        span class=(format!("ml-1 px-2 py-0.5 text-xs font-semibold rounded-full {}", status_classes)) {
+                            (order_status_display)
+                        }
+                    }
+                    p ."text-sm text-gray-600" { "Suma zamówienia:" strong ."text-gray-900 ml-1" { (order_total_display) } }
+                }
+
+                // Adres dostawy
+                div {
+                    h3 ."text-md font-semibold text-gray-700 mb-1" { "Adres dostawy:" }
+                    p ."text-sm text-gray-800" {
+                        (order.shipping_first_name) " " (order.shipping_last_name) br;
+                        (order.shipping_address_line1) br;
+                        @if let Some(line2) = &order.shipping_address_line2 {
+                            (line2) br;
+                        }
+                        (order.shipping_postal_code) " " (order.shipping_city) br;
+                        (order.shipping_country) br;
+                        "Tel: " (order.shipping_phone)
+                    }
+                }
+            }
+
+            // Lista produktów w zamówieniu
+            h3 ."text-xl font-semibold text-gray-700 mb-3 mt-8 pt-4 border-t border-gray-200" { "Zamówione produkty:" }
+            @if items_details_public.is_empty() {
+                p ."text-gray-500" { "Brak produktów w tym zamówieniu (to nie powinno się zdarzyć, jeśli zamówienie istnieje)." }
+            } @else {
+                ul role="list" ."divide-y divide-gray-200 border-b border-gray-200" {
+                    @for item_detail in &items_details_public {
+                        li ."py-4 flex items-center" {
+                            @if !item_detail.product.images.is_empty() {
+                                img src=(item_detail.product.images[0]) alt=(item_detail.product.name)
+                                     class="h-16 w-16 sm:h-20 sm:w-20 flex-shrink-0 rounded-md border border-gray-200 object-cover mr-4";
+                            } @else {
+                                div class="h-16 w-16 sm:h-20 sm:w-20 flex-shrink-0 rounded-md border border-gray-200 bg-gray-100 flex items-center justify-center text-xs text-gray-400 mr-4" {
+                                    "Brak zdjęcia"
+                                }
+                            }
+                            div ."flex-grow min-w-0" { // min-w-0 dla poprawnego truncate
+                                p ."text-sm font-medium text-gray-900 truncate" { (item_detail.product.name) }
+                                p ."text-xs text-gray-500" { "Kategoria: " (item_detail.product.category.to_string()) }
+                                // Można dodać więcej informacji o produkcie, np. stan w momencie zakupu
+                            }
+                            div ."ml-4 text-right" {
+                                p ."text-sm text-gray-700" { "Cena: " (format_price_maud(item_detail.price_at_purchase)) }
+                                // Jeśli masz ilość (quantity), tutaj byłoby:
+                                // p ."text-xs text-gray-500" { "Ilość: " (item_detail.quantity) }
+                                // p ."text-sm font-semibold text-gray-900" { "Suma: " (format_price_maud(item_detail.price_at_purchase * item_detail.quantity)) }
+                            }
+                        }
                     }
                 }
             }

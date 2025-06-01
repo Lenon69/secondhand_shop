@@ -169,16 +169,23 @@ pub struct Order {
     pub status: OrderStatus,
     pub total_price: i64,
 
+    #[validate(length(min = 1, max = 100))]
+    pub shipping_first_name: String,
+    #[validate(length(min = 1, max = 100))]
+    pub shipping_last_name: String,
+
     #[validate(length(min = 1, max = 255))]
     pub shipping_address_line1: String,
     #[validate(length(max = 255))]
-    pub shipping_address_line2: Option<String>, // Już było Option<String>
+    pub shipping_address_line2: Option<String>,
     #[validate(length(min = 1, max = 100))]
     pub shipping_city: String,
     #[validate(length(min = 1, max = 20))]
     pub shipping_postal_code: String,
     #[validate(length(min = 1, max = 100))]
     pub shipping_country: String,
+    #[validate(length(min = 1, max = 30))]
+    pub shipping_phone: String,
     #[validate(email)]
     pub guest_email: Option<String>,
     pub guest_session_id: Option<Uuid>,
@@ -286,6 +293,7 @@ pub struct CartDetailsResponse {
     pub updated_at: DateTime<Utc>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct CartItemWithProduct {
     pub cart_item_id: Uuid,      // ci.id AS cart_item_id
@@ -372,6 +380,7 @@ impl Default for UserShippingDetails {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct CheckoutFormPayload {
     // Dane dostawy
