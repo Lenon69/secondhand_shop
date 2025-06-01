@@ -288,27 +288,6 @@ pub struct CartDetailsResponse {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Deserialize, Debug)]
-pub struct UserShippingDetails {
-    pub user_id: Uuid,
-    pub shipping_first_name: Option<String>,
-    pub shipping_last_name: Option<String>,
-    pub shipping_address_line1: Option<String>,
-    pub shipping_address_line2: Option<String>,
-    pub shipping_city: Option<String>,
-    pub shipping_postal_code: Option<String>,
-    pub shipping_country: Option<String>,
-    pub shipping_phone: Option<String>,
-    pub billing_same_as_shipping: Option<bool>,
-    pub billing_first_name: Option<String>,
-    pub billing_last_name: Option<String>,
-    pub billing_address_line1: Option<String>,
-    pub billing_address_line2: Option<String>,
-    pub billing_city: Option<String>,
-    pub billing_postal_code: Option<String>,
-    pub billing_country: Option<String>,
-}
-
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct CartItemWithProduct {
     pub cart_item_id: Uuid,      // ci.id AS cart_item_id
@@ -324,4 +303,73 @@ pub struct CartItemWithProduct {
     pub category: Category, // p.category
     pub status: ProductStatus, // p.status
     pub images: Vec<String>, // p.images
+}
+
+#[derive(Deserialize, Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct UserShippingDetails {
+    pub user_id: Uuid,
+    pub shipping_first_name: Option<String>,
+    pub shipping_last_name: Option<String>,
+    pub shipping_address_line1: Option<String>,
+    pub shipping_address_line2: Option<String>,
+    pub shipping_city: Option<String>,
+    pub shipping_postal_code: Option<String>,
+    pub shipping_country: Option<String>,
+    pub shipping_phone: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+// Struktura dla payloadu z formularza HTMX
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct UpdateUserShippingDetailsPayload {
+    #[validate(length(max = 100, message = "Imię może mieć maksymalnie 100 znaków."))]
+    pub shipping_first_name: Option<String>, // HTML form sends "" for empty, serde makes it Some("")
+
+    #[validate(length(max = 100, message = "Nazwisko może mieć maksymalnie 100 znaków."))]
+    pub shipping_last_name: Option<String>,
+
+    #[validate(length(
+        max = 255,
+        message = "Adres (linia 1) może mieć maksymalnie 255 znaków."
+    ))]
+    pub shipping_address_line1: Option<String>,
+
+    #[validate(length(
+        max = 255,
+        message = "Adres (linia 2) może mieć maksymalnie 255 znaków."
+    ))]
+    pub shipping_address_line2: Option<String>,
+
+    #[validate(length(max = 100, message = "Miasto może mieć maksymalnie 100 znaków."))]
+    pub shipping_city: Option<String>,
+
+    #[validate(length(max = 20, message = "Kod pocztowy może mieć maksymalnie 20 znaków."))]
+    pub shipping_postal_code: Option<String>,
+
+    #[validate(length(max = 100, message = "Kraj może mieć maksymalnie 100 znaków."))]
+    pub shipping_country: Option<String>,
+
+    #[validate(length(max = 30, message = "Numer telefonu może mieć maksymalnie 30 znaków."))]
+    // Można dodać walidację regex dla telefonu, np.
+    // #[validate(regex(path = "crate::utils::PHONE_REGEX", message = "Nieprawidłowy format numeru telefonu."))]
+    pub shipping_phone: Option<String>,
+}
+
+impl Default for UserShippingDetails {
+    fn default() -> Self {
+        Self {
+            user_id: Uuid::nil(),
+            shipping_first_name: None,
+            shipping_last_name: None,
+            shipping_address_line1: None,
+            shipping_address_line2: None,
+            shipping_city: None,
+            shipping_postal_code: None,
+            shipping_country: None,
+            shipping_phone: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
 }

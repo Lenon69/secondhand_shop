@@ -2193,3 +2193,138 @@ pub async fn merge_cart_handler(
 
     Ok((StatusCode::OK, Json(response)))
 }
+
+fn option_string_empty_as_none(opt_s: Option<String>) -> Option<String> {
+    opt_s.filter(|s| !s.is_empty())
+}
+
+pub async fn upsert_user_shipping_details_handler(
+    State(app_state): State<AppState>,
+    claims: TokenClaims,
+    Form(payload): Form<UpdateUserShippingDetailsPayload>,
+) -> Result<impl IntoResponse, AppError> {
+    let user_id = claims.sub;
+    tracing::info!("Użytkownik {} aktualizuje swoje dane wysyłki.", user_id);
+
+    // Walidacja payloadu
+    if let Err(validation_errors) = payload.validate() {
+        tracing::warn!(
+            "Błąd walidacji danych wysyłki od użytkownika {}: {:?}",
+            user_id,
+            validation_errors
+        );
+        // Możesz chcieć zwrócić bardziej szczegółowe błędy walidacji do HTMX
+        let mut headers = HeaderMap::new();
+        headers.insert("HX-Reswap", HeaderValue::from_static("none")); // Nie zamieniaj treści formularza
+        let error_message = validation_errors
+            .field_errors()
+            .into_iter()
+            .map(|(field, errors)| {
+                format!(
+                    "{}: {}",
+                    field,
+                    errors
+                        .iter()
+                        .filter_map(|e| e.message.as_ref())
+                        .map(|m| m.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("; ");
+
+        let trigger_payload = serde_json::json!({
+            "showMessage": {"message": format!("Błąd walidacji: {}", error_message), "type": "error"}
+        });
+        if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
+            headers.insert("HX-Trigger", trigger_value);
+        }
+        return Ok((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            headers,
+            Json(serde_json::json!({"error": "Validation failed"})),
+        ));
+    }
+
+    // Konwersja Some("") na None dla każdego pola przed zapisem do bazy
+    let first_name = option_string_empty_as_none(payload.shipping_first_name);
+    let last_name = option_string_empty_as_none(payload.shipping_last_name);
+    let address1 = option_string_empty_as_none(payload.shipping_address_line1);
+    let address2 = option_string_empty_as_none(payload.shipping_address_line2);
+    let city = option_string_empty_as_none(payload.shipping_city);
+    let postal_code = option_string_empty_as_none(payload.shipping_postal_code);
+    let country = option_string_empty_as_none(payload.shipping_country);
+    let phone = option_string_empty_as_none(payload.shipping_phone);
+
+    // Logika UPSERT (INSERT OR UPDATE)
+    // ON CONFLICT (user_id) DO UPDATE ...
+    let query_result = sqlx::query_as::<_, UserShippingDetails>(
+        r#"
+            INSERT INTO user_shipping_details (
+                user_id, shipping_first_name, shipping_last_name, shipping_address_line1,
+                shipping_address_line2, shipping_city, shipping_postal_code, shipping_country, shipping_phone
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            ON CONFLICT (user_id) DO UPDATE SET
+                shipping_first_name = EXCLUDED.shipping_first_name,
+                shipping_last_name = EXCLUDED.shipping_last_name,
+                shipping_address_line1 = EXCLUDED.shipping_address_line1,
+                shipping_address_line2 = EXCLUDED.shipping_address_line2,
+                shipping_city = EXCLUDED.shipping_city,
+                shipping_postal_code = EXCLUDED.shipping_postal_code,
+                shipping_country = EXCLUDED.shipping_country,
+                shipping_phone = EXCLUDED.shipping_phone,
+                updated_at = NOW()
+            RETURNING *
+        "#,
+    )
+    .bind(user_id)
+    .bind(first_name)
+    .bind(last_name)
+    .bind(address1)
+    .bind(address2)
+    .bind(city)
+    .bind(postal_code)
+    .bind(country)
+    .bind(phone)
+    .fetch_one(&app_state.db_pool)
+    .await;
+
+    match query_result {
+        Ok(_) => {
+            tracing::info!(
+                "Dane wysyłki dla użytkownika {} zostały pomyślnie zaktualizowane/utworzone.",
+                user_id
+            );
+            let mut headers = HeaderMap::new();
+            // HX-Trigger do wyświetlenia komunikatu o sukcesie
+            let trigger_payload = serde_json::json!({
+                "showMessage": {"message": "Twoje dane zostaly zapisane.", "type": "success"}
+                // Można też dodać trigger do odświeżenia formularza, jeśli nie jest on
+                // automatycznie odświeżany przez HTMX po sukcesie (zależy od hx-target i hx-swap na formularzu)
+                // np. "loadMyDataSection": {}
+            });
+            if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
+                headers.insert("HX-Trigger", trigger_value);
+            }
+            // Aby formularz się nie "czyścił" przez HTMX po sukcesie,
+            // można zwrócić pustą odpowiedź z odpowiednim statusem i `HX-Reswap: none`
+            // lub pozwolić HTMX podmienić fragment z komunikatem.
+            // Jeśli formularz ma się sam odświeżyć, można zwrócić go ponownie.
+            // Na razie prosta odpowiedź OK z triggerem.
+            Ok((
+                StatusCode::OK,
+                headers,
+                Json(serde_json::json!({"message": "Dane zapisane"})),
+            ))
+        }
+        Err(e) => {
+            tracing::error!(
+                "Błąd podczas zapisu danych wysyłki dla użytkownika {}: {:?}",
+                user_id,
+                e
+            );
+            Err(AppError::from(e)) // Lub bardziej szczegółowy błąd
+        }
+    }
+}

@@ -17,7 +17,7 @@ use strum::IntoEnumIterator;
 use urlencoding::encode;
 use uuid::Uuid;
 
-use crate::models::{ProductGender, ProductStatus};
+use crate::models::{ProductGender, ProductStatus, UserShippingDetails};
 #[allow(unused_imports)]
 use crate::{
     auth_models::TokenClaims,
@@ -2839,4 +2839,152 @@ pub async fn checkout_page_handler(
     };
 
     Ok((headers, markup))
+}
+
+// src/htmx_handlers.rs
+
+pub async fn my_account_data_htmx_handler(
+    State(app_state): State<AppState>,
+    claims: TokenClaims,
+) -> Result<Markup, AppError> {
+    let user_id = claims.sub;
+    tracing::info!("MAUD: Użytkownik ID {} żąda sekcji 'Moje dane'", user_id);
+
+    let shipping_details_option: Option<UserShippingDetails> =
+        sqlx::query_as("SELECT * FROM user_shipping_details WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_optional(&app_state.db_pool)
+            .await?;
+
+    let details = shipping_details_option.unwrap_or_else(|| UserShippingDetails {
+        user_id,
+        ..Default::default()
+    });
+
+    let countries = vec![
+        "Polska",
+        "Niemcy",
+        "Czechy",
+        "Słowacja",
+        "Wielka Brytania",
+        "Francja",
+        "Hiszpania",
+        "Holandia",
+        "Włochy",
+    ];
+
+    Ok(html! {
+        div #my-data-section { // Kontener dla tej sekcji
+            h2 ."text-2xl sm:text-3xl font-semibold text-gray-800 mb-6" { "Moje dane do wysyłki" }
+
+            // Miejsce na komunikaty (sukces/błąd) z HX-Trigger
+            div #my-data-messages ."mb-4 text-sm min-h-[1.25em]" {}
+
+            form id="user-shipping-details-form"
+                hx-post="/api/user/shipping-details"
+                hx-target="#my-data-messages"
+                hx-swap="none" // Lub "none" jeśli polegasz tylko na globalnym showMessage
+                class="space-y-6 bg-white p-6 rounded-lg shadow" {
+
+                // --- Imię ---
+                div {
+                    label for="shipping_first_name" ."block text-sm font-medium text-gray-700 mb-1" { "Imię" }
+                    input type="text" name="shipping_first_name" id="shipping_first_name"
+                           value=[details.shipping_first_name.as_deref()]
+                           maxlength="100"
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                }
+
+                // --- Nazwisko ---
+                div {
+                    label for="shipping_last_name" ."block text-sm font-medium text-gray-700 mb-1" { "Nazwisko" }
+                    input type="text" name="shipping_last_name" id="shipping_last_name"
+                           value=[details.shipping_last_name.as_deref()]
+                           maxlength="100"
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                }
+
+                // --- Adres linia 1 ---
+                div {
+                    label for="shipping_address_line1" ."block text-sm font-medium text-gray-700 mb-1" { "Adres (ulica i numer)" }
+                    input type="text" name="shipping_address_line1" id="shipping_address_line1"
+                           value=[details.shipping_address_line1.as_deref()]
+                           maxlength="255"
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                }
+
+                // --- Adres linia 2 (opcjonalnie) ---
+                div {
+                    label for="shipping_address_line2" ."block text-sm font-medium text-gray-700 mb-1" { "Adres cd. (opcjonalnie)" }
+                    input type="text" name="shipping_address_line2" id="shipping_address_line2"
+                           value=[details.shipping_address_line2.as_deref()]
+                           maxlength="255"
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                }
+
+                // --- Miasto i Kod pocztowy (w jednym rzędzie na większych ekranach) ---
+                div ."grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-6" {
+                    div {
+                        label for="shipping_city" ."block text-sm font-medium text-gray-700 mb-1" { "Miasto" }
+                        input type="text" name="shipping_city" id="shipping_city"
+                               value=[details.shipping_city.as_deref()]
+                               maxlength="100"
+                               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                    }
+                    div {
+                        label for="shipping_postal_code" ."block text-sm font-medium text-gray-700 mb-1" { "Kod pocztowy" }
+                        input type="text" name="shipping_postal_code" id="shipping_postal_code"
+                               value=[details.shipping_postal_code.as_deref()]
+                               maxlength="20"
+                               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                    }
+                }
+
+                // --- Kraj ---
+                div {
+                    label for="shipping_country" ."block text-sm font-medium text-gray-700 mb-1" { "Kraj" }
+                    select name="shipping_country" id="shipping_country"
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm" {
+                        // Dla opcji "Wybierz kraj", chcemy ją wybrać i zablokować, jeśli żaden kraj nie jest jeszcze zapisany.
+                        option value=""
+                               disabled[details.shipping_country.is_none()]
+                               selected[details.shipping_country.is_none()] { "Wybierz kraj..." }
+
+                        @for country_name_str_slice in &countries { // country_name_str_slice jest &str (z Vec<&str>)
+                            option value=(country_name_str_slice)
+                                   selected[details.shipping_country.as_deref() == Some(country_name_str_slice)] {
+                                (country_name_str_slice)
+                            }
+                        }
+                        // Obsługa kraju, który jest zapisany w bazie, ale nie ma go na liście `countries`
+                        @if let Some(ref saved_country_string) = details.shipping_country { // saved_country_string jest &String
+                            @let saved_country_str = saved_country_string.as_str(); // Konwersja na &str
+                            @if !countries.iter().any(|&c| c == saved_country_str) { // Sprawdzenie czy &str jest w Vec<&str>
+                                option value=(saved_country_str) selected { (saved_country_str) " (inny)" }
+                            }
+                        }
+                    }
+                }
+
+                // --- Telefon ---
+                div {
+                    label for="shipping_phone" ."block text-sm font-medium text-gray-700 mb-1" { "Telefon" }
+                    input type="tel" name="shipping_phone" id="shipping_phone"
+                           value=[details.shipping_phone.as_deref()]
+                           maxlength="30"
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                }
+
+                // --- Przycisk Zapisz ---
+                div ."pt-4" {
+                    button type="submit"
+                           class="w-full sm:w-auto inline-flex justify-center items-center px-6 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-colors" {
+                        span { "Zapisz zmiany" }
+                        // Opcjonalny spinner dla przycisku (jeśli chcesz)
+                        // span class="htmx-indicator ml-2" { /* SVG spinnera */ }
+                    }
+                }
+            }
+        }
+    })
 }
