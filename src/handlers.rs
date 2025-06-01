@@ -962,7 +962,7 @@ pub async fn login_handler(
             let mut headers = HeaderMap::new();
             headers.insert("HX-Reswap", HeaderValue::from_static("none"));
             let trigger_payload = json!({
-                "showMessage": {"message": "Nieprawidłowy email lub hasło.", "type": "error"}
+                "showMessage": {"message": "Nieprawidlowy email lub haslo.", "type": "error"}
             });
             if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
                 headers.insert("HX-Trigger", trigger_value);
@@ -986,7 +986,7 @@ pub async fn login_handler(
                 let mut headers = HeaderMap::new();
                 headers.insert("HX-Reswap", HeaderValue::from_static("none"));
                 let trigger_payload = json!({
-                    "showMessage": {"message": "Nieprawidłowy email lub hasło.", "type": "error"}
+                    "showMessage": {"message": "Nieprawidlowy email lub haslo.", "type": "error"}
                 });
                 if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
                     headers.insert("HX-Trigger", trigger_value);
@@ -1008,7 +1008,7 @@ pub async fn login_handler(
             let mut headers = HeaderMap::new();
             headers.insert("HX-Reswap", HeaderValue::from_static("none"));
             let trigger_payload = json!({
-                "showMessage": {"message": "Błąd serwera podczas weryfikacji danych.", "type": "error"}
+                "showMessage": {"message": "Blad serwera podczas weryfikacji danych.", "type": "error"}
             });
             if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
                 headers.insert("HX-Trigger", trigger_value);
@@ -1016,7 +1016,7 @@ pub async fn login_handler(
             return Ok((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 headers,
-                Json(json!({"message": "Błąd serwera"})),
+                Json(json!({"message": "Blad serwera"})),
             ));
         }
     }
@@ -1053,7 +1053,7 @@ pub async fn login_handler(
             let mut headers = HeaderMap::new();
             headers.insert("HX-Reswap", HeaderValue::from_static("none"));
             let trigger_payload = json!({
-                "showMessage": {"message": "Błąd serwera podczas finalizowania logowania.", "type": "error"}
+                "showMessage": {"message": "Blad serwera podczas finalizowania logowania.", "type": "error"}
             });
             if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
                 headers.insert("HX-Trigger", trigger_value);
@@ -1069,7 +1069,7 @@ pub async fn login_handler(
 
 pub async fn protected_route_handler(claims: TokenClaims) -> Result<Json<Value>, AppError> {
     Ok(Json(
-        json!({ "message": "Gratulacje! Masz dostęp do chronionego zasobu.",
+        json!({ "message": "Gratulacje! Masz dostep do chronionego zasobu.",
             "user_id": claims.sub,
             "user_role": claims.role,
             "expires_at": claims.exp }),

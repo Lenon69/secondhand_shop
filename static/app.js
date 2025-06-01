@@ -87,23 +87,32 @@ document.addEventListener("authChangedClient", function (event) {
   // Inne przypadki 'authChangedClient' (jeśli takie są i nie mają 'source') nie spowodują przeładowania.
 });
 
+// --- Listener authChangedFromBackend (jeśli jest używany i ma powodować pełny reload) ---
 document.body.addEventListener("authChangedFromBackend", function (evt) {
   if (evt.detail && typeof evt.detail.isAuthenticated !== "undefined") {
+    let needsReload = false;
     if (evt.detail.token) {
       localStorage.setItem("jwtToken", evt.detail.token);
+      if (evt.detail.isAuthenticated) needsReload = true; // np. po odświeżeniu tokenu
     } else if (!evt.detail.isAuthenticated) {
       localStorage.removeItem("jwtToken");
+      needsReload = true; // np. po wylogowaniu przez serwer
     }
-    // Przekazujemy informację o przekierowaniu do centralnego listenera
+
+    // Poinformuj Alpine o zmianie stanu
     window.dispatchEvent(
       new CustomEvent("authChangedClient", {
-        detail: {
-          isAuthenticated: evt.detail.isAuthenticated,
-          redirectUrl: evt.detail.redirectUrl, // Przekaż redirectUrl
-          pushUrl: evt.detail.pushUrl, // Przekaż pushUrl
-        },
+        detail: { isAuthenticated: evt.detail.isAuthenticated },
       }),
     );
+
+    if (needsReload) {
+      console.log("authChangedFromBackend: Triggering homepage reload.");
+      setTimeout(() => {
+        // Daj czas na wyświetlenie ewentualnych komunikatów
+        window.location.replace("/");
+      }, 500);
+    }
   }
 });
 
@@ -115,10 +124,8 @@ document.body.addEventListener("loginSuccessDetails", function (evt) {
     // Komunikat o sukcesie logowania jest już wysyłany przez serwer (HX-Trigger showMessage)
     // i powinien zostać wyświetlony przez komponent Toast w Alpine.js.
     // Czekamy chwilę, aby użytkownik mógł zobaczyć komunikat, a następnie przeładowujemy.
-    console.log("Login successful. Reloading to homepage...");
-    setTimeout(() => {
-      window.location.replace("/"); // Pełne przeładowanie na stronę główną
-    }, 700); // Krótkie opóźnienie na wyświetlenie komunikatu sukcesu
+    console.log("Login successful. Reloading to homepage.");
+    window.location.replace("/");
   } else {
     console.error(
       "[App.js] loginSuccessDetails event, but NO TOKEN:",
@@ -176,42 +183,59 @@ document.body.addEventListener("htmx:afterOnLoad", function (evt) {
   }
 });
 
-// Listener htmx:responseError
+// --- Listener htmx:responseError ---
 document.body.addEventListener("htmx:responseError", function (evt) {
   const xhr = evt.detail.xhr;
+  const requestPath = evt.detail.requestConfig.path; // Ścieżka żądania, które zwróciło błąd
+
   if (xhr.status === 401) {
-    console.warn(
-      "🔥 Otrzymano 401 Unauthorized – sesja mogła wygasnąć. Usuwam token.",
-    );
-    localStorage.removeItem("jwtToken");
-    console.log("Token JWT usunięty z localStorage.");
+    if (requestPath === "/api/auth/login") {
+      // Błąd 401 podczas próby logowania (np. złe hasło)
+      // Serwer powinien wysłać HX-Trigger z komunikatem "Błędny email lub hasło"
+      // Ten komunikat zostanie obsłużony przez Alpine Toast.
+      // NIE przeładowujemy strony, użytkownik pozostaje na formularzu logowania.
+      console.warn(
+        "🔥 Błąd 401 (Nieautoryzowany) podczas próby logowania na:",
+        requestPath,
+      );
+      // Nie usuwamy tokenu, bo użytkownik może go nie mieć lub próbuje się zalogować ponownie.
+      // Nie emitujemy tutaj 'authChangedClient' ani nie robimy pełnego przeładowania.
+      // Komunikat o błędzie logowania jest wysyłany z serwera przez HX-Trigger.
+    } else {
+      // Błąd 401 na innej ścieżce (prawdopodobnie wygasła sesja)
+      console.warn(
+        "🔥 Otrzymano 401 Unauthorized (prawdopodobnie wygasła sesja) dla ścieżki:",
+        requestPath,
+        ". Usuwam token.",
+      );
+      localStorage.removeItem("jwtToken");
+      console.log("Token JWT usunięty z localStorage.");
 
-    // Poinformuj Alpine.js o zmianie stanu (aby np. zaktualizował tekst linku)
-    // To zdarzenie nie będzie już inicjować nawigacji HTMX, jeśli Alpine je tylko konsumuje do zmiany stanu.
-    window.dispatchEvent(
-      new CustomEvent("authChangedClient", {
-        detail: {
-          isAuthenticated: false,
-          // Nie potrzebujemy już redirectUrl/pushUrl/source tutaj, jeśli zawsze jest pełny reload
-        },
-      }),
-    );
+      // Poinformuj Alpine.js o zmianie stanu (aby np. zaktualizował tekst linku)
+      window.dispatchEvent(
+        new CustomEvent("authChangedClient", {
+          detail: { isAuthenticated: false },
+        }),
+      );
 
-    // Wyświetl komunikat dla użytkownika.
-    window.dispatchEvent(
-      new CustomEvent("showMessage", {
-        detail: {
-          message:
-            "Twoja sesja wygasła lub nie masz uprawnień. Zaloguj się ponownie.",
-          type: "warning",
-        },
-      }),
-    );
+      // Wyświetl komunikat dla użytkownika.
+      window.dispatchEvent(
+        new CustomEvent("showMessage", {
+          detail: {
+            message:
+              "Twoja sesja wygasla lub nie masz uprawnien. Zaloguj sie ponownie.",
+            type: "warning",
+          },
+        }),
+      );
 
-    // Przeładuj stronę na stronę główną po chwili, aby użytkownik zobaczył komunikat.
-    console.log("Session expired (401). Reloading to homepage after delay...");
-    setTimeout(() => {
-      window.location.replace("/"); // Pełne przeładowanie na stronę główną
-    }, 1); // Opóźnienie na wyświetlenie komunikatu
+      // Przeładuj stronę na stronę główną po chwili, aby użytkownik zobaczył komunikat.
+      console.log(
+        "Sesja wygasła (401) dla innej ścieżki. Przeładowuję stronę główną po opóźnieniu...",
+      );
+      setTimeout(() => {
+        window.location.replace("/");
+      }, 700);
+    }
   }
 });
