@@ -188,11 +188,14 @@
 
               // 🚪 Wylogowanie
               clientSideLogout() {
-                  console.log('Wykonywanie clientSideLogout...');
+                  console.log('Wykonywanie clientSideLogout.');
                   localStorage.removeItem('jwtToken');
                   window.dispatchEvent(new CustomEvent('authChangedClient', { detail: { isAuthenticated: false } }));
                   this.isMobileMenuOpen = false;
+                  window.location.replace('/');
               }
+              
+              
           }"    
     x-init="
         initAlpine();

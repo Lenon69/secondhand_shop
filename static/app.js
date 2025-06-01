@@ -45,61 +45,46 @@ document.body.addEventListener("htmx:afterSwap", function (event) {
   }
 });
 
-// Centralny listener do obsługi zmian autoryzacji i przekierowań
-document.addEventListener("authChangedClient", (event) => {
+// --- Centralny listener authChangedClient ---
+// Teraz głównie odpowiedzialny za pełne przeładowanie strony na "/"
+document.addEventListener("authChangedClient", function (event) {
   console.log(
-    "authChangedClient: isAuthenticated:",
+    "app.js: authChangedClient RECEIVED. isAuthenticated:",
     event.detail.isAuthenticated,
-    "redirectUrl:",
-    event.detail.redirectUrl,
-    "current window.location.pathname:",
-    window.location.pathname,
-    "forceRedirect:",
-    event.detail.forceRedirect,
+    "Source:",
+    event.detail.source,
   );
 
   const isAuthenticated = event.detail.isAuthenticated;
-  let redirectUrl = event.detail.redirectUrl;
-  let pushUrl = event.detail.pushUrl || redirectUrl;
-  if (!isAuthenticated && !redirectUrl) {
-    redirectUrl = "/htmx/logowanie";
-    pushUrl = "/logowanie";
-  } else if (isAuthenticated && !redirectUrl) {
-    redirectUrl = "/htmx/moje-konto";
-    pushUrl = "/moje-konto";
-  }
-  // Jeśli event.detail zawierał redirectUrl, to zostanie on użyty.
+  const source = event.detail.source;
 
-  if (redirectUrl) {
-    const currentPath = window.location.pathname;
-    // Przekieruj, jeśli nie jesteśmy już na docelowej stronie lub jeśli wymuszono
-    if (currentPath !== pushUrl || event.detail.forceRedirect) {
-      console.log(
-        "app.js: authChangedClient - Performing HTMX redirect to",
-        redirectUrl,
-        "pushing",
-        pushUrl,
-      );
-      if (window.htmx) {
-        htmx.ajax("GET", redirectUrl, {
-          target: "#content", // Atrybut hx-target
-          swap: "innerHTML", // Atrybut hx-swap
-          pushUrl: pushUrl, // Atrybut hx-push-url
-        });
-      } else {
-        console.error("app.js: HTMX not available for redirection.");
-      }
-    } else {
-      console.log(
-        "app.js: authChangedClient - Redirect avoided. Current path is already target or no forceRedirect. Current:",
-        currentPath,
-        "Target pushUrl:",
-        pushUrl,
-      );
-    }
-  } else {
-    console.log("app.js: authChangedClient - No redirectUrl specified.");
+  // Sprawdzamy, czy URL to już "/" aby uniknąć niepotrzebnego przeładowania,
+  // chyba że jest to wymuszone (np. po jawnym logowaniu/wylogowaniu).
+  const isAlreadyHome = window.location.pathname === "/";
+
+  if (source === "login" && isAuthenticated) {
+    // Komunikat o sukcesie logowania powinien być już wyświetlony przez HX-Trigger z serwera
+    // lub przez listener 'loginSuccessDetails'.
+    console.log(
+      "app.js: authChangedClient - User logged in. Reloading to homepage.",
+    );
+    // Użyj replace, aby użytkownik nie mógł wrócić przyciskiem "wstecz" do strony logowania/konta
+    if (!isAlreadyHome || event.detail.forceReload) window.location.href("/");
+  } else if ((source === "logout" || source === "401") && !isAuthenticated) {
+    // Komunikat o wylogowaniu lub wygaśnięciu sesji jest emitowany przez inne listenery.
+    // Tutaj dodajemy opóźnienie, aby użytkownik zdążył zobaczyć komunikat przed przeładowaniem.
+    console.log(
+      "app.js: authChangedClient - User logged out or session expired. Reloading to homepage after delay.",
+    );
+    setTimeout(
+      () => {
+        if (!isAlreadyHome || event.detail.forceReload)
+          window.location.href("/");
+      },
+      source === "401" ? 1 : 1,
+    ); // Dłuższe opóźnienie dla komunikatu o błędzie 401
   }
+  // Inne przypadki 'authChangedClient' (jeśli takie są i nie mają 'source') nie spowodują przeładowania.
 });
 
 document.body.addEventListener("authChangedFromBackend", function (evt) {
@@ -122,31 +107,28 @@ document.body.addEventListener("authChangedFromBackend", function (evt) {
   }
 });
 
+// --- Listener dla "loginSuccessDetails" (z HX-Trigger od serwera) ---
 document.body.addEventListener("loginSuccessDetails", function (evt) {
   console.log("loginSuccessDetails: Detail:", evt.detail);
   if (evt.detail && evt.detail.token) {
     localStorage.setItem("jwtToken", evt.detail.token);
+    // Komunikat o sukcesie logowania jest już wysyłany przez serwer (HX-Trigger showMessage)
+    // i powinien zostać wyświetlony przez komponent Toast w Alpine.js.
+    // Czekamy chwilę, aby użytkownik mógł zobaczyć komunikat, a następnie przeładowujemy.
+    console.log("Login successful. Reloading to homepage...");
     setTimeout(() => {
-      window.dispatchEvent(
-        new CustomEvent("authChangedClient", {
-          detail: {
-            isAuthenticated: true,
-            redirectUrl: "/htmx/moje-konto",
-            pushUrl: "/moje-konto",
-            forceRedirect: true,
-          },
-        }),
-      );
-    }, 1); // Opóźnienie na wyświetlenie komunikatu
+      window.location.replace("/"); // Pełne przeładowanie na stronę główną
+    }, 700); // Krótkie opóźnienie na wyświetlenie komunikatu sukcesu
   } else {
     console.error(
       "[App.js] loginSuccessDetails event, but NO TOKEN:",
       evt.detail,
     );
+    // Wyświetl błąd, jeśli token nie dotarł
     window.dispatchEvent(
       new CustomEvent("showMessage", {
         detail: {
-          message: "Błąd logowania: brak tokenu (klient).",
+          message: "Blad logowania: brak tokenu (klient).",
           type: "error",
         },
       }),
@@ -194,7 +176,7 @@ document.body.addEventListener("htmx:afterOnLoad", function (evt) {
   }
 });
 
-// Listener htmx:responseError (Twój kod, lekko rozszerzony o console.log dla pewności)
+// Listener htmx:responseError
 document.body.addEventListener("htmx:responseError", function (evt) {
   const xhr = evt.detail.xhr;
   if (xhr.status === 401) {
@@ -202,18 +184,20 @@ document.body.addEventListener("htmx:responseError", function (evt) {
       "🔥 Otrzymano 401 Unauthorized – sesja mogła wygasnąć. Usuwam token.",
     );
     localStorage.removeItem("jwtToken");
-    console.log("Token JWT usunięty z localStorage."); // Dodatkowy log
+    console.log("Token JWT usunięty z localStorage.");
 
+    // Poinformuj Alpine.js o zmianie stanu (aby np. zaktualizował tekst linku)
+    // To zdarzenie nie będzie już inicjować nawigacji HTMX, jeśli Alpine je tylko konsumuje do zmiany stanu.
     window.dispatchEvent(
       new CustomEvent("authChangedClient", {
         detail: {
           isAuthenticated: false,
-          redirectUrl: "/htmx/logowanie",
-          pushUrl: "/logowanie",
-          forceRedirect: true,
+          // Nie potrzebujemy już redirectUrl/pushUrl/source tutaj, jeśli zawsze jest pełny reload
         },
       }),
     );
+
+    // Wyświetl komunikat dla użytkownika.
     window.dispatchEvent(
       new CustomEvent("showMessage", {
         detail: {
@@ -223,5 +207,11 @@ document.body.addEventListener("htmx:responseError", function (evt) {
         },
       }),
     );
+
+    // Przeładuj stronę na stronę główną po chwili, aby użytkownik zobaczył komunikat.
+    console.log("Session expired (401). Reloading to homepage after delay...");
+    setTimeout(() => {
+      window.location.replace("/"); // Pełne przeładowanie na stronę główną
+    }, 1); // Opóźnienie na wyświetlenie komunikatu
   }
 });
