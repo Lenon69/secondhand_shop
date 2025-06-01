@@ -1313,7 +1313,7 @@ pub async fn create_order_handler(
     // 6. Zaktualizuj status zamówionych produktów na 'Reserved'
     if !product_ids_to_mark_reserved.is_empty() {
         sqlx::query(r#"UPDATE products SET status = $1 WHERE id = ANY($2)"#)
-            .bind(ProductStatus::Reserved) // Status: Zarezerwowane
+            .bind(ProductStatus::Sold) // Status: Sprzedane
             .bind(&product_ids_to_mark_reserved)
             .execute(&mut *tx)
             .await?;
