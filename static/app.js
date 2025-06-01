@@ -239,3 +239,33 @@ document.body.addEventListener("htmx:responseError", function (evt) {
     }
   }
 });
+
+document.body.addEventListener("orderPlaced", function (evt) {
+  console.log("Order placed successfully:", evt.detail);
+  // Przekieruj na stronę główną (lub inną stronę podsumowania)
+  if (evt.detail.redirectTo) {
+    // Daj czas na wyświetlenie komunikatu o sukcesie
+    setTimeout(() => {
+      window.location.replace(evt.detail.redirectTo);
+    }, 1500); // 1.5 sekundy
+  }
+});
+
+document.body.addEventListener("clearCartDisplay", function (evt) {
+  console.log("Clearing cart display due to order placement.");
+  // Wyemituj zdarzenie, które zaktualizuje licznik koszyka w Alpine.js na 0
+  // i wyczyści wizualnie koszyk, jeśli jest otwarty.
+  // To jest bardziej złożone, bo `updateCartCount` oczekuje pełnych danych koszyka.
+  // Prostsze może być wywołanie przeładowania, które już się dzieje.
+  // Alternatywnie, Alpine.js może nasłuchiwać na 'orderPlaced' i zresetować swój stan koszyka.
+  // Na razie, pełne przeładowanie strony po 'orderPlaced' załatwi sprawę czyszczenia.
+  // Można też wysłać specyficzne zdarzenie do Alpine:
+  window.dispatchEvent(
+    new CustomEvent("js-update-cart", {
+      detail: { newCount: 0, newCartTotalPrice: 0 },
+      bubbles: true,
+    }),
+  );
+  // I zamknąć panel koszyka, jeśli jest otwarty (w Alpine)
+  // window.dispatchEvent(new CustomEvent('closeCartPanel'));
+});

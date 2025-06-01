@@ -2614,13 +2614,24 @@ pub async fn checkout_page_handler(
 
                     form #checkout-form
                          hx-post="/api/orders"
-                         hx-ext="json-enc"
+                         // hx-ext="json-enc"
                          // Rozważ, co ma się stać po wysłaniu. Może przekierowanie na stronę podsumowania/płatności?
                          // HX-Redirect z serwera byłby tu dobry.
-                         // hx-target="this" hx-swap="outerHTML" // Może nie być idealne
+                         hx-target="this" hx-swap="outerHTML" // Może nie być idealne
                          // Albo hx-target="#checkout-messages" hx-swap="innerHTML" dla komunikatów
                          class="space-y-6" {
                         div #checkout-messages {} // Miejsce na ewentualne komunikaty z formularza
+
+                        @if user_claims_result.is_err() { // Lub inna logika sprawdzająca, czy to gość
+                            div ."mt-4" {
+                                label for="guest_checkout_email" class="block text-sm font-medium text-gray-700 mb-1" { "Twój adres email *" }
+                                input type="email" id="guest_checkout_email" name="guest_checkout_email" required
+                                       placeholder="email@example.com"
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                p ."mt-1 text-xs text-gray-500" { "Potrzebny do potwierdzenia zamówienia, jeśli kupujesz jako gość." }
+                            }
+                        }
+
 
                         // Sekcja dostawy
                         fieldset ."bg-white p-6 rounded-lg shadow-sm border border-gray-200" {

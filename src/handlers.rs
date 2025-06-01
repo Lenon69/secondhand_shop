@@ -15,6 +15,7 @@ use crate::cart_utils::build_cart_details_response;
 use crate::cloudinary::{delete_image_from_cloudinary, extract_public_id_from_url};
 use crate::errors::AppError;
 use crate::filters::ListingParams;
+use crate::middleware::OptionalTokenClaims;
 use crate::models::Product;
 use crate::models::*;
 use crate::pagination::PaginatedProductsResponse;
@@ -25,7 +26,7 @@ use crate::{
 };
 use crate::{
     auth_models::{LoginPayload, RegistrationPayload, TokenClaims},
-    models::{CreateOrderFromCartPayload, Order, OrderStatus, ProductGender, ProductStatus},
+    models::{Order, OrderStatus, ProductGender, ProductStatus},
 };
 use futures::future::try_join_all;
 use std::collections::HashMap;
@@ -1076,47 +1077,101 @@ pub async fn protected_route_handler(claims: TokenClaims) -> Result<Json<Value>,
     ))
 }
 
+#[axum::debug_handler]
 pub async fn create_order_handler(
     State(app_state): State<AppState>,
-    claims: TokenClaims,
+    OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
+    guest_cart_id_header: Option<TypedHeader<XGuestCartId>>,
     Form(payload): Form<CheckoutFormPayload>,
-) -> Result<(StatusCode, Json<OrderDetailsResponse>), AppError> {
+) -> Result<(HeaderMap, StatusCode), AppError> {
+    // Zmieniono odpowiedź na (HeaderMap, StatusCode)
+    // Walidacja payloadu
     if let Err(validation_errors) = payload.validate() {
         tracing::warn!("Błąd walidacji danych checkout: {:?}", validation_errors);
-        return Err(AppError::Validation(format!(
-            "Błąd walidacji: {}",
-            validation_errors
-        )));
+        // Zwróć błędy w sposób, który HTMX może wyświetlić, np. przez HX-Trigger
+        let mut headers = HeaderMap::new();
+        let error_message_str = validation_errors.to_string(); // Prosty komunikat
+        headers.insert(
+            "HX-Trigger",
+            HeaderValue::from_str(&format!(
+                r#"{{"showMessage": {{"message": "Błędy w formularzu: {}", "type": "error"}}}}"#,
+                error_message_str.replace('"', "\\\"")
+            ))
+            .map_err(|_| {
+                AppError::InternalServerError("Failed to create HX-Trigger header".to_string())
+            })?,
+        );
+        headers.insert("HX-Reswap", HeaderValue::from_static("none"));
+        return Ok((headers, StatusCode::UNPROCESSABLE_ENTITY));
     }
 
-    let user_id = claims.sub;
-    tracing::info!(
-        "Użytkownik {} próbuje złożyć zamówienie na podstawie koszyka.",
-        user_id
-    );
+    let mut order_user_id: Option<Uuid> = None;
+    let mut order_guest_email: Option<String> = None;
+    let mut order_guest_session_id: Option<Uuid> = None;
 
-    // Rozpocznij transakcję
-    let mut tx = app_state.db_pool.begin().await.map_err(|e| {
-        tracing::error!(
-            "Nie można rozpocząć transakcji (tworzenie zamówienia): {}",
-            e
+    let cart_query_id: Uuid;
+    let cart_selector_sql: String;
+
+    if let Some(claims) = user_claims_opt {
+        // Użytkownik zalogowany
+        let user_id = claims.sub;
+        order_user_id = Some(user_id);
+        cart_query_id = user_id;
+        cart_selector_sql =
+            "SELECT * FROM shopping_carts WHERE user_id = $1 FOR UPDATE".to_string();
+        tracing::info!("Zalogowany użytkownik {} składa zamówienie.", user_id);
+    } else if let Some(TypedHeader(XGuestCartId(guest_id))) = guest_cart_id_header {
+        // Użytkownik-gość
+        order_guest_session_id = Some(guest_id);
+        cart_query_id = guest_id;
+        cart_selector_sql =
+            "SELECT * FROM shopping_carts WHERE guest_session_id = $1 FOR UPDATE".to_string();
+
+        // Dla gościa, email jest wymagany
+        if payload.guest_checkout_email.is_none()
+            || payload
+                .guest_checkout_email
+                .as_deref()
+                .unwrap_or("")
+                .trim()
+                .is_empty()
+        {
+            tracing::warn!("Gość próbował złożyć zamówienie bez podania emaila.");
+            let mut headers = HeaderMap::new();
+            headers.insert("HX-Trigger", HeaderValue::from_static(r#"{"showMessage": {"message": "Adres email jest wymagany dla zamówień gości.", "type": "error"}}"#));
+            headers.insert("HX-Reswap", HeaderValue::from_static("none"));
+            return Ok((headers, StatusCode::UNPROCESSABLE_ENTITY));
+        }
+        order_guest_email = payload
+            .guest_checkout_email
+            .clone()
+            .filter(|s| !s.is_empty());
+        tracing::info!(
+            "Gość (sesja: {:?}, email: {:?}) składa zamówienie.",
+            guest_id,
+            order_guest_email
         );
-        AppError::InternalServerError("Błąd serwera podczas tworzenia zamówienia.".to_string())
-    })?;
+    } else {
+        // Ani zalogowany, ani nagłówek gościa - błąd
+        tracing::error!("Próba złożenia zamówienia bez identyfikacji użytkownika lub gościa.");
+        return Err(AppError::UnauthorizedAccess(
+            "Nie można zidentyfikować użytkownika ani sesji gościa.".to_string(),
+        ));
+    }
 
-    // 1. Znajdź koszyk użytkownika i jego pozycje (z blokadą)
-    let cart = match sqlx::query_as::<_, ShoppingCart>(
-        "SELECT * FROM shopping_carts WHERE user_id = $1 FOR UPDATE",
-    )
-    .bind(user_id)
-    .fetch_optional(&mut *tx)
-    .await?
+    let mut tx = app_state.db_pool.begin().await?;
+
+    // 1. Znajdź koszyk (użytkownika lub gościa) i jego pozycje
+    let cart = match sqlx::query_as::<_, ShoppingCart>(&cart_selector_sql)
+        .bind(cart_query_id)
+        .fetch_optional(&mut *tx)
+        .await?
     {
         Some(c) => c,
         None => {
             tracing::warn!(
-                "Użytkownik {} próbował złożyć zamówienie, ale nie ma koszyka.",
-                user_id
+                "Nie znaleziono koszyka dla identyfikatora: {}",
+                cart_query_id
             );
             return Err(AppError::UnprocessableEntity(
                 "Twój koszyk nie został znaleziony lub jest pusty.".to_string(),
@@ -1124,220 +1179,176 @@ pub async fn create_order_handler(
         }
     };
 
-    let cart_items_db = sqlx::query_as::<_, CartItem>(
-        "SELECT * FROM cart_items WHERE cart_id = $1 FOR UPDATE", // Blokujemy pozycje koszyka
-    )
-    .bind(cart.id)
-    .fetch_all(&mut *tx)
-    .await?;
+    let cart_items_db =
+        sqlx::query_as::<_, CartItem>("SELECT * FROM cart_items WHERE cart_id = $1 FOR UPDATE")
+            .bind(cart.id)
+            .fetch_all(&mut *tx)
+            .await?;
 
     if cart_items_db.is_empty() {
-        tracing::warn!(
-            "Użytkownik {} próbował złożyć zamówienie z pustym koszykiem (cart_id: {}).",
-            user_id,
-            cart.id
-        );
+        tracing::warn!("Koszyk (ID: {}) jest pusty.", cart.id);
         return Err(AppError::UnprocessableEntity(
             "Twój koszyk jest pusty.".to_string(),
         ));
     }
 
-    // 2. Przetwórz pozycje z koszyka: sprawdź produkty, zbierz dane do OrderItem
-    let mut order_items_to_create: Vec<(Uuid, i64)> = Vec::with_capacity(cart_items_db.len()); // (product_id, price_at_purchase)
-    let mut total_price: i64 = 0;
-    let mut product_ids_to_mark_sold: Vec<Uuid> = Vec::new();
+    // 2. Przetwórz pozycje koszyka (logika pozostaje podobna)
+    let mut order_items_to_create: Vec<(Uuid, i64)> = Vec::with_capacity(cart_items_db.len());
+    let mut total_price_items: i64 = 0; // Tylko suma produktów
+    let mut product_ids_to_mark_reserved: Vec<Uuid> = Vec::new();
 
     for cart_item in &cart_items_db {
-        // Iterujemy po referencjach
-        let product = sqlx::query_as::<_, Product>(
-            "SELECT * FROM products WHERE id = $1 FOR UPDATE", // Blokujemy produkt
-        )
-        .bind(cart_item.product_id)
-        .fetch_optional(&mut *tx) // Produkt mógł zostać usunięty przez admina w międzyczasie
-        .await?;
+        let product =
+            sqlx::query_as::<_, Product>("SELECT * FROM products WHERE id = $1 FOR UPDATE")
+                .bind(cart_item.product_id)
+                .fetch_optional(&mut *tx)
+                .await?;
 
         match product {
             Some(p) => {
                 if p.status != ProductStatus::Available {
                     tracing::warn!(
-                        "Produkt {} (ID: {}) w koszyku użytkownika {} jest już niedostępny (status: {:?}).",
+                        "Produkt {} (ID: {}) w koszyku jest niedostępny (status: {:?}).",
                         p.name,
                         p.id,
-                        user_id,
                         p.status
                     );
-                    // Można rozważyć usunięcie tej pozycji z koszyka i poinformowanie użytkownika,
-                    // lub po prostu przerwanie tworzenia zamówienia.
                     return Err(AppError::UnprocessableEntity(format!(
-                        "Produkt '{}' w Twoim koszyku stał się niedostępny. Usuń go z koszyka i spróbuj ponownie.",
+                        "Produkt '{}' w Twoim koszyku stał się niedostępny.",
                         p.name
                     )));
                 }
-                order_items_to_create.push((p.id, p.price)); // Zapisujemy aktualną cenę jako price_at_purchase
-                total_price += p.price;
-                product_ids_to_mark_sold.push(p.id);
+                order_items_to_create.push((p.id, p.price));
+                total_price_items += p.price;
+                product_ids_to_mark_reserved.push(p.id);
             }
             None => {
-                // Produkt został usunięty z bazy, podczas gdy był w koszyku.
-                // Usuń tę pozycję z koszyka (dla czystości) i poinformuj użytkownika.
                 tracing::error!(
-                    "Produkt o ID {} (z koszyka użytkownika {}) nie został znaleziony w bazie. Usuwam z koszyka.",
-                    cart_item.product_id,
-                    user_id
+                    "Produkt o ID {} (z koszyka) nie został znaleziony w bazie.",
+                    cart_item.product_id
                 );
-                sqlx::query("DELETE FROM cart_items WHERE id = $1")
-                    .bind(cart_item.id)
-                    .execute(&mut *tx)
-                    .await?; // Ignorujemy błąd, jeśli usunięcie się nie powiedzie, główny problem to brak produktu
-                return Err(AppError::UnprocessableEntity(
-                    "Jeden z produktów w Twoim koszyku został usunięty ze sklepu. Odśwież koszyk i spróbuj ponownie.".to_string()
+                // Rozważ usunięcie tej pozycji z koszyka, ale lepiej przerwać proces
+                return Err(AppError::InternalServerError(
+                    "Błąd spójności danych: produkt z koszyka nie istnieje.".to_string(),
                 ));
             }
         }
     }
 
+    // TODO: Dodaj logikę dla kosztów dostawy - na razie total_price to suma produktów
+    let shipping_cost: i64 = 0; // Placeholder - zaimplementuj wybór i koszt dostawy
+    let final_total_price = total_price_items + shipping_cost;
+
     // 3. Wstaw rekord do tabeli `orders`
-    let initial_status = OrderStatus::Pending; // Początkowy status
-    let order = sqlx::query_as::<_, Order>(
-        // Zwracamy pełny obiekt Order
+    let initial_status = OrderStatus::Pending;
+    let order_id = Uuid::new_v4(); // Generujemy ID zamówienia
+
+    sqlx::query(
         r#"
-            INSERT INTO orders (user_id, status, total_price,
-                                shipping_address_line1, shipping_address_line2,
-                                shipping_city, shipping_postal_code, shipping_country)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING id, user_id, order_date, status, total_price,
-                      shipping_address_line1, shipping_address_line2,
-                      shipping_city, shipping_postal_code, shipping_country,
-                      created_at, updated_at
+            INSERT INTO orders (
+                id, user_id, guest_email, guest_session_id, status, total_price,
+                shipping_first_name, shipping_last_name,
+                shipping_address_line1, shipping_address_line2,
+                shipping_city, shipping_postal_code, shipping_country
+                -- shipping_phone, -- Dodaj, jeśli masz tę kolumnę
+                -- Tutaj dodaj pola dla adresu do faktury, jeśli są oddzielne i zapisywane w `orders`
+                -- billing_first_name, billing_last_name, etc.
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         "#,
     )
-    .bind(user_id)
+    .bind(order_id)
+    .bind(order_user_id) // Może być NULL
+    .bind(option_string_empty_as_none(order_guest_email)) // Może być NULL
+    .bind(order_guest_session_id) // Może być NULL
     .bind(initial_status)
-    .bind(total_price)
+    .bind(final_total_price) // Całkowita cena z dostawą
+    .bind(&payload.shipping_first_name)
+    .bind(&payload.shipping_last_name)
     .bind(&payload.shipping_address_line1)
-    .bind(payload.shipping_address_line2.as_deref())
+    .bind(option_string_empty_as_none(payload.shipping_address_line2.clone()))
     .bind(&payload.shipping_city)
     .bind(&payload.shipping_postal_code)
     .bind(&payload.shipping_country)
-    .fetch_one(&mut *tx)
+    // .bind(&payload.shipping_phone) // Odkomentuj, jeśli masz kolumnę
+    .execute(&mut *tx)
     .await?;
 
+    // Pobierz właśnie utworzone zamówienie (lub przynajmniej jego ID i user_id/guest_email)
+    // Aby uniknąć N+1 przy budowaniu OrderDetailsResponse, OrderDetailsResponse nie jest już zwracane.
+    // Zamiast tego, po sukcesie wysyłamy HX-Redirect lub odpowiedni trigger.
+
     // 4. Wstaw rekordy do tabeli `order_items`
-    let mut created_order_items_db: Vec<OrderItem> =
-        Vec::with_capacity(order_items_to_create.len());
     for (product_id, price_at_purchase) in order_items_to_create {
-        let oi = sqlx::query_as::<_, OrderItem>(
+        sqlx::query(
             r#"
                 INSERT INTO order_items (order_id, product_id, price_at_purchase)
                 VALUES ($1, $2, $3)
-                RETURNING id, order_id, product_id, price_at_purchase 
-            "#, // W strukturze OrderItem nie ma added_at, jeśli tak zdefiniowałeś
-        )
-        .bind(order.id)
-        .bind(product_id)
-        .bind(price_at_purchase)
-        .fetch_one(&mut *tx)
-        .await?;
-        created_order_items_db.push(oi);
-    }
-
-    // 5. Wyczyść koszyk użytkownika (usuń wszystkie pozycje z cart_items dla tego cart_id)
-    let deleted_cart_items = sqlx::query("DELETE FROM cart_items WHERE cart_id = $1")
-        .bind(cart.id)
-        .execute(&mut *tx)
-        .await?
-        .rows_affected();
-    tracing::info!(
-        "Wyczyszczono {} pozycji z koszyka {} dla użytkownika {}",
-        deleted_cart_items,
-        cart.id,
-        user_id
-    );
-    // Można też zaktualizować `updated_at` w `shopping_carts` lub poczekać na trigger, jeśli jest
-
-    // 6. Zaktualizuj status zamówionych produktów na 'Sold'
-    if !product_ids_to_mark_sold.is_empty() {
-        sqlx::query(
-            r#"
-                UPDATE products
-                SET status = $1
-                WHERE id = ANY($2)
             "#,
         )
-        .bind(ProductStatus::Sold)
-        .bind(&product_ids_to_mark_sold)
+        .bind(order_id)
+        .bind(product_id)
+        .bind(price_at_purchase)
         .execute(&mut *tx)
         .await?;
     }
 
-    // 7. Zatwierdź transakcję
-    tx.commit().await.map_err(|e| {
-        tracing::error!(
-            "Nie można zatwierdzić transakcji (tworzenie zamówienia): {}",
-            e
+    // 5. Wyczyść koszyk (użytkownika lub gościa)
+    sqlx::query("DELETE FROM cart_items WHERE cart_id = $1")
+        .bind(cart.id)
+        .execute(&mut *tx)
+        .await?;
+    // Opcjonalnie, jeśli koszyk gościa ma być całkowicie usunięty po zamówieniu
+    if order_user_id.is_none() && cart.guest_session_id.is_some() {
+        sqlx::query("DELETE FROM shopping_carts WHERE id = $1")
+            .bind(cart.id)
+            .execute(&mut *tx)
+            .await?;
+        tracing::info!(
+            "Usunięto koszyk gościa (ID: {}) po złożeniu zamówienia.",
+            cart.id
         );
-        AppError::InternalServerError("Błąd serwera podczas finalizowania zamówienia.".to_string())
-    })?;
-
-    tracing::info!(
-        "Utworzono nowe zamówienie ID: {} na podstawie koszyka dla użytkownika {}",
-        order.id,
-        user_id
-    );
-
-    // 8. Przygotuj odpowiedź OrderDetailsResponse
-    let mut order_items_details_public: Vec<OrderItemDetailsPublic> =
-        Vec::with_capacity(created_order_items_db.len());
-
-    if !created_order_items_db.is_empty() {
-        // Sprawdź, czy są jakieś pozycje
-        let product_ids_for_response: Vec<Uuid> = created_order_items_db
-            .iter()
-            .map(|oi_db| oi_db.product_id)
-            .collect();
-
-        let products_for_response =
-            sqlx::query_as::<_, Product>("SELECT * FROM products WHERE id = ANY($1)")
-                .bind(&product_ids_for_response)
-                .fetch_all(&app_state.db_pool) // Poza transakcją
-                .await?;
-
-        let products_map_for_response: std::collections::HashMap<Uuid, Product> =
-            products_for_response
-                .into_iter()
-                .map(|p| (p.id, p))
-                .collect();
-
-        for item_db in created_order_items_db {
-            // created_order_items_db już istnieje
-            if let Some(product) = products_map_for_response.get(&item_db.product_id) {
-                order_items_details_public.push(OrderItemDetailsPublic {
-                    order_item_id: item_db.id,
-                    product: product.clone(),
-                    price_at_purchase: item_db.price_at_purchase,
-                });
-            } else {
-                // To byłby poważny błąd, produkt powinien istnieć, skoro był w zamówieniu
-                tracing::error!(
-                    "Krytyczny błąd: Produkt (ID: {}) dla pozycji zamówienia (ID: {}) nie znaleziony po utworzeniu zamówienia. OrderID: {}.",
-                    item_db.product_id,
-                    item_db.id,
-                    order.id
-                );
-                // Można zwrócić błąd lub kontynuować z brakującym produktem (co jest gorsze)
-                return Err(AppError::InternalServerError(
-                    "Błąd spójności danych po utworzeniu zamówienia.".to_string(),
-                ));
-            }
-        }
     }
 
-    let response = OrderDetailsResponse {
-        order, // To jest obiekt Order zwrócony z INSERT INTO orders
-        items: order_items_details_public,
-    };
+    // 6. Zaktualizuj status zamówionych produktów na 'Reserved'
+    if !product_ids_to_mark_reserved.is_empty() {
+        sqlx::query(r#"UPDATE products SET status = $1 WHERE id = ANY($2)"#)
+            .bind(ProductStatus::Reserved) // Status: Zarezerwowane
+            .bind(&product_ids_to_mark_reserved)
+            .execute(&mut *tx)
+            .await?;
+    }
 
-    Ok((StatusCode::CREATED, Json(response)))
+    tx.commit().await?;
+
+    tracing::info!("Utworzono nowe zamówienie ID: {}", order_id);
+
+    // Przygotuj odpowiedź dla HTMX
+    let mut headers = HeaderMap::new();
+    // Przekieruj na stronę podsumowania zamówienia lub stronę główną z komunikatem
+    // np. /zamowienie/dziekujemy/{order_id}
+    // Na razie prosty komunikat i sugestia przeładowania strony przez JS klienta
+    let success_payload = serde_json::json!({
+        "showMessage": {
+            "message": "Twoje zamówienie zostało pomyślnie złożone!",
+            "type": "success"
+        },
+        "orderPlaced": { // Niestandardowe zdarzenie, które JS może obsłużyć
+            "orderId": order_id.to_string(),
+            "redirectTo": "/" // lub "/moje-konto/zamowienia"
+        },
+        "clearCartDisplay": {} // Sygnał do wyczyszczenia wyświetlania koszyka
+    });
+    headers.insert(
+        "HX-Trigger",
+        HeaderValue::from_str(&success_payload.to_string()).map_err(|_| {
+            AppError::InternalServerError("Failed to create HX-Trigger header".to_string())
+        })?,
+    );
+    // HX-Redirect może być lepszy, jeśli masz dedykowaną stronę "dziękujemy"
+    // headers.insert("HX-Redirect", HeaderValue::from_static("/zamowienie/dziekujemy"));
+
+    Ok((headers, StatusCode::OK)) // Zwracamy OK, resztę obsługuje HTMX po stronie klienta
 }
 
 pub async fn list_orders_handler(
@@ -1413,7 +1424,7 @@ pub async fn get_order_details_handler(
     };
 
     // 2. Autoryzacja
-    if user_role != Role::Admin && order.user_id != user_id {
+    if user_role != Role::Admin && order.user_id != Some(user_id) {
         tracing::warn!(
             "Nieautoryzowany dostęp do zamówienia: order_id={}, user_id={}, user_role={:?}",
             order_id,

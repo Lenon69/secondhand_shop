@@ -164,30 +164,28 @@ pub struct OrderItem {
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, Validate)]
 pub struct Order {
     pub id: Uuid,
-    pub user_id: Uuid,
+    pub user_id: Option<Uuid>, // ZMIANA: Teraz opcjonalne
     pub order_date: DateTime<Utc>,
     pub status: OrderStatus,
     pub total_price: i64,
 
     #[validate(length(min = 1, max = 255))]
     pub shipping_address_line1: String,
-
     #[validate(length(max = 255))]
-    pub shipping_address_line2: String,
-
+    pub shipping_address_line2: Option<String>, // Już było Option<String>
     #[validate(length(min = 1, max = 100))]
     pub shipping_city: String,
-
     #[validate(length(min = 1, max = 20))]
     pub shipping_postal_code: String,
-
     #[validate(length(min = 1, max = 100))]
     pub shipping_country: String,
+    #[validate(email)]
+    pub guest_email: Option<String>,
+    pub guest_session_id: Option<Uuid>,
 
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
-
 // --- STRUKTURY PAYLOAD DLA HANDLERÓW ZAMÓWIEŃ ---
 
 /// Reprezentuje pojedyńczy produkt w payloadzie tworzenia zamówienia
@@ -374,16 +372,16 @@ impl Default for UserShippingDetails {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Validate)] // Dodano Validate
+#[derive(Debug, Clone, Deserialize, Validate)]
 pub struct CheckoutFormPayload {
     // Dane dostawy
-    #[validate(length(min = 3, message = "Imię do wysyłki jest wymagane."))]
+    #[validate(length(min = 1, message = "Imię do wysyłki jest wymagane."))]
     pub shipping_first_name: String,
-    #[validate(length(min = 2, message = "Nazwisko do wysyłki jest wymagane."))]
+    #[validate(length(min = 1, message = "Nazwisko do wysyłki jest wymagane."))]
     pub shipping_last_name: String,
     #[validate(length(min = 1, message = "Adres (linia 1) do wysyłki jest wymagany."))]
     pub shipping_address_line1: String,
-    pub shipping_address_line2: Option<String>, // Opcjonalne
+    pub shipping_address_line2: Option<String>,
     #[validate(length(min = 1, message = "Miasto do wysyłki jest wymagane."))]
     pub shipping_city: String,
     #[validate(length(min = 1, message = "Kod pocztowy do wysyłki jest wymagany."))]
@@ -393,15 +391,12 @@ pub struct CheckoutFormPayload {
     #[validate(length(min = 1, message = "Telefon do wysyłki jest wymagany."))]
     pub shipping_phone: String,
 
-    // Checkbox i dane do faktury
-    // Dla checkboxa, jeśli nie jest zaznaczony, pole nie zostanie wysłane.
-    // Jeśli jest zaznaczony, wyśle wartość "on" (lub inną, jeśli zdefiniowano value).
-    // Serde dla Form potrafi zmapować "on" na bool true, a brak pola na false (jeśli pole jest Option<bool> lub domyślnie false).
-    // Lub można użyć String i sprawdzić wartość. Dla prostoty, użyjmy Option<String> dla checkboxa.
-    pub billing_same_as_shipping: Option<String>, // Będzie Some("on") jeśli zaznaczone, None jeśli nie
+    // Email dla gościa - staje się wymagany, jeśli użytkownik nie jest zalogowany.
+    // Walidację "wymagane jeśli gość" trzeba będzie zrobić w logice handlera.
+    #[validate(email(message = "Nieprawidłowy format adresu email."))]
+    pub guest_checkout_email: Option<String>, // Pole dla emaila gościa
 
-    // Pola billingowe są opcjonalne w logice formularza (ukrywane/pokazywane)
-    // Jeśli są wysyłane, a puste, będą Some(""). Jeśli nie są wysyłane (bo ukryte), będą None.
+    pub billing_same_as_shipping: Option<String>,
     pub billing_first_name: Option<String>,
     pub billing_last_name: Option<String>,
     pub billing_address_line1: Option<String>,
@@ -409,10 +404,7 @@ pub struct CheckoutFormPayload {
     pub billing_city: Option<String>,
     pub billing_postal_code: Option<String>,
     pub billing_country: Option<String>,
-    // NIP dla faktury, jeśli potrzebny
-    pub billing_nip: Option<String>,
 
-    // Metoda płatności
     #[validate(length(min = 1, message = "Metoda płatności jest wymagana."))]
-    pub payment_method: String, // np. "blik", "transfer"
+    pub payment_method: String,
 }

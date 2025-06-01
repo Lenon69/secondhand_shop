@@ -23,7 +23,7 @@ pub struct LoginPayload {
     pub password: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct TokenClaims {
     pub sub: Uuid,
     pub role: Role,
