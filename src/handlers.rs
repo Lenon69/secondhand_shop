@@ -208,6 +208,7 @@ pub async fn list_products(
 
     let sort_by_column = match params.sort_by() {
         "price" => "price",
+        "created_at" => "created_at",
         "name" | _ => "name",
     };
     let order_direction = params.order();

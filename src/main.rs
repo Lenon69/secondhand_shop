@@ -178,12 +178,16 @@ async fn main() {
         .route("/admin", get(admin_dashboard_htmx_handler))
         .route("/htmx/admin", get(admin_dashboard_htmx_handler))
         .route(
-            "/htmx/admin/produkty",
+            "/htmx/admin/products",
             get(admin_products_list_htmx_handler),
         )
         .route(
-            "/htmx/admin/produkty/nowy-formularz",
+            "/htmx/admin/products/new-form",
             get(admin_product_new_form_htmx_handler),
+        )
+        .route(
+            "/products/:product_id",
+            get(serve_single_product_page_handler),
         )
         .nest_service("/static", ServeDir::new("static"))
         .layer(TraceLayer::new_for_http())

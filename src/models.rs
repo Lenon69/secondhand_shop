@@ -22,7 +22,9 @@ pub enum ProductCondition {
     Good,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display, EnumIter, AsRefStr,
+)]
 #[sqlx(type_name = "product_status")]
 #[strum(ascii_case_insensitive)]
 pub enum ProductStatus {

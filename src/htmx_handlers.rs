@@ -3138,7 +3138,6 @@ pub async fn my_order_details_htmx_handler(
         let product_ids: Vec<Uuid> = order_items_db.iter().map(|item| item.product_id).collect();
 
         let products_db = sqlx::query_as::<_, Product>(
-            // Upewnij się, że SELECT zawiera wszystkie pola struktury Product
             r#"
                 SELECT id, name, description, price, gender, condition, category, status, images, created_at, updated_at
                 FROM products
@@ -3290,7 +3289,7 @@ pub async fn admin_dashboard_htmx_handler(claims: TokenClaims) -> Result<Markup,
             // Sidebar nawigacyjny admina
             nav ."w-full md:w-64 bg-gray-800 text-white p-4 space-y-2" {
                 h2 ."text-xl font-semibold mb-4" { "Panel Admina" }
-                a href="/htmx/admin/produkty" hx-get="/htmx/admin/produkty" hx-target="#admin-content" hx-swap="innerHTML"
+                a href="/htmx/admin/products" hx-get="/htmx/admin/products" hx-target="#admin-content" hx-swap="innerHTML"
                    class="block py-2 px-3 rounded hover:bg-gray-700" { "Zarządzaj Produktami" }
                 a href="/htmx/admin/zamowienia" hx-get="/htmx/admin/zamowienia" hx-target="#admin-content" hx-swap="innerHTML"
                    class="block py-2 px-3 rounded hover:bg-gray-700" { "Zarządzaj Zamówieniami" }
@@ -3313,6 +3312,7 @@ pub async fn admin_dashboard_htmx_handler(claims: TokenClaims) -> Result<Markup,
         }
     })
 }
+
 pub async fn admin_products_list_htmx_handler(
     State(app_state): State<AppState>,
     claims: TokenClaims,
@@ -3324,88 +3324,273 @@ pub async fn admin_products_list_htmx_handler(
         ));
     }
     tracing::info!(
-        "Admin ID {} żąda listy produktów dla admina z parametrami: {:?}",
+        "Admin ID {} żąda listy produktów (admin view) z parametrami: {:?}",
         claims.sub,
         params
     );
 
-    // Admin domyślnie widzi wszystkie statusy, chyba że poda inny w query params
-    if params.status.is_none() {}
-    // Admin może chcieć widzieć więcej produktów na stronie
-    if params.limit.is_none() {
-        params.limit = Some(25);
-    }
+    // Admin domyślnie widzi wszystkie statusy, params.status jest Option<ProductStatus>
+    // Jeśli `params.status` jest None, funkcja `list_products` nie powinna filtrować po statusie.
+    // To wymagało modyfikacji `handlers::list_products` (jak omawialiśmy).
 
-    // Wywołanie istniejącej logiki pobierania produktów
-    // `list_products` zwraca Result<Json<PaginatedProductsResponse>, AppError>
-    // Musimy rozpakować Json.
+    // Domyślny limit dla admina, jeśli nie podany
+    if params.limit.is_none() {
+        params.limit = Some(20); // Możesz ustawić inny domyślny limit dla admina
+    }
+    let current_limit = params.limit(); // Używamy metody z ListingParams
+
+    // Wywołanie logiki pobierania produktów
     let paginated_response_json =
         crate::handlers::list_products(State(app_state.clone()), Query(params.clone())).await?;
     let paginated_response: PaginatedProductsResponse = paginated_response_json.0;
 
     Ok(html! {
-        div #admin-product-list-container {
-            h3 ."text-xl font-semibold mb-4" { "Lista Produktów" }
-            // TODO: Dodaj filtry dla admina (status, kategoria, etc.)
+        div #admin-product-list-container ."p-1" { // Mniejszy padding dla kontenera, główne paddingi są na #admin-content
 
-            // Przycisk do dodawania nowego produktu
-            div ."mb-4" {
-                a href="/htmx/admin/produkty/nowy-formularz"
-                   hx-get="/htmx/admin/produkty/nowy-formularz"
-                   hx-target="#admin-content"
+            // Nagłówek i przycisk dodawania
+            div ."flex flex-col sm:flex-row justify-between items-center mb-6 gap-4" {
+                h3 ."text-2xl font-semibold text-gray-800" { "Zarządzanie Produktami" }
+                a href="/htmx/admin/products/new-form" // Używamy angielskiej ścieżki
+                   hx-get="/htmx/admin/products/new-form"
+                   hx-target="#admin-content" // Ładuje formularz do głównego kontenera admina
                    hx-swap="innerHTML"
-                   class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded" {
-                    "Dodaj Nowy Produkt"
+                   class="bg-pink-600 hover:bg-pink-700 text-white font-semibold py-2 px-5 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out text-sm inline-flex items-center" {
+                    svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 mr-2"{
+                        path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" {}
+                    }
+                    "Dodaj Produkt"
                 }
             }
 
-            table ."min-w-full bg-white border border-gray-300" {
-                thead ."bg-gray-200" {
-                    tr {
-                        th ."px-4 py-2 border-b text-left" { "ID" }
-                        th ."px-4 py-2 border-b text-left" { "Nazwa" }
-                        th ."px-4 py-2 border-b text-left" { "Cena" }
-                        th ."px-4 py-2 border-b text-left" { "Status" }
-                        th ."px-4 py-2 border-b text-left" { "Kategoria" }
-                        th ."px-4 py-2 border-b text-left" { "Akcje" }
-                    }
-                }
-                tbody {
-                    @if paginated_response.data.is_empty() {
-                        tr {
-                            td colspan="6" ."px-4 py-3 text-center text-gray-500" { "Brak produktów." }
+            // Formularz filtrów
+            form hx-get="/htmx/admin/products" // Ścieżka do tego samego handlera
+                 hx-target="#admin-product-list-container" // Odświeża ten kontener
+                 hx-swap="outerHTML"
+                 class="mb-6 p-4 bg-white rounded-lg shadow-sm border border-gray-200" {
+                div ."grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-end" {
+                    // Filtr kategorii
+                    div {
+                        label for="filter_category" ."block text-sm font-medium text-gray-700 mb-1" { "Kategoria:" }
+                        select name="category" id="filter_category"
+                               class="block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm" {
+                            option value="" selected[params.category.is_none()] { "Wszystkie Kategorie" }
+                            @for cat_variant in Category::iter() {
+                                option value=(cat_variant.as_ref()) selected[params.category.as_ref() == Some(&cat_variant)] { (cat_variant.to_string()) }
+                            }
                         }
                     }
-                    @for product in &paginated_response.data {
-                        tr ."hover:bg-gray-50" {
-                            td ."px-4 py-2 border-b text-xs" { (product.id.to_string().chars().take(8).collect::<String>()) }
-                            td ."px-4 py-2 border-b" { (product.name) }
-                            td ."px-4 py-2 border-b" { (format_price_maud(product.price)) } // Użyj swojej funkcji
-                            td ."px-4 py-2 border-b" { (product.status.to_string()) } // Będzie polska nazwa, jeśli OrderStatus ma Display z strum
-                            td ."px-4 py-2 border-b" { (product.category.to_string()) }
-                            td ."px-4 py-2 border-b space-x-2" {
-                                a href=(format!("/htmx/admin/produkty/{}/edytuj", product.id))
-                                   hx-get=(format!("/htmx/admin/produkty/{}/edytuj", product.id))
-                                   hx-target="#admin-content"
-                                   hx-swap="innerHTML"
-                                   class="text-blue-500 hover:underline text-xs" { "Edytuj" }
+                    // Filtr statusu
+                    div {
+                        label for="filter_status" ."block text-sm font-medium text-gray-700 mb-1" { "Status:" }
+                        select name="status" id="filter_status"
+                               class="block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm" {
+                            option value="" selected[params.status.is_none()] { "Wszystkie Statusy" } // Pozwala adminowi nie filtrować po statusie
+                            @for status_variant in ProductStatus::iter() {
+                                option value=(status_variant.as_ref()) selected[params.status.as_ref() == Some(&status_variant)] { (status_variant.to_string()) }
+                            }
+                        }
+                    }
+                    // Wyszukiwanie tekstowe
+                    div {
+                        label for="search_query" ."block text-sm font-medium text-gray-700 mb-1" { "Szukaj:" }
+                        input type="search" name="search" id="search_query"
+                               value=[params.search.as_deref()]
+                               placeholder="Nazwa, opis..."
+                               class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                    }
+                    // Przyciski formularza filtrów
+                    div ."flex space-x-2" {
+                        button type="submit"
+                               class="w-full sm:w-auto bg-gray-700 hover:bg-gray-800 text-white font-semibold py-2 px-4 rounded-md shadow-sm text-sm transition-colors" {
+                            "Filtruj"
+                        }
+                        // Przycisk do resetowania filtrów (link do tej samej strony bez parametrów)
+                        a href="/htmx/admin/products" hx-get="/htmx/admin/products"
+                           hx-target="#admin-product-list-container" hx-swap="outerHTML"
+                           class="w-full sm:w-auto block text-center bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-2 px-4 rounded-md shadow-sm text-sm transition-colors" {
+                            "Resetuj"
+                        }
+                    }
+                }
+            }
 
-                                button hx-delete=(format!("/api/products/{}", product.id))
-                                       hx-confirm="Czy na pewno chcesz usunąć ten produkt?"
-                                       // Po usunięciu, odśwież listę produktów
-                                       hx-target="#admin-product-list-container" // Celuje w kontener listy + paginacji
-                                       hx-swap="outerHTML" // Zastępuje cały kontener, aby odświeżyć
-                                       // Można też użyć hx-trigger="htmx:afterOnLoad from:closest tr" hx-swap="delete" na `tr`
-                                       // lub hx-trigger="deleteProductSuccess from:body"
-                                       class="text-red-500 hover:underline text-xs" { "Usuń" }
+            // Tabela produktów
+            div ."overflow-x-auto bg-white rounded-lg shadow-md border border-gray-200" {
+                table ."min-w-full divide-y divide-gray-200" {
+                    thead ."bg-gray-100" {
+                        tr {
+                            th ."px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider" { "Zdjęcie" }
+                            th ."px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider" {
+                                (sort_link("/htmx/admin/products", &params, "name", "Nazwa"))
+                            }
+                            th ."px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider" {
+                                (sort_link("/htmx/admin/products", &params, "price", "Cena"))
+                            }
+                            th ."px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider" { "Status" }
+                            th ."px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider" { "Kategoria" }
+                            // Załóżmy, że masz created_at w Product i ListingParams obsługuje sortowanie po "created_at"
+                            th ."px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider" {
+                                (sort_link("/htmx/admin/products", &params, "created_at", "Data dodania"))
+                            }
+                            th ."px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider" { "Akcje" }
+                        }
+                    }
+                    tbody ."bg-white divide-y divide-gray-200" {
+                        @if paginated_response.data.is_empty() {
+                            tr {
+                                td colspan="7" ."px-4 py-4 text-center text-gray-500 italic" { "Nie znaleziono produktów spełniających kryteria." }
+                            }
+                        }
+                        @for product in &paginated_response.data {
+                            tr ."hover:bg-gray-50 transition-colors" {
+                                td ."px-4 py-2 whitespace-nowrap" {
+                                    a href=(format!("/products/{}", product.id)) target="_blank" // Otwiera w nowej karcie
+                                       title="Zobacz produkt w sklepie" {
+                                        @if let Some(image_url) = product.images.get(0) {
+                                            img src=(image_url) alt=(product.name) class="h-12 w-12 rounded-md object-cover hover:opacity-80 transition-opacity";
+                                        } @else {
+                                            div ."h-12 w-12 rounded-md bg-gray-200 flex items-center justify-center text-xs text-gray-400" { "Brak" }
+                                        }
+                                    }
+                                }
+                                td ."px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900" {
+                                    a href=(format!("/products/{}", product.id)) target="_blank" class="hover:text-pink-600" {
+                                        (product.name)
+                                    }
+                                }
+                                td ."px-4 py-2 whitespace-nowrap text-sm text-gray-700" { (format_price_maud(product.price)) }
+                                td ."px-4 py-2 whitespace-nowrap text-sm" {
+                                    // Można dodać kolorowanie statusu
+                                    span class=(get_status_badge_classes(product.status.clone())) {
+                                        (product.status.to_string()) // Użyje Display z Strum dla polskiej nazwy
+                                    }
+                                }
+                                td ."px-4 py-2 whitespace-nowrap text-sm text-gray-500" { (product.category.to_string()) }
+                                td ."px-4 py-2 whitespace-nowrap text-sm text-gray-500" {
+                                    @if let Some(created_at_val) = Some(product.created_at) {
+                                        (created_at_val.format("%Y-%m-%d %H:%M").to_string())
+                                        "-"
+                                    } @else {
+                                    }
+                                }
+                                td ."px-4 py-2 whitespace-nowrap text-right text-sm font-medium space-x-2" {
+                                    a href=(format!("/htmx/admin/products/{}/edit", product.id))
+                                       hx-get=(format!("/htmx/admin/products/{}/edit", product.id))
+                                       hx-target="#admin-content" // Ładuje formularz edycji do głównego kontenera
+                                       hx-swap="innerHTML"
+                                       class="text-indigo-600 hover:text-indigo-800 hover:underline" { "Edytuj" }
+
+                                    button hx-delete=(format!("/api/products/{}", product.id))
+                                           hx-confirm="Czy na pewno chcesz usunąć ten produkt?"
+                                           // Odświeżenie listy po usunięciu
+                                           hx-target="closest tr" // Celuje w najbliższy wiersz tabeli
+                                           hx-swap="outerHTML"   // Usuwa wiersz z tabeli (lub można odświeżyć całą listę)
+                                           class="text-red-600 hover:text-red-800 hover:underline" {
+                                        "Usuń"
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
-            // TODO: Paginacja (można zaadaptować z `render_product_grid_maud` lub podobnej)
+
+            // Paginacja
+            @if paginated_response.total_pages > 1 {
+                div ."mt-6 flex justify-between items-center" {
+                    div ."text-sm text-gray-600" {
+                        "Strona " (paginated_response.current_page) " z " (paginated_response.total_pages)
+                        " (Łącznie: " (paginated_response.total_items) " produktów)"
+                    }
+                    div ."flex space-x-1" {
+                        @if paginated_response.current_page > 1 {
+                            a href="#"
+                               hx-get=(format!("/htmx/admin/products?{}&offset={}", params.clone_with_new_offset((paginated_response.current_page - 2) * current_limit).to_query_string_for_pagination(), (paginated_response.current_page - 2) * current_limit))
+                               hx-target="#admin-product-list-container" hx-swap="outerHTML"
+                               class="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-100" { "Poprzednia" }
+                        }
+                        // Można dodać numery stron
+                        @if paginated_response.current_page < paginated_response.total_pages {
+                            a href="#"
+                               hx-get=(format!("/htmx/admin/products?{}&offset={}", params.clone_with_new_offset(paginated_response.current_page * current_limit).to_query_string_for_pagination(), paginated_response.current_page * current_limit))
+                               hx-target="#admin-product-list-container" hx-swap="outerHTML"
+                               class="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-100" { "Następna" }
+                        }
+                    }
+                }
+            }
         }
     })
+}
+
+// Pomocnicza funkcja do generowania linków sortowania
+fn sort_link(
+    base_url: &str,
+    current_params: &ListingParams,
+    sort_field: &str,
+    display_name: &str,
+) -> Markup {
+    let mut next_order = "asc";
+    let mut icon = "↕"; // Domyślna ikona dla nieaktywnego sortowania
+
+    if current_params.sort_by() == sort_field {
+        if current_params.order() == "asc" {
+            next_order = "desc";
+            icon = "↑"; // Strzałka w górę dla ASC
+        } else {
+            // next_order pozostaje "asc" (domyślnie, aby przełączać)
+            icon = "↓"; // Strzałka w dół dla DESC
+        }
+    }
+
+    // Skopiuj istniejące parametry, aby nie stracić filtrów
+    let mut query_params = Vec::new();
+    if let Some(s) = &current_params.status {
+        query_params.push(format!("status={}", s.as_ref()));
+    }
+    if let Some(c) = &current_params.category {
+        query_params.push(format!("category={}", c.as_ref()));
+    }
+    if let Some(search) = &current_params.search {
+        query_params.push(format!("search={}", urlencoding::encode(search)));
+    }
+    if let Some(limit) = current_params.limit {
+        query_params.push(format!("limit={}", limit));
+    }
+    // Offset nie jest potrzebny w linku sortowania, bo sortowanie powinno resetować do pierwszej strony
+    // query_params.push(format!("offset=0")); // lub pominąć, backend powinien obsłużyć
+
+    query_params.push(format!("sort-by={}", sort_field));
+    query_params.push(format!("order={}", next_order));
+
+    let query_string = query_params.join("&");
+    let hx_get_url = format!("{}?{}", base_url, query_string);
+
+    html! {
+        a href="#" // href nie jest potrzebny, HTMX go nadpisze
+           hx-get=(hx_get_url)
+           hx-target="#admin-product-list-container" // Odświeża cały kontener listy
+           hx-swap="outerHTML" // Zastępuje kontener nową zawartością
+           class="flex items-center space-x-1 hover:text-pink-600" {
+            span { (display_name) }
+            span class="text-xs" { (PreEscaped(icon)) } // Używamy PreEscaped dla strzałek
+        }
+    }
+}
+
+/// Pomocnicza funkcja do klas dla statusu (możesz ją umieścić gdzieś indziej lub inline)
+fn get_status_badge_classes(status: ProductStatus) -> &'static str {
+    match status {
+        ProductStatus::Available => {
+            "px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800"
+        }
+        ProductStatus::Reserved => {
+            "px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800"
+        }
+        ProductStatus::Sold => {
+            "px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800"
+        }
+    }
 }
 
 pub async fn admin_product_new_form_htmx_handler(claims: TokenClaims) -> Result<Markup, AppError> {
