@@ -105,9 +105,13 @@ pub async fn list_products(
         count_builder.push("condition = ").push_bind(condition);
     }
 
-    let status_to_filter = params.status().unwrap_or(ProductStatus::Available);
-    append_where_or_and_count(&mut count_builder);
-    count_builder.push("status = ").push_bind(&status_to_filter);
+    // let status_to_filter = params.status().unwrap_or(ProductStatus::Available);
+    // append_where_or_and_count(&mut count_builder);
+    // count_builder.push("status = ").push_bind(&status_to_filter);
+    if let Some(status_val) = params.status() {
+        append_where_or_and_count(&mut count_builder);
+        count_builder.push("status = ").push_bind(status_val);
+    }
 
     if let Some(price_min) = params.price_min() {
         append_where_or_and_count(&mut count_builder);
@@ -177,8 +181,10 @@ pub async fn list_products(
         append_where_or_and_data(&mut data_builder);
         data_builder.push("condition = ").push_bind(condition);
     }
-    append_where_or_and_data(&mut data_builder);
-    data_builder.push("status = ").push_bind(&status_to_filter);
+    if let Some(status_val) = params.status() {
+        append_where_or_and_data(&mut data_builder);
+        data_builder.push("status = ").push_bind(status_val);
+    }
 
     if let Some(price_min) = params.price_min() {
         append_where_or_and_data(&mut data_builder);

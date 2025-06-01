@@ -18,8 +18,11 @@ use strum::IntoEnumIterator;
 use urlencoding::encode;
 use uuid::Uuid;
 
-use crate::models::{
-    OrderItem, OrderItemDetailsPublic, ProductGender, ProductStatus, UserShippingDetails,
+use crate::{
+    auth::Role,
+    models::{
+        OrderItem, OrderItemDetailsPublic, ProductGender, ProductStatus, UserShippingDetails,
+    },
 };
 #[allow(unused_imports)]
 use crate::{
@@ -3269,4 +3272,204 @@ pub async fn my_order_details_htmx_handler(
                 }
             }
         })
+}
+
+pub async fn admin_dashboard_htmx_handler(claims: TokenClaims) -> Result<Markup, AppError> {
+    if claims.role != Role::Admin {
+        return Err(AppError::UnauthorizedAccess(
+            "Brak uprawnień administratora.".to_string(),
+        ));
+    }
+    tracing::info!("Admin ID {} wszedł na dashboard admina", claims.sub);
+
+    Ok(html! {
+        div ."flex flex-col md:flex-row min-h-screen" {
+            // Sidebar nawigacyjny admina
+            nav ."w-full md:w-64 bg-gray-800 text-white p-4 space-y-2" {
+                h2 ."text-xl font-semibold mb-4" { "Panel Admina" }
+                a href="/htmx/admin/produkty" hx-get="/htmx/admin/produkty" hx-target="#admin-content" hx-swap="innerHTML"
+                   class="block py-2 px-3 rounded hover:bg-gray-700" { "Zarządzaj Produktami" }
+                a href="/htmx/admin/zamowienia" hx-get="/htmx/admin/zamowienia" hx-target="#admin-content" hx-swap="innerHTML"
+                   class="block py-2 px-3 rounded hover:bg-gray-700" { "Zarządzaj Zamówieniami" }
+
+                hr ."my-4 border-gray-700";
+                a href="/" target="_blank" class="block py-2 px-3 rounded hover:bg-gray-700" { "Przejdź do sklepu" }
+
+                 // Link wylogowania dla admina
+                a href="#"
+                    "@click.prevent"="clientSideLogout()"
+                    class="block py-2 px-3 rounded hover:bg-red-700 text-red-300 hover:text-white mt-auto" {
+                    "Wyloguj"
+                }
+            }
+            // Główny kontener na treść panelu admina
+            main #admin-content ."flex-1 p-6 bg-gray-100" {
+                // hx-get="/htmx/admin/produkty" hx-trigger="load" hx-swap="innerHTML"
+                p { "Witaj w panelu administratora!" }
+            }
+        }
+    })
+}
+pub async fn admin_products_list_htmx_handler(
+    State(app_state): State<AppState>,
+    claims: TokenClaims,
+    Query(mut params): Query<ListingParams>,
+) -> Result<Markup, AppError> {
+    if claims.role != Role::Admin {
+        return Err(AppError::UnauthorizedAccess(
+            "Brak uprawnień administratora.".to_string(),
+        ));
+    }
+    tracing::info!(
+        "Admin ID {} żąda listy produktów dla admina z parametrami: {:?}",
+        claims.sub,
+        params
+    );
+
+    // Admin domyślnie widzi wszystkie statusy, chyba że poda inny w query params
+    if params.status.is_none() {}
+    // Admin może chcieć widzieć więcej produktów na stronie
+    if params.limit.is_none() {
+        params.limit = Some(25);
+    }
+
+    // Wywołanie istniejącej logiki pobierania produktów
+    // `list_products` zwraca Result<Json<PaginatedProductsResponse>, AppError>
+    // Musimy rozpakować Json.
+    let paginated_response_json =
+        crate::handlers::list_products(State(app_state.clone()), Query(params.clone())).await?;
+    let paginated_response: PaginatedProductsResponse = paginated_response_json.0;
+
+    Ok(html! {
+        div #admin-product-list-container {
+            h3 ."text-xl font-semibold mb-4" { "Lista Produktów" }
+            // TODO: Dodaj filtry dla admina (status, kategoria, etc.)
+
+            // Przycisk do dodawania nowego produktu
+            div ."mb-4" {
+                a href="/htmx/admin/produkty/nowy-formularz"
+                   hx-get="/htmx/admin/produkty/nowy-formularz"
+                   hx-target="#admin-content"
+                   hx-swap="innerHTML"
+                   class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded" {
+                    "Dodaj Nowy Produkt"
+                }
+            }
+
+            table ."min-w-full bg-white border border-gray-300" {
+                thead ."bg-gray-200" {
+                    tr {
+                        th ."px-4 py-2 border-b text-left" { "ID" }
+                        th ."px-4 py-2 border-b text-left" { "Nazwa" }
+                        th ."px-4 py-2 border-b text-left" { "Cena" }
+                        th ."px-4 py-2 border-b text-left" { "Status" }
+                        th ."px-4 py-2 border-b text-left" { "Kategoria" }
+                        th ."px-4 py-2 border-b text-left" { "Akcje" }
+                    }
+                }
+                tbody {
+                    @if paginated_response.data.is_empty() {
+                        tr {
+                            td colspan="6" ."px-4 py-3 text-center text-gray-500" { "Brak produktów." }
+                        }
+                    }
+                    @for product in &paginated_response.data {
+                        tr ."hover:bg-gray-50" {
+                            td ."px-4 py-2 border-b text-xs" { (product.id.to_string().chars().take(8).collect::<String>()) }
+                            td ."px-4 py-2 border-b" { (product.name) }
+                            td ."px-4 py-2 border-b" { (format_price_maud(product.price)) } // Użyj swojej funkcji
+                            td ."px-4 py-2 border-b" { (product.status.to_string()) } // Będzie polska nazwa, jeśli OrderStatus ma Display z strum
+                            td ."px-4 py-2 border-b" { (product.category.to_string()) }
+                            td ."px-4 py-2 border-b space-x-2" {
+                                a href=(format!("/htmx/admin/produkty/{}/edytuj", product.id))
+                                   hx-get=(format!("/htmx/admin/produkty/{}/edytuj", product.id))
+                                   hx-target="#admin-content"
+                                   hx-swap="innerHTML"
+                                   class="text-blue-500 hover:underline text-xs" { "Edytuj" }
+
+                                button hx-delete=(format!("/api/products/{}", product.id))
+                                       hx-confirm="Czy na pewno chcesz usunąć ten produkt?"
+                                       // Po usunięciu, odśwież listę produktów
+                                       hx-target="#admin-product-list-container" // Celuje w kontener listy + paginacji
+                                       hx-swap="outerHTML" // Zastępuje cały kontener, aby odświeżyć
+                                       // Można też użyć hx-trigger="htmx:afterOnLoad from:closest tr" hx-swap="delete" na `tr`
+                                       // lub hx-trigger="deleteProductSuccess from:body"
+                                       class="text-red-500 hover:underline text-xs" { "Usuń" }
+                            }
+                        }
+                    }
+                }
+            }
+            // TODO: Paginacja (można zaadaptować z `render_product_grid_maud` lub podobnej)
+        }
+    })
+}
+
+pub async fn admin_product_new_form_htmx_handler(claims: TokenClaims) -> Result<Markup, AppError> {
+    if claims.role != Role::Admin {
+        return Err(AppError::UnauthorizedAccess("Brak uprawnień.".to_string()));
+    }
+    // Tutaj wyrenderuj formularz (Maud) do tworzenia produktu.
+    // Formularz powinien mieć atrybuty:
+    // method="POST" action="/api/products" enctype="multipart/form-data"
+    // oraz odpowiednie atrybuty HTMX, np. hx-post="/api/products", hx-encoding="multipart/form-data",
+    // hx-target="#admin-content" lub na listę produktów, hx-swap="innerHTML"
+    // pola: name, description, price, gender, condition, category, image_file_1, image_file_2 itd.
+    // Po sukcesie, `create_product_handler` zwraca JSON produktu, więc musisz obsłużyć
+    // co HTMX ma zrobić z tą odpowiedzią (np. `hx-on::after-request="htmx.trigger('#admin-content', 'loadProductsList')"`)
+    // lub serwer może zwrócić `HX-Redirect` lub `HX-Trigger`.
+    Ok(html! {
+        div {
+            h3 {"Dodaj nowy produkt (formularz admina)"}
+            // TODO: Zaimplementuj pełny formularz
+            form hx-encoding="multipart/form-data"
+                 hx-post="/api/products" // Istniejący endpoint API
+                 // Rozważ co ma się stać po sukcesie:
+                 // np. odświeżenie listy produktów lub przekierowanie
+                 hx-target="#admin-content" hx-swap="innerHTML" // Może załadować szczegóły nowego produktu
+                 // Lepsze może być:
+                 // hx-on--after-request="if(event.detail.successful) htmx.trigger('#admin-content', 'refreshProductList')"
+                 // Lub serwer zwraca HX-Trigger, który powoduje odświeżenie listy
+                 // lub HX-Location do listy produktów
+                 {
+                label for="name" {"Nazwa:"} input type="text" name="name" required; br;
+                label for="description" {"Opis:"} textarea name="description" required {} br;
+                label for="price" {"Cena (w groszach):"} input type="number" name="price" required; br;
+
+                label for="gender" {"Płeć:"}
+                select name="gender" required {
+                    option value="Damskie" {"Damskie"}
+                    option value="Meskie" {"Męskie"}
+                } br;
+
+                label for="condition" {"Stan:"}
+                select name="condition" required {
+                    option value="New" {"Nowy"}
+                    option value="LikeNew" {"Jak nowy"}
+                    option value="VeryGood" {"Bardzo dobry"}
+                    option value="Good" {"Dobry"}
+                } br;
+
+                label for="category" {"Kategoria:"}
+                select name="category" required {
+                    // Wypełnij opcjami z enum Category
+                    @for cat_variant in Category::iter() {
+                         option value=(cat_variant.to_string()) { (cat_variant.to_string()) }
+                    }
+                } br;
+
+                label for="image_file_1" {"Obrazek 1:"} input type="file" name="image_file_1" required; br;
+                label for="image_file_2" {"Obrazek 2:"} input type="file" name="image_file_2" br;
+                label for="image_file_3" {"Obrazek 3:"} input type="file" name="image_file_3" br;
+                label for="image_file_4" {"Obrazek 4:"} input type="file" name="image_file_4" br;
+                label for="image_file_5" {"Obrazek 5:"} input type="file" name="image_file_5" br;
+                label for="image_file_6" {"Obrazek 6:"} input type="file" name="image_file_6" br;
+                label for="image_file_7" {"Obrazek 7:"} input type="file" name="image_file_7" br;
+                label for="image_file_8" {"Obrazek 8:"} input type="file" name="image_file_8" br;
+                // Dodaj więcej pól na obrazki jeśli potrzeba
+
+                button type="submit" {"Dodaj Produkt"}
+            }
+        }
+    })
 }
