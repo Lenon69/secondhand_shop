@@ -2796,7 +2796,7 @@ pub async fn checkout_page_handler(
                 // --- Prawa kolumna: Podsumowanie zamówienia ---
                 // (Później dodamy tu logikę Alpine.js do dynamicznej sumy z dostawą)
                 div ."lg:w-1/3" {
-                    div ."bg-white p-6 rounded-lg shadow-md border border-gray-200 sticky top-24" { // Zmieniono top-40 na top-24 dla lepszego dopasowania
+                    div ."bg-white p-6 rounded-lg shadow-md border border-gray-200 sticky top-40" {
                         h2 ."text-xl font-semibold text-gray-800 mb-4" { "Twoje zamówienie" }
 
                         div ."border-b border-gray-200 pb-4 mb-4" {

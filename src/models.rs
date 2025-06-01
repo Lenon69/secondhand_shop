@@ -373,3 +373,46 @@ impl Default for UserShippingDetails {
         }
     }
 }
+
+#[derive(Debug, Clone, Deserialize, Validate)] // Dodano Validate
+pub struct CheckoutFormPayload {
+    // Dane dostawy
+    #[validate(length(min = 3, message = "Imię do wysyłki jest wymagane."))]
+    pub shipping_first_name: String,
+    #[validate(length(min = 2, message = "Nazwisko do wysyłki jest wymagane."))]
+    pub shipping_last_name: String,
+    #[validate(length(min = 1, message = "Adres (linia 1) do wysyłki jest wymagany."))]
+    pub shipping_address_line1: String,
+    pub shipping_address_line2: Option<String>, // Opcjonalne
+    #[validate(length(min = 1, message = "Miasto do wysyłki jest wymagane."))]
+    pub shipping_city: String,
+    #[validate(length(min = 1, message = "Kod pocztowy do wysyłki jest wymagany."))]
+    pub shipping_postal_code: String,
+    #[validate(length(min = 1, message = "Kraj do wysyłki jest wymagany."))]
+    pub shipping_country: String,
+    #[validate(length(min = 1, message = "Telefon do wysyłki jest wymagany."))]
+    pub shipping_phone: String,
+
+    // Checkbox i dane do faktury
+    // Dla checkboxa, jeśli nie jest zaznaczony, pole nie zostanie wysłane.
+    // Jeśli jest zaznaczony, wyśle wartość "on" (lub inną, jeśli zdefiniowano value).
+    // Serde dla Form potrafi zmapować "on" na bool true, a brak pola na false (jeśli pole jest Option<bool> lub domyślnie false).
+    // Lub można użyć String i sprawdzić wartość. Dla prostoty, użyjmy Option<String> dla checkboxa.
+    pub billing_same_as_shipping: Option<String>, // Będzie Some("on") jeśli zaznaczone, None jeśli nie
+
+    // Pola billingowe są opcjonalne w logice formularza (ukrywane/pokazywane)
+    // Jeśli są wysyłane, a puste, będą Some(""). Jeśli nie są wysyłane (bo ukryte), będą None.
+    pub billing_first_name: Option<String>,
+    pub billing_last_name: Option<String>,
+    pub billing_address_line1: Option<String>,
+    pub billing_address_line2: Option<String>,
+    pub billing_city: Option<String>,
+    pub billing_postal_code: Option<String>,
+    pub billing_country: Option<String>,
+    // NIP dla faktury, jeśli potrzebny
+    pub billing_nip: Option<String>,
+
+    // Metoda płatności
+    #[validate(length(min = 1, message = "Metoda płatności jest wymagana."))]
+    pub payment_method: String, // np. "blik", "transfer"
+}

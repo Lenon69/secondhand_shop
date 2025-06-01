@@ -1079,10 +1079,15 @@ pub async fn protected_route_handler(claims: TokenClaims) -> Result<Json<Value>,
 pub async fn create_order_handler(
     State(app_state): State<AppState>,
     claims: TokenClaims,
-    Json(payload): Json<CreateOrderFromCartPayload>, // <-- ZMIENIONY PAYLOAD
+    Form(payload): Form<CheckoutFormPayload>,
 ) -> Result<(StatusCode, Json<OrderDetailsResponse>), AppError> {
-    // Zwracamy OrderDetailsResponse dla spójności
-    payload.validate()?; // Walidacja danych adresowych
+    if let Err(validation_errors) = payload.validate() {
+        tracing::warn!("Błąd walidacji danych checkout: {:?}", validation_errors);
+        return Err(AppError::Validation(format!(
+            "Błąd walidacji: {}",
+            validation_errors
+        )));
+    }
 
     let user_id = claims.sub;
     tracing::info!(
