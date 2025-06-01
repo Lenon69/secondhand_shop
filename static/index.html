@@ -118,7 +118,7 @@
                                this.navigateToHtmx('/moje-konto', '/htmx/moje-konto');
                                this.currentMobilePage = 'moje-konto';
                           }
-                      }, 150); // Drobne opóźnienie, aby dać app.js szansę na działanie
+                      }, 1); // Drobne opóźnienie, aby dać app.js szansę na działanie
                   });
                   window.addEventListener('trigger-alpine-logout', () => {
                       this.clientSideLogout();
@@ -577,11 +577,12 @@
           >
             <div class="pt-4 pb-3 border-t border-gray-200">
                 <div class="flex items-center px-3">
-                     <a  x-bind:href="isAuthenticated ? '/moje-konto' : '/logowanie'"
+                     <a x-bind:href="isAuthenticated ? '/moje-konto' : '/logowanie'"
                         x-bind:hx-get="isAuthenticated ? '/htmx/moje-konto' : '/htmx/logowanie'"
-                        hx-target="#content" hx-swap="innerHTML"
+                        hx-target="#content"
+                        hx-swap="innerHTML"
                         x-bind:hx-push-url="isAuthenticated ? '/moje-konto' : '/logowanie'"
-                        @click="isMobileMenuOpen = false; currentMobilePage = isAuthenticated ? 'konto' : 'logowanie'"
+                        @click="isMobileMenuOpen = false; currentMobilePage = isAuthenticated ? 'moje-konto' : 'logowanie'"
                         class="flex items-center text-base font-medium text-gray-700 hover:text-pink-700 w-full">
                         <svg class="w-6 h-6 mr-2 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"></path></svg>
                         <span x-text="isAuthenticated ? 'Moje Konto' : 'Zaloguj / Zarejestruj się'"></span>
