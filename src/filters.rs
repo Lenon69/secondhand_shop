@@ -1,5 +1,6 @@
 // src/filters.rs
 use crate::models::{Category, ProductCondition, ProductGender, ProductStatus};
+use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
 const DEFAULT_PAGE_LIMIT: i64 = 10;
@@ -37,6 +38,10 @@ pub struct ListingParams {
     pub order: Option<String>,
     #[serde(default)]
     pub search: Option<String>,
+    #[serde(default)]
+    pub created_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub updated_at: Option<DateTime<Utc>>,
 }
 
 impl ListingParams {
@@ -86,5 +91,13 @@ impl ListingParams {
                 "asc"
             }
         })
+    }
+
+    pub fn created_at(&self) -> Option<DateTime<Utc>> {
+        self.created_at.clone()
+    }
+
+    pub fn updated_at(&self) -> Option<DateTime<Utc>> {
+        self.updated_at.clone()
     }
 }

@@ -39,7 +39,7 @@ pub async fn get_product_details(
     Path(product_id): Path<Uuid>,
 ) -> Result<Json<Product>, AppError> {
     let product_result = sqlx::query_as::<_, Product>(
-        r#"SELECT id, name, description, price, gender, condition, category, status, images
+        r#"SELECT id, name, description, price, gender, condition, category, status, images, created_at, updated_at
            FROM products
            WHERE id = $1"#,
     )
@@ -153,7 +153,7 @@ pub async fn list_products(
     // --- Budowanie zapytania o DANE ---
     let mut data_builder: QueryBuilder<Postgres> = QueryBuilder::new(
         r#"
-            SELECT id, name, description, price, gender, condition, category, status, images
+            SELECT id, name, description, price, gender, condition, category, status, images, created_at, updated_at
             FROM products
         "#,
     );
@@ -672,7 +672,7 @@ pub async fn delete_product_handler(
     // Pobierz produkt, aby uzyskać listę obrazów
     let product_to_delete = sqlx::query_as::<_, Product>(
         r#"
-            SELECT id, name, description, price, gender, condition, category, status, images
+            SELECT id, name, description, price, gender, condition, category, status, images, created_at, updated_at
             FROM products
             WHERE id = $1
         "#,
@@ -1473,7 +1473,7 @@ pub async fn get_order_details_handler(
         // item_db jest typu OrderItem
         let product = sqlx::query_as::<_, Product>(
             r#"
-                SELECT id, name, description, price, gender, condition, category, status, images
+                SELECT id, name, description, price, gender, condition, category, status, images, created_at, updated_at
                 FROM products
                 WHERE id = $1
             "#,
@@ -1609,7 +1609,7 @@ pub async fn add_item_to_cart_handler(
     // Sprawdź czy produkt istnieje i jest dostępny (z blokadą FOR UPDATE)
     let product_to_add_opt = sqlx::query_as::<_, Product>(
         r#"
-            SELECT id, name, description, price, condition, category, status, images
+            SELECT id, name, description, price, condition, category, status, images, created_at, updated_at
             FROM products
             WHERE id = $1
             FOR UPDATE
@@ -1682,7 +1682,7 @@ pub async fn add_item_to_cart_handler(
     for item_db in items_db {
         let product = sqlx::query_as::<_, Product>(
             r#"
-                SELECT id, name, description, price, gender, condition, category, status, images
+                SELECT id, name, description, price, gender, condition, category, status, images, created_at, updated_at
                 FROM products
                 WHERE id = $1
             "#, // FOR UPDATE nie jest tu konieczne, bo produkt był blokowany wcześniej

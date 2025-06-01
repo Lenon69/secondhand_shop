@@ -102,6 +102,8 @@ pub struct Product {
     pub category: Category,
     pub status: ProductStatus,
     pub images: Vec<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type)]

@@ -74,6 +74,8 @@ pub async fn build_cart_details_response(
                 category: row.category,
                 status: row.status,
                 images: row.images,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
             },
             added_at: row.added_at,
         });

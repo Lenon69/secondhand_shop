@@ -266,7 +266,7 @@ pub async fn get_product_detail_htmx_handler(
     );
 
     let product = match sqlx::query_as::<_, Product>(
-        r#"SELECT id, name, description, price, gender, condition, category, status, images
+        r#"SELECT id, name, description, price, gender, condition, category, status, images, created_at, updated_at
            FROM products
            WHERE id = $1"#,
     )
@@ -1112,6 +1112,8 @@ pub async fn gender_page_handler(
         sort_by: Some("name".to_string()),
         order: Some("asc".to_string()),
         search: None,
+        created_at: None,
+        updated_at: None,
     };
 
     let paginated_response_axum_json = crate::handlers::list_products(
@@ -3138,7 +3140,7 @@ pub async fn my_order_details_htmx_handler(
         let products_db = sqlx::query_as::<_, Product>(
             // Upewnij się, że SELECT zawiera wszystkie pola struktury Product
             r#"
-                SELECT id, name, description, price, gender, condition, category, status, images
+                SELECT id, name, description, price, gender, condition, category, status, images, created_at, updated_at
                 FROM products
                 WHERE id = ANY($1)
             "#,
