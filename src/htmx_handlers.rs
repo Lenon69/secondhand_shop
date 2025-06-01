@@ -2199,7 +2199,11 @@ pub async fn my_account_page_handler(claims: TokenClaims) -> Result<Markup, AppE
                             }
                             li ."pt-4 mt-4 border-t border-gray-200" {
                                 // --- POPRAWIONY LINK WYLOGOWANIA ---
-                                a href="#"
+                                    a href="/logowanie"
+                                   "hx-get"="/htmx/logowanie"
+                                   "hx-target"="#content"
+                                   "hx-push-url"="/logowanie"
+                                   "hx-swap"="innerHTML"
                                    "@click.prevent"="$dispatch('trigger-alpine-logout')"
                                    "@click"="clientSideLogout()"
                                    class="block px-3 py-2 rounded-md text-red-600 hover:bg-red-50 hover:text-red-700 font-medium transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-red-500" {

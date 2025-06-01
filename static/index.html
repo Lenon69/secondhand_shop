@@ -109,19 +109,14 @@
                       this.isAuthenticated = event.detail.isAuthenticated;
                       this.updateCartCounterVisuals(); // Zaktualizuj UI
 
-                      // Logika nawigacji po wylogowaniu/zalogowaniu z poziomu Alpine, jeśli konieczna
-                      // np. jeśli użytkownik jest na stronie /moje-konto i się wyloguje
-                      // LUB jeśli app.js nie obsłużył przekierowania (np. błąd)
-                      // Ale generalnie, app.js powinien być głównym sterownikiem nawigacji po auth.
                        setTimeout(() => {
                           const path = window.location.pathname;
                           if (!this.isAuthenticated && (path.startsWith('/moje-konto') || path.startsWith('/checkout'))) {
-                              // Jeśli app.js nie przekierował, a jesteśmy na chronionej stronie, Alpine może to zrobić
                               this.navigateToHtmx('/', '/htmx/products?limit=9&sort_by=name&order=asc');
                               this.currentMobilePage = '';
                           } else if (this.isAuthenticated && (path.startsWith('/logowanie') || path.startsWith('/rejestracja'))) {
                                this.navigateToHtmx('/moje-konto', '/htmx/moje-konto');
-                               this.currentMobilePage = 'konto';
+                               this.currentMobilePage = 'moje-konto';
                           }
                       }, 150); // Drobne opóźnienie, aby dać app.js szansę na działanie
                   });
@@ -289,11 +284,11 @@
             x-bind:hx-get="isAuthenticated ? '/htmx/moje-konto' : '/htmx/logowanie'"
             hx-target="#content" hx-swap="innerHTML"
             x-bind:hx-push-url="isAuthenticated ? '/moje-konto' : '/logowanie'"
-            @click="currentMobilePage = isAuthenticated ? 'konto' : 'logowanie'"
+            @click="currentMobilePage = isAuthenticated ? 'moje-konto' : 'logowanie'"
             class="flex items-center space-x-1 text-gray-700 hover:text-pink-600 transition-colors"
             aria-label="Moje konto">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>
-            <span class="text-sm" x-text="isAuthenticated ? 'Konto' : 'Zaloguj się'"></span>
+            <span class="text-sm" x-text="isAuthenticated ? 'Moje konto' : 'Zaloguj się'"></span>
         </a>                        
     <button
         @click="cartOpen = true; $el.dispatchEvent(new CustomEvent('cartOpened', {bubbles: true, composed: true}))"
