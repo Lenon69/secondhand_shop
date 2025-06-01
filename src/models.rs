@@ -289,16 +289,17 @@ pub struct CartDetailsResponse {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct CheckoutFormData {
-    pub shipping_first_name: String,
-    pub shipping_last_name: String,
-    pub shipping_address_line1: String,
+pub struct UserShippingDetails {
+    pub user_id: Uuid,
+    pub shipping_first_name: Option<String>,
+    pub shipping_last_name: Option<String>,
+    pub shipping_address_line1: Option<String>,
     pub shipping_address_line2: Option<String>,
-    pub shipping_city: String,
-    pub shipping_postal_code: String,
-    pub shipping_country: String,
-    pub shipping_phone: String,
-    pub billing_same_as_shipping: bool,
+    pub shipping_city: Option<String>,
+    pub shipping_postal_code: Option<String>,
+    pub shipping_country: Option<String>,
+    pub shipping_phone: Option<String>,
+    pub billing_same_as_shipping: Option<bool>,
     pub billing_first_name: Option<String>,
     pub billing_last_name: Option<String>,
     pub billing_address_line1: Option<String>,
@@ -306,8 +307,6 @@ pub struct CheckoutFormData {
     pub billing_city: Option<String>,
     pub billing_postal_code: Option<String>,
     pub billing_country: Option<String>,
-    pub payment_method: String,
-    pub notes: Option<String>,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
