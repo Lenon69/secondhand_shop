@@ -1,5 +1,4 @@
 // src/htmx_handlers.rs
-//
 
 use std::collections::HashMap;
 
@@ -2412,20 +2411,21 @@ pub async fn my_orders_htmx_handler(
         r#"
             SELECT
                 id,
-                user_id,    -- To pole jest teraz Option<Uuid> w strukturze Order
+                user_id,    
                 order_date,
                 status,
                 total_price,
-                shipping_first_name,    -- NOWE POLE
-                shipping_last_name,     -- NOWE POLE
+                shipping_first_name,    
+                shipping_last_name,     
                 shipping_address_line1,
                 shipping_address_line2,
                 shipping_city,
                 shipping_postal_code,
                 shipping_country,
-                shipping_phone,         -- NOWE POLE
-                guest_email,            -- NOWE POLE
-                guest_session_id,       -- NOWE POLE
+                shipping_phone,        
+                guest_email,           
+                guest_session_id,      
+                payment_method,
                 created_at,
                 updated_at
             FROM orders
@@ -3075,7 +3075,7 @@ pub async fn my_order_details_htmx_handler(
                 shipping_first_name, shipping_last_name,
                 shipping_address_line1, shipping_address_line2,
                 shipping_city, shipping_postal_code, shipping_country, shipping_phone,
-                guest_email, guest_session_id,
+                guest_email, guest_session_id, payment_method,
                 created_at, updated_at
             FROM orders
             WHERE id = $1
@@ -3181,81 +3181,92 @@ pub async fn my_order_details_htmx_handler(
     };
 
     Ok(html! {
-        div #order-details-section ."bg-white p-4 sm:p-6 rounded-lg shadow-md" {
-            // Nagłówek i przycisk powrotu
-            div ."flex justify-between items-center mb-6 pb-4 border-b border-gray-200" {
-                h2 ."text-2xl sm:text-3xl font-semibold text-gray-800" {
-                    "Szczegóły zamówienia #" (order_id_display_short)
-                }
-                a href="/moje-konto/zamowienia"
-                   hx-get="/htmx/moje-konto/zamowienia"
-                   hx-target="#my-account-content"
-                   hx-swap="innerHTML"
-                   hx-push-url="/moje-konto/zamowienia"
-                   class="text-sm text-pink-600 hover:text-pink-700 hover:underline" {
-                    "← Wróć do listy zamówień"
-                }
-            }
-
-            // Podstawowe informacje o zamówieniu
-            div ."grid grid-cols-1 md:grid-cols-2 gap-6 mb-6" {
-                div ."space-y-2" {
-                    p ."text-sm text-gray-600" { "Data złożenia:" strong ."text-gray-900 ml-1" { (order_date_display) } }
-                    p ."text-sm text-gray-600" { "Status:"
-                        span class=(format!("ml-1 px-2 py-0.5 text-xs font-semibold rounded-full {}", status_classes)) {
-                            (order_status_display)
-                        }
+            div #order-details-section {
+                div ."flex justify-between items-center mb-6 pb-4 border-b border-gray-200" {
+                    h2 ."text-2xl sm:text-3xl font-semibold text-gray-800" {
+                        "Szczegóły zamówienia #" (order_id_display_short)
                     }
-                    p ."text-sm text-gray-600" { "Suma zamówienia:" strong ."text-gray-900 ml-1" { (order_total_display) } }
-                }
-
-                // Adres dostawy
-                div {
-                    h3 ."text-md font-semibold text-gray-700 mb-1" { "Adres dostawy:" }
-                    p ."text-sm text-gray-800" {
-                        (order.shipping_first_name) " " (order.shipping_last_name) br;
-                        (order.shipping_address_line1) br;
-                        @if let Some(line2) = &order.shipping_address_line2 {
-                            (line2) br;
-                        }
-                        (order.shipping_postal_code) " " (order.shipping_city) br;
-                        (order.shipping_country) br;
-                        "Tel: " (order.shipping_phone)
+                    a href="/moje-konto/zamowienia"
+                       hx-get="/htmx/moje-konto/zamowienia"
+                       hx-target="#my-account-content"
+                       hx-swap="innerHTML"
+                       hx-push-url="/moje-konto/zamowienia"
+                       class="text-sm text-pink-600 hover:text-pink-700 hover:underline" {
+                        "← Wróć do listy zamówień"
                     }
                 }
-            }
 
-            // Lista produktów w zamówieniu
-            h3 ."text-xl font-semibold text-gray-700 mb-3 mt-8 pt-4 border-t border-gray-200" { "Zamówione produkty:" }
-            @if items_details_public.is_empty() {
-                p ."text-gray-500" { "Brak produktów w tym zamówieniu (to nie powinno się zdarzyć, jeśli zamówienie istnieje)." }
-            } @else {
-                ul role="list" ."divide-y divide-gray-200 border-b border-gray-200" {
-                    @for item_detail in &items_details_public {
-                        li ."py-4 flex items-center" {
-                            @if !item_detail.product.images.is_empty() {
-                                img src=(item_detail.product.images[0]) alt=(item_detail.product.name)
-                                     class="h-16 w-16 sm:h-20 sm:w-20 flex-shrink-0 rounded-md border border-gray-200 object-cover mr-4";
-                            } @else {
-                                div class="h-16 w-16 sm:h-20 sm:w-20 flex-shrink-0 rounded-md border border-gray-200 bg-gray-100 flex items-center justify-center text-xs text-gray-400 mr-4" {
-                                    "Brak zdjęcia"
+                // Podstawowe informacje o zamówieniu
+                div ."grid grid-cols-1 md:grid-cols-2 gap-6 mb-6" {
+                    div ."space-y-2" {
+                        p ."text-sm text-gray-600" { "Data złożenia:" strong ."text-gray-900 ml-1" { (order_date_display) } }
+                        p ."text-sm text-gray-600" { "Status:"
+                            span class=(format!("ml-1 px-2 py-0.5 text-xs font-semibold rounded-full {}", status_classes)) {
+                                (order_status_display)
+                            }
+                        }
+                        p ."text-sm text-gray-600" { "Suma zamówienia:" strong ."text-gray-900 ml-1" { (order_total_display) } }
+                        p ."text-sm text-gray-600" { "Forma płatności:"
+                            strong ."text-gray-900 ml-1" {
+                                @if let Some(pm) = &order.payment_method {
+                                    (pm.to_string()) // Użyje implementacji Display z Strum (np. "BLIK", "Przelew tradycyjny")
+                                } @else {
+                                    "Nie określono"
                                 }
                             }
-                            div ."flex-grow min-w-0" { // min-w-0 dla poprawnego truncate
-                                p ."text-sm font-medium text-gray-900 truncate" { (item_detail.product.name) }
-                                p ."text-xs text-gray-500" { "Kategoria: " (item_detail.product.category.to_string()) }
-                                // Można dodać więcej informacji o produkcie, np. stan w momencie zakupu
+                        }
+
+    //
+                    }
+
+                    // Adres dostawy
+                    div {
+                        h3 ."text-md font-semibold text-gray-700 mb-1" { "Adres dostawy:" }
+                        p ."text-sm text-gray-800" {
+                            (order.shipping_first_name) " " (order.shipping_last_name) br;
+                            (order.shipping_address_line1) br;
+                            @if let Some(line2) = &order.shipping_address_line2 {
+                                (line2) br;
                             }
-                            div ."ml-4 text-right" {
-                                p ."text-sm text-gray-700" { "Cena: " (format_price_maud(item_detail.price_at_purchase)) }
-                                // Jeśli masz ilość (quantity), tutaj byłoby:
-                                // p ."text-xs text-gray-500" { "Ilość: " (item_detail.quantity) }
-                                // p ."text-sm font-semibold text-gray-900" { "Suma: " (format_price_maud(item_detail.price_at_purchase * item_detail.quantity)) }
+                            (order.shipping_postal_code) " " (order.shipping_city) br;
+                            (order.shipping_country) br;
+                            "Tel: " (order.shipping_phone)
+
+                        }
+                    }
+                }
+
+                // Lista produktów w zamówieniu
+                h3 ."text-xl font-semibold text-gray-700 mb-3 mt-8 pt-4 border-t border-gray-200" { "Zamówione produkty:" }
+                @if items_details_public.is_empty() {
+                    p ."text-gray-500" { "Brak produktów w tym zamówieniu (to nie powinno się zdarzyć, jeśli zamówienie istnieje)." }
+                } @else {
+                    ul role="list" ."divide-y divide-gray-200 border-b border-gray-200" {
+                        @for item_detail in &items_details_public {
+                            li ."py-4 flex items-center" {
+                                @if !item_detail.product.images.is_empty() {
+                                    img src=(item_detail.product.images[0]) alt=(item_detail.product.name)
+                                         class="h-16 w-16 sm:h-20 sm:w-20 flex-shrink-0 rounded-md border border-gray-200 object-cover mr-4";
+                                } @else {
+                                    div class="h-16 w-16 sm:h-20 sm:w-20 flex-shrink-0 rounded-md border border-gray-200 bg-gray-100 flex items-center justify-center text-xs text-gray-400 mr-4" {
+                                        "Brak zdjęcia"
+                                    }
+                                }
+                                div ."flex-grow min-w-0" { // min-w-0 dla poprawnego truncate
+                                    p ."text-sm font-medium text-gray-900 truncate" { (item_detail.product.name) }
+                                    p ."text-xs text-gray-500" { "Kategoria: " (item_detail.product.category.to_string()) }
+                                    // Można dodać więcej informacji o produkcie, np. stan w momencie zakupu
+                                }
+                                div ."ml-4 text-right" {
+                                    p ."text-sm text-gray-700" { "Cena: " (format_price_maud(item_detail.price_at_purchase)) }
+                                    // Jeśli masz ilość (quantity), tutaj byłoby:
+                                    // p ."text-xs text-gray-500" { "Ilość: " (item_detail.quantity) }
+                                    // p ."text-sm font-semibold text-gray-900" { "Suma: " (format_price_maud(item_detail.price_at_purchase * item_detail.quantity)) }
+                                }
                             }
                         }
                     }
                 }
             }
-        }
-    })
+        })
 }

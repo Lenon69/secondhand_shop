@@ -140,15 +140,21 @@ impl From<User> for UserPublic {
 }
 
 /// Status zamówienia
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, Display)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display)]
 #[sqlx(type_name = "order_status_enum")]
 #[sqlx(rename_all = "lowercase")]
+#[strum(ascii_case_insensitive)]
 pub enum OrderStatus {
-    Pending,    // Oczekujące (np. na płatność)
-    Processing, // W trakcie realizacji
-    Shipped,    // Wysłane
-    Delivered,  // Dostarczone
-    Cancelled,  // Anulowane
+    #[strum(serialize = "Oczekujące")]
+    Pending,
+    #[strum(serialize = "W trakcie realizacji")]
+    Processing,
+    #[strum(serialize = "Wysłane")]
+    Shipped,
+    #[strum(serialize = "Dostarczone")]
+    Delivered,
+    #[strum(serialize = "Anulowane")]
+    Cancelled,
 }
 
 /// Reprezentuje pojedyńczą pozycję w zamówieniu
@@ -164,7 +170,7 @@ pub struct OrderItem {
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, Validate)]
 pub struct Order {
     pub id: Uuid,
-    pub user_id: Option<Uuid>, // ZMIANA: Teraz opcjonalne
+    pub user_id: Option<Uuid>,
     pub order_date: DateTime<Utc>,
     pub status: OrderStatus,
     pub total_price: i64,
@@ -186,12 +192,24 @@ pub struct Order {
     pub shipping_country: String,
     #[validate(length(min = 1, max = 30))]
     pub shipping_phone: String,
+    pub payment_method: Option<PaymentMethod>,
+
     #[validate(email)]
     pub guest_email: Option<String>,
     pub guest_session_id: Option<Uuid>,
 
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, sqlx::Type, Display, EnumString)]
+#[sqlx(type_name = "payment_method_enum", rename_all = "lowercase")] // Mapowanie na typ SQL i nazwy wariantów w DB
+#[strum(ascii_case_insensitive)]
+pub enum PaymentMethod {
+    #[strum(serialize = "BLIK")]
+    Blik,
+    #[strum(serialize = "Przelew tradycyjny (P24)")]
+    Transfer,
 }
 // --- STRUKTURY PAYLOAD DLA HANDLERÓW ZAMÓWIEŃ ---
 

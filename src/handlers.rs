@@ -1235,8 +1235,17 @@ pub async fn create_order_handler(
         }
     }
 
+    let payment_method_enum = PaymentMethod::from_str(&payload.payment_method).map_err(|_| {
+        tracing::warn!(
+            "Nieprawidłowa metoda płatności otrzymana z formularza: {}",
+            payload.payment_method
+        );
+        // Zwróć błąd walidacji lub użyj domyślnej, jeśli to ma sens (raczej błąd)
+        AppError::Validation("Nieprawidłowa metoda płatności.".to_string())
+    })?;
+
     // TODO: Dodaj logikę dla kosztów dostawy - na razie total_price to suma produktów
-    let shipping_cost: i64 = 1500; // Placeholder - zaimplementuj wybór i koszt dostawy
+    let shipping_cost: i64 = 1500;
     let final_total_price = total_price_items + shipping_cost;
 
     // 3. Wstaw rekord do tabeli `orders`
@@ -1250,9 +1259,9 @@ pub async fn create_order_handler(
                 shipping_first_name, shipping_last_name,
                 shipping_address_line1, shipping_address_line2,
                 shipping_city, shipping_postal_code, shipping_country,
-                shipping_phone
+                shipping_phone, payment_method
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         "#,
     )
     .bind(order_id)
@@ -1271,6 +1280,7 @@ pub async fn create_order_handler(
     .bind(&payload.shipping_postal_code)
     .bind(&payload.shipping_country)
     .bind(&payload.shipping_phone)
+    .bind(payment_method_enum)
     .execute(&mut *tx)
     .await?;
 
@@ -1364,7 +1374,7 @@ pub async fn list_orders_handler(
         //Admin widzi wszystkie zamówienia
         orders = sqlx::query_as::<_, Order>(
             r#"
-                SELECT id, user_id, order_date, status, total_price, shipping_address_line1, shipping_address_line2, shipping_city, shipping_postal_code, shipping_country, created_at, updated_at
+                SELECT id, user_id, order_date, status, total_price, shipping_address_line1, shipping_address_line2, shipping_city, shipping_postal_code, shipping_country, payment_method, created_at, updated_at
                 FROM orders
                 ORDER BY order_date DESC
                 "#
@@ -1374,7 +1384,7 @@ pub async fn list_orders_handler(
         //Customer widzi tylko swoje zamówienia {
         orders = sqlx::query_as::<_, Order>(
             r#"
-                SELECT id, user_id, order_date, status, total_price, shipping_address_line1, shipping_address_line2, shipping_city, shipping_postal_code, shipping_country, created_at, updated_at
+                SELECT id, user_id, order_date, status, total_price, shipping_address_line1, shipping_address_line2, shipping_city, shipping_postal_code, shipping_country, payment_method, created_at, updated_at
                 FROM orders
                 WHERE user_id = $1
                 ORDER BY order_date DESC
@@ -1401,7 +1411,7 @@ pub async fn get_order_details_handler(
         r#"
             SELECT id, user_id, order_date, status, total_price,
                    shipping_address_line1, shipping_address_line2,
-                   shipping_city, shipping_postal_code, shipping_country,
+                   shipping_city, shipping_postal_code, shipping_country, payment_method,
                    created_at, updated_at
             FROM orders
             WHERE id = $1
@@ -1522,7 +1532,7 @@ pub async fn update_order_status_handler(
             UPDATE orders
             SET status = $1, updated_at = CURRENT_TIMESTAMP
             WHERE id = $2
-            RETURNING id, user_id, order_date, status, total_price, shipping_address_line1, shipping_address_line2, shipping_city, shipping_postal_code, shipping_country, created_at, updated_at
+            RETURNING id, user_id, order_date, status, total_price, shipping_address_line1, shipping_address_line2, shipping_city, shipping_postal_code, shipping_country, payment_method, created_at, updated_at
         "#).bind(&payload.status)
         .bind(order_id)
         .fetch_optional(&app_state.db_pool)
