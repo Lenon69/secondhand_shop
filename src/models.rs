@@ -2,11 +2,13 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::Type;
-use strum_macros::{Display, EnumIter, EnumString};
+use strum_macros::{AsRefStr, Display, EnumIter, EnumString};
 use uuid::Uuid;
 use validator::Validate;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display, EnumIter, AsRefStr,
+)]
 #[sqlx(type_name = "product_condition")]
 #[strum(ascii_case_insensitive)]
 pub enum ProductCondition {
@@ -32,14 +34,19 @@ pub enum ProductStatus {
     Sold,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display, EnumIter)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display, EnumIter, AsRefStr,
+)]
 #[sqlx(type_name = "product_gender")]
+#[strum(ascii_case_insensitive)]
 pub enum ProductGender {
     Damskie,
     Meskie,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display, EnumIter)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display, EnumIter, AsRefStr,
+)]
 #[sqlx(type_name = "category_type")]
 #[strum(ascii_case_insensitive)]
 pub enum Category {
@@ -50,9 +57,9 @@ pub enum Category {
     Spodnice,
     Swetry,
     Bluzy,
-    #[strum(serialize = "Kurtki i Żakiety")]
+    #[strum(serialize = "Kurtki i Płaszcze")]
     KurtkiPlaszcze,
-    #[strum(serialize = "Marynarki i Płaszcze")]
+    #[strum(serialize = "Marynarki i Żakiety")]
     MarynarkiZakiety,
     Obuwie,
     Torebki,

@@ -175,7 +175,8 @@ async fn main() {
             "/htmx/moje-konto/zamowienie-szczegoly/{order_id}",
             get(my_order_details_htmx_handler),
         )
-        .route("/admin", get(admin_dashboard_htmx_handler)) // Główna strona panelu admina
+        .route("/admin", get(admin_dashboard_htmx_handler))
+        .route("/htmx/admin", get(admin_dashboard_htmx_handler))
         .route(
             "/htmx/admin/produkty",
             get(admin_products_list_htmx_handler),

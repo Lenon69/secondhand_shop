@@ -1078,6 +1078,24 @@
   x-cloak
 >
   <p x-text="message"></p>
+
 </div>
+
+
+<div x-data="{ isAuthenticated: !!localStorage.getItem('jwtToken') }">
+    <template x-if="isAuthenticated">
+        <div class="p-4 bg-yellow-200">
+            <h2 class="font-bold">Linki Tylko dla Zalogowanych (Testowe):</h2>
+            <a href="/admin"
+               hx-get="/htmx/admin"
+               hx-target="#content"
+               hx-swap="innerHTML"
+               hx-push-url="/admin"
+               class="text-blue-600 hover:underline">Przejdź do Panelu Admina (HTMX)</a>
+        </div>
+    </template>
+</div>
+
+
     </body>
 </html>

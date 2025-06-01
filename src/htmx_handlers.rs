@@ -21,7 +21,8 @@ use uuid::Uuid;
 use crate::{
     auth::Role,
     models::{
-        OrderItem, OrderItemDetailsPublic, ProductGender, ProductStatus, UserShippingDetails,
+        OrderItem, OrderItemDetailsPublic, ProductCondition, ProductGender, ProductStatus,
+        UserShippingDetails,
     },
 };
 #[allow(unused_imports)]
@@ -3407,69 +3408,156 @@ pub async fn admin_products_list_htmx_handler(
 
 pub async fn admin_product_new_form_htmx_handler(claims: TokenClaims) -> Result<Markup, AppError> {
     if claims.role != Role::Admin {
-        return Err(AppError::UnauthorizedAccess("Brak uprawnień.".to_string()));
+        return Err(AppError::UnauthorizedAccess(
+            "Brak uprawnień administratora.".to_string(),
+        ));
     }
-    // Tutaj wyrenderuj formularz (Maud) do tworzenia produktu.
-    // Formularz powinien mieć atrybuty:
-    // method="POST" action="/api/products" enctype="multipart/form-data"
-    // oraz odpowiednie atrybuty HTMX, np. hx-post="/api/products", hx-encoding="multipart/form-data",
-    // hx-target="#admin-content" lub na listę produktów, hx-swap="innerHTML"
-    // pola: name, description, price, gender, condition, category, image_file_1, image_file_2 itd.
-    // Po sukcesie, `create_product_handler` zwraca JSON produktu, więc musisz obsłużyć
-    // co HTMX ma zrobić z tą odpowiedzią (np. `hx-on::after-request="htmx.trigger('#admin-content', 'loadProductsList')"`)
-    // lub serwer może zwrócić `HX-Redirect` lub `HX-Trigger`.
+    tracing::info!(
+        "Admin ID {} żąda formularza dodawania nowego produktu",
+        claims.sub
+    );
+
     Ok(html! {
-        div {
-            h3 {"Dodaj nowy produkt (formularz admina)"}
-            // TODO: Zaimplementuj pełny formularz
-            form hx-encoding="multipart/form-data"
-                 hx-post="/api/products" // Istniejący endpoint API
-                 // Rozważ co ma się stać po sukcesie:
-                 // np. odświeżenie listy produktów lub przekierowanie
-                 hx-target="#admin-content" hx-swap="innerHTML" // Może załadować szczegóły nowego produktu
-                 // Lepsze może być:
-                 // hx-on--after-request="if(event.detail.successful) htmx.trigger('#admin-content', 'refreshProductList')"
-                 // Lub serwer zwraca HX-Trigger, który powoduje odświeżenie listy
-                 // lub HX-Location do listy produktów
-                 {
-                label for="name" {"Nazwa:"} input type="text" name="name" required; br;
-                label for="description" {"Opis:"} textarea name="description" required {} br;
-                label for="price" {"Cena (w groszach):"} input type="number" name="price" required; br;
-
-                label for="gender" {"Płeć:"}
-                select name="gender" required {
-                    option value="Damskie" {"Damskie"}
-                    option value="Meskie" {"Męskie"}
-                } br;
-
-                label for="condition" {"Stan:"}
-                select name="condition" required {
-                    option value="New" {"Nowy"}
-                    option value="LikeNew" {"Jak nowy"}
-                    option value="VeryGood" {"Bardzo dobry"}
-                    option value="Good" {"Dobry"}
-                } br;
-
-                label for="category" {"Kategoria:"}
-                select name="category" required {
-                    // Wypełnij opcjami z enum Category
-                    @for cat_variant in Category::iter() {
-                         option value=(cat_variant.to_string()) { (cat_variant.to_string()) }
+            div #admin-new-product-form-container ."p-4 sm:p-6 lg:p-8" {
+                div ."mb-6 pb-3 border-b border-gray-300" {
+                    h2 ."text-2xl font-semibold text-gray-800" { "Dodaj Nowy Produkt" }
+                }
+                div #new-product-messages ."mb-4 min-h-[2em]" {}
+                form
+                    hx-encoding="multipart/form-data"
+                    hx-post="/api/products" // Używam /api/products zgodnie z Twoim wcześniejszym kodem
+                    hx-target="#new-product-messages"
+                    hx-swap="innerHTML"
+                    class="space-y-6 bg-white p-6 rounded-lg shadow-md border border-gray-200"
+                    x-data="{
+                    imagePreviews: [null, null, null, null, null, null, null, null],
+                    imageFiles: [null, null, null, null, null, null, null, null],
+                    handleFileChange(event, index) {
+                        const file = event.target.files[0];
+                        if (file) {
+                            this.imageFiles[index] = file;
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                this.imagePreviews[index] = e.target.result;
+                            };
+                            reader.readAsDataURL(file);
+                        } else {
+                            this.imageFiles[index] = null;
+                            this.imagePreviews[index] = null;
+                            event.target.value = null;
+                        }
+                    },
+                    removeImage(index, inputId) {
+                        this.imageFiles[index] = null;
+                        this.imagePreviews[index] = null;
+                        const fileInput = document.getElementById(inputId);
+                        if (fileInput) {
+                            fileInput.value = null;
+                        }
                     }
-                } br;
+                }"
+                {
+                    // Nazwa Produktu
+                    div {
+                        label for="name" ."block text-sm font-medium text-gray-700 mb-1" { "Nazwa produktu *" }
+                        input type="text" name="name" id="name" required
+                               class="appearance-none block w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition duration-150 ease-in-out sm:text-sm";
+                    }
+                    // Opis Produktu
+                    div {
+                        label for="description" ."block text-sm font-medium text-gray-700 mb-1" { "Opis produktu *" }
+                        textarea name="description" id="description" rows="6" required
+                                  class="appearance-none block w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition duration-150 ease-in-out sm:text-sm" {}
+                    }
+                    // Cena Produktu
+                    div {
+                        label for="price" ."block text-sm font-medium text-gray-700 mb-1" { "Cena (w groszach) *" }
+                        input type="number" name="price" id="price" required min="0" step="1"
+                               class="appearance-none block w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition duration-150 ease-in-out sm:text-sm";
+                    }
+                    // Płeć, Stan, Kategoria
+                    div ."grid grid-cols-1 md:grid-cols-3 gap-6" {
+    div {
+                            label for="gender" ."block text-sm font-medium text-gray-700 mb-1" { "Płeć *" }
+                            select name="gender" id="gender" required class="..." {
+                                @for gender_variant in ProductGender::iter() {
+                                    // value będzie "Damskie" lub "Meskie" (zgodnie z nazwą wariantu Rust)
+                                    // Tekst wyświetlany to polska nazwa (z Display -> strum(serialize), jeśli zdefiniowane, inaczej nazwa wariantu)
+                                    option value=(gender_variant.as_ref()) { (gender_variant.to_string()) }
+                                }
+                            }
+                        }
+                        div {
+                            label for="condition" ."block text-sm font-medium text-gray-700 mb-1" { "Stan *" }
+                            select name="condition" id="condition" required class="..." {
+                                @for condition_variant in ProductCondition::iter() {
+                                    // value będzie "New", "LikeNew" itp. (zgodnie z nazwą wariantu Rust)
+                                    // Tekst wyświetlany to polska nazwa (z Display -> strum(serialize))
+                                    option value=(condition_variant.as_ref()) { (condition_variant.to_string()) }
+                                }
+                            }
+                        }
+                        div {
+                            label for="category" ."block text-sm font-medium text-gray-700 mb-1" { "Kategoria *" }
+                            select name="category" id="category" required class="..." {
+                                @for cat_variant in Category::iter() {
+                                    // value będzie np. "KurtkiPlaszcze" (zgodnie z nazwą wariantu Rust)
+                                    // Tekst wyświetlany to polska nazwa (z Display -> strum(serialize))
+                                    option value=(cat_variant.as_ref()) { (cat_variant.to_string()) }
+                                }
+                            }
+                        }                }
+                    // Obrazki Produktu
+                    div {
+                        label ."block text-sm font-medium text-gray-700 mb-2" { "Zdjęcia produktu (min. 1, max. 8) *" }
+                        div ."grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4" {
+                            @for i in 0..8 {
+                                @let input_id = format!("image_file_{}", i + 1);
+                                // POPRAWKA TUTAJ:
+                                @let x_if_preview_condition = format!("imagePreviews[{}]", i);
+                                @let x_if_no_preview_condition = format!("!imagePreviews[{}]", i);
+                                @let alpine_remove_image_call = format!("removeImage({}, '{}')", i, input_id);
+                                @let alpine_handle_file_change_call = format!("handleFileChange($event, {})", i);
 
-                label for="image_file_1" {"Obrazek 1:"} input type="file" name="image_file_1" required; br;
-                label for="image_file_2" {"Obrazek 2:"} input type="file" name="image_file_2" br;
-                label for="image_file_3" {"Obrazek 3:"} input type="file" name="image_file_3" br;
-                label for="image_file_4" {"Obrazek 4:"} input type="file" name="image_file_4" br;
-                label for="image_file_5" {"Obrazek 5:"} input type="file" name="image_file_5" br;
-                label for="image_file_6" {"Obrazek 6:"} input type="file" name="image_file_6" br;
-                label for="image_file_7" {"Obrazek 7:"} input type="file" name="image_file_7" br;
-                label for="image_file_8" {"Obrazek 8:"} input type="file" name="image_file_8" br;
-                // Dodaj więcej pól na obrazki jeśli potrzeba
-
-                button type="submit" {"Dodaj Produkt"}
+                                div ."relative aspect-square border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-400 hover:border-pink-400 transition-colors" {
+                                    // Podgląd obrazka
+                                    template x-if=(x_if_preview_condition) { // Użycie sformatowanego stringa
+                                        div ."absolute inset-0 w-full h-full group" {
+                                            img x-bind:src=(format!("imagePreviews[{}]",i)) alt=(format!("Podgląd obrazka {}", i+1)) // x-bind:src również wymaga pełnego stringa
+                                                 class="w-full h-full object-cover rounded-md";
+                                            button type="button"
+                                                   "@click"=(alpine_remove_image_call) // Użycie sformatowanego stringa
+                                                   class="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-700 transition-opacity text-xs"
+                                                   title="Usuń obrazek" {
+                                                "X"
+                                            }
+                                        }
+                                    }
+                                    // Input pliku
+                                    template x-if=(x_if_no_preview_condition) { // Użycie sformatowanego stringa
+                                        label for=(input_id) class="cursor-pointer p-2 text-center" {
+                                            div ."text-2xl" { "+" }
+                                            div ."text-xs mt-1" {
+                                                @if i == 0 { "Dodaj główne" } @else { "Dodaj zdjęcie" }
+                                            }
+                                        }
+                                    }
+                                    input type="file" name=(input_id) id=(input_id) accept="image/jpeg, image/png, image/webp"
+                                           "@change"=(alpine_handle_file_change_call) // Użycie sformatowanego stringa
+                                           class="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                                           required[i == 0];
+                                }
+                            }
+                        }
+                    }
+                    // Przycisk Dodaj Produkt
+                    div ."pt-5 border-t border-gray-200 mt-8" {
+                        button type="submit"
+                               class="w-full sm:w-auto inline-flex justify-center items-center px-8 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-transform transform hover:scale-105" {
+                            span { "Dodaj Produkt" }
+                        }
+                    }
+                }
             }
-        }
-    })
+        })
 }
