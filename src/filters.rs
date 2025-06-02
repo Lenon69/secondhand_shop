@@ -9,6 +9,7 @@ const MAX_PAGE_LIMIT: i64 = 50;
 const DEFAULT_SORT_BY: &str = "name";
 const DEFAULT_SORT_ORDER: &str = "asc";
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub struct ListingParams {
@@ -57,6 +58,7 @@ pub struct ListingParams {
     pub updated_at: Option<DateTime<Utc>>,
 }
 
+#[allow(dead_code)]
 impl ListingParams {
     pub fn limit(&self) -> i64 {
         match self.limit {

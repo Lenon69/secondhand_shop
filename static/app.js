@@ -164,25 +164,6 @@ document.body.addEventListener("registrationComplete", function (evt) {
   }, 1);
 });
 
-document.body.addEventListener("htmx:afterOnLoad", function (evt) {
-  const response = evt.detail.xhr.responseText;
-  try {
-    const json = JSON.parse(response);
-    if (json.showMessage) {
-      window.dispatchEvent(
-        new CustomEvent("showMessage", {
-          detail: {
-            message: json.showMessage.message,
-            type: json.showMessage.type || "info",
-          },
-        }),
-      );
-    }
-  } catch (_) {
-    // Niepoprawny JSON – ignorujemy
-  }
-});
-
 // --- Listener htmx:responseError ---
 document.body.addEventListener("htmx:responseError", function (evt) {
   const xhr = evt.detail.xhr;
@@ -418,3 +399,92 @@ function adminProductEditForm() {
     },
   };
 }
+
+document.body.addEventListener("htmx:beforeSwap", function (event) {
+  const xhr = event.detail.xhr;
+  const requestConfig = event.detail.requestConfig;
+
+  // Sprawdź, czy to odpowiedź z naszego formularza edycji produktu
+  // (metoda PATCH na ścieżkę /api/products/{uuid})
+  const productApiPatchRegex =
+    /^\/api\/products\/[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$/;
+
+  if (
+    requestConfig &&
+    requestConfig.verb &&
+    requestConfig.verb.toLowerCase() === "patch" &&
+    requestConfig.path &&
+    productApiPatchRegex.test(requestConfig.path)
+  ) {
+    if (xhr && xhr.status === 200) {
+      // Sukces (200 OK)
+      try {
+        const responseJson = JSON.parse(xhr.responseText);
+        // Proste sprawdzenie, czy odpowiedź wygląda jak obiekt produktu (posiada np. 'id' i 'name')
+        // Możesz to dostosować, jeśli potrzebujesz bardziej szczegółowej weryfikacji.
+        if (
+          responseJson &&
+          typeof responseJson.id !== "undefined" &&
+          typeof responseJson.name !== "undefined"
+        ) {
+          console.log(
+            "Pomyślna aktualizacja produktu, odpowiedź JSON przechwycona.",
+          );
+
+          // 1. Wywołaj zdarzenie, aby wyświetlić Twój toast/bąbelek
+          window.dispatchEvent(
+            new CustomEvent("showMessage", {
+              detail: {
+                message: "Pomyślnie zapisano zmiany",
+                type: "success", // lub inny typ, którego używa Twój system toastów
+              },
+            }),
+          );
+
+          // 2. Anuluj standardową operację podmiany treści przez HTMX
+          //    (aby nie wstawiać JSONa do `#edit-product-messages`)
+          event.detail.shouldSwap = false;
+
+          // 3. Opcjonalnie: Wyczyść div #edit-product-messages lub wstaw tam statyczny komunikat,
+          //    jeśli chcesz, aby coś tam się pojawiło zamiast JSONa.
+          //    Jeśli toast jest wystarczający, możesz zostawić to pole puste.
+          const targetElement = event.detail.target; // To powinien być #edit-product-messages
+          if (targetElement) {
+            targetElement.innerHTML = ""; // Czyści zawartość
+            // lub:
+            // targetElement.innerHTML = '<span class="text-sm text-green-600">Zmiany zapisane!</span>';
+          }
+
+          console.log("Toast wyświetlony, podmiana JSON anulowana.");
+        }
+        // Jeśli JSON nie jest oczekiwanym obiektem produktu, pozwól HTMX działać domyślnie
+        // (może to być np. odpowiedź błędu walidacji w formacie HTML/JSON od serwera)
+      } catch (e) {
+        // Jeśli odpowiedź nie jest JSONem, pozwól HTMX działać domyślnie
+        console.warn(
+          "Odpowiedź z aktualizacji produktu nie była oczekiwanym JSONem lub wystąpił błąd parsowania:",
+          e,
+        );
+      }
+    }
+    // Jeśli status nie jest 200 (np. błąd walidacji 422), pozwól HTMX działać domyślnie,
+    // aby wyświetlić ewentualne komunikaty błędów w #edit-product-messages.
+  }
+});
+
+document.body.addEventListener("htmx:afterOnLoad", function (evt) {
+  const response = evt.detail.xhr.responseText;
+  try {
+    const json = JSON.parse(response);
+    if (json.showMessage) {
+      window.dispatchEvent(
+        new CustomEvent("showMessage", {
+          detail: {
+            message: json.showMessage.message,
+            type: json.showMessage.type || "info",
+          },
+        }),
+      );
+    }
+  } catch (_) {}
+});
