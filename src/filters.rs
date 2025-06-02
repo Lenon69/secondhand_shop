@@ -1,7 +1,8 @@
 // src/filters.rs
 use crate::models::{Category, ProductCondition, ProductGender, ProductStatus};
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer, de};
+use std::str::FromStr;
 
 const DEFAULT_PAGE_LIMIT: i64 = 10;
 const MAX_PAGE_LIMIT: i64 = 50;
@@ -18,13 +19,25 @@ pub struct ListingParams {
     pub offset: Option<i64>,
 
     // Filtry
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_enum_from_empty_string"
+    )]
     pub gender: Option<ProductGender>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_enum_from_empty_string"
+    )]
     pub category: Option<Category>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_enum_from_empty_string"
+    )]
     pub condition: Option<ProductCondition>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_enum_from_empty_string"
+    )]
     pub status: Option<ProductStatus>,
     #[serde(default)]
     pub price_min: Option<i64>,
@@ -217,5 +230,26 @@ impl ListingParams {
             }
         }
         query_parts.join("&")
+    }
+}
+
+fn deserialize_optional_enum_from_empty_string<'de, D, T>(
+    deserializer: D,
+) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: FromStr, // Wymagamy, aby typ T implementował FromStr (co EnumString zapewnia)
+    T::Err: std::fmt::Display, // Wymagane dla de::Error::custom
+{
+    // Deserializuj jako String. Jeśli parametr jest obecny w URL (np. category=),
+    // to `s` będzie tym stringiem (nawet jeśli pustym).
+    // Jeśli parametr całkowicie brakuje w URL, a pole ma #[serde(default)],
+    // ta funkcja nie zostanie wywołana dla tego pola, a zadziała `default`.
+    let s = String::deserialize(deserializer)?;
+    if s.is_empty() {
+        Ok(None) // Pusty string traktujemy jako brak wartości (None)
+    } else {
+        // Próbujemy sparsować string na enum T
+        T::from_str(&s).map(Some).map_err(de::Error::custom)
     }
 }
