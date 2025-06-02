@@ -3821,13 +3821,7 @@ pub async fn admin_product_edit_form_htmx_handler(
                         hx-encoding="multipart/form-data"
                         hx-patch=(format!("/api/products/{}", product_to_edit.id))
                         hx-target="#edit-product-messages"
-                        "hx-on::config-request"="
-                        if (event.target.__x && event.target.__x.$data && event.target.__x.$data.imagesToDelete) {
-                            event.detail.parameters['urls_to_delete'] = JSON.stringify(event.target.__x.$data.imagesToDelete);
-                        } else {
-                            console.warn('Alpine data imagesToDelete not found for hx-on::config-request');
-                        }
-                    "
+
                         class="space-y-8 bg-white p-6 sm:p-8 rounded-xl shadow-xl border border-gray-200"
                         x-data="adminProductEditForm()"
                         // *** POPRAWKA TUTAJ ***
