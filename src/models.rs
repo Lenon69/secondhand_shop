@@ -446,3 +446,9 @@ pub struct CheckoutFormPayload {
     #[validate(length(min = 1, message = "Metoda płatności jest wymagana."))]
     pub payment_method: String,
 }
+
+#[derive(Debug, PartialEq, Clone, Display, EnumIter)]
+pub enum PaginationItem {
+    Page(i64),
+    Dots,
+}

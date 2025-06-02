@@ -181,12 +181,16 @@ impl ListingParams {
 
     pub fn to_query_string_for_pagination(&self) -> String {
         let mut query_parts = Vec::new();
-        if let Some(limit) = self.limit {
-            query_parts.push(format!("limit={}", limit));
-        }
+
+        // Limit: użyj wartości z params lub domyślnej, jeśli nie ma
+        query_parts.push(format!(
+            "limit={}",
+            self.limit.unwrap_or(DEFAULT_PAGE_LIMIT)
+        ));
+
         if let Some(gender) = &self.gender {
             query_parts.push(format!("gender={}", gender.as_ref()));
-        } // Użyj as_ref() dla enumów
+        }
         if let Some(category) = &self.category {
             query_parts.push(format!("category={}", category.as_ref()));
         }
@@ -195,21 +199,22 @@ impl ListingParams {
         }
         if let Some(status) = &self.status {
             query_parts.push(format!("status={}", status.as_ref()));
+        } // Ważne dla admina
+        if let Some(p_min) = self.price_min {
+            query_parts.push(format!("price_min={}", p_min));
         }
-        if let Some(price_min) = self.price_min {
-            query_parts.push(format!("price_min={}", price_min));
+        if let Some(p_max) = self.price_max {
+            query_parts.push(format!("price_max={}", p_max));
         }
-        if let Some(price_max) = self.price_max {
-            query_parts.push(format!("price_max={}", price_max));
-        }
-        if let Some(sort_by) = &self.sort_by {
-            query_parts.push(format!("sort-by={}", sort_by));
-        }
-        if let Some(order) = &self.order {
-            query_parts.push(format!("order={}", order));
-        }
-        if let Some(search) = &self.search {
-            query_parts.push(format!("search={}", urlencoding::encode(search)));
+
+        // Sortowanie: użyj metod, które zwracają domyślne wartości
+        query_parts.push(format!("sort-by={}", self.sort_by()));
+        query_parts.push(format!("order={}", self.order()));
+
+        if let Some(search_term) = &self.search {
+            if !search_term.is_empty() {
+                query_parts.push(format!("search={}", urlencoding::encode(search_term)));
+            }
         }
         query_parts.join("&")
     }

@@ -32,7 +32,9 @@ use crate::{
     errors::AppError,
     filters::ListingParams,
     handlers::XGuestCartId,
-    models::{CartDetailsResponse, Category, Order, OrderStatus, Product, ShoppingCart},
+    models::{
+        CartDetailsResponse, Category, Order, OrderStatus, PaginationItem, Product, ShoppingCart,
+    },
     pagination::PaginatedProductsResponse,
     state::AppState,
 };
@@ -3329,164 +3331,136 @@ pub async fn admin_products_list_htmx_handler(
         params
     );
 
-    // Admin domyślnie widzi wszystkie statusy, params.status jest Option<ProductStatus>
-    // Jeśli `params.status` jest None, funkcja `list_products` nie powinna filtrować po statusie.
-    // To wymagało modyfikacji `handlers::list_products` (jak omawialiśmy).
-
-    // Domyślny limit dla admina, jeśli nie podany
     if params.limit.is_none() {
-        params.limit = Some(20); // Możesz ustawić inny domyślny limit dla admina
+        params.limit = Some(10);
     }
-    let current_limit = params.limit(); // Używamy metody z ListingParams
+    let current_limit = params.limit();
 
-    // Wywołanie logiki pobierania produktów
     let paginated_response_json =
         crate::handlers::list_products(State(app_state.clone()), Query(params.clone())).await?;
     let paginated_response: PaginatedProductsResponse = paginated_response_json.0;
 
-    Ok(html! {
-        div #admin-product-list-container ."p-1" { // Mniejszy padding dla kontenera, główne paddingi są na #admin-content
+    let params_for_edit_links = params.to_query_string_with_skips(&["offset"]);
 
-            // Nagłówek i przycisk dodawania
+    Ok(html! {
+        div #admin-product-list-container ."p-1" {
+            // Nagłówek i przycisk dodawania (bez zmian)
             div ."flex flex-col sm:flex-row justify-between items-center mb-6 gap-4" {
                 h3 ."text-2xl font-semibold text-gray-800" { "Zarządzanie Produktami" }
-                a href="/htmx/admin/products/new-form" // Używamy angielskiej ścieżki
+                a href="/htmx/admin/products/new-form"
                    hx-get="/htmx/admin/products/new-form"
-                   hx-target="#admin-content" // Ładuje formularz do głównego kontenera admina
+                   hx-target="#admin-content"
                    hx-swap="innerHTML"
                    class="bg-pink-600 hover:bg-pink-700 text-white font-semibold py-2 px-5 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out text-sm inline-flex items-center" {
                     svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 mr-2"{
                         path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" {}
                     }
-                    "Dodaj Produkt"
+                    "Dodaj Nowy Produkt"
                 }
             }
 
-            // Formularz filtrów
-            form hx-get="/htmx/admin/products" // Ścieżka do tego samego handlera
-                 hx-target="#admin-product-list-container" // Odświeża ten kontener
+            // Formularz filtrów (bez zmian)
+            form hx-get="/htmx/admin/products"
+                 hx-target="#admin-product-list-container"
                  hx-swap="outerHTML"
                  class="mb-6 p-4 bg-white rounded-lg shadow-sm border border-gray-200" {
-                div ."grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-end" {
-                    // Filtr kategorii
+                div ."grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end" {
                     div {
-                        label for="filter_category" ."block text-sm font-medium text-gray-700 mb-1" { "Kategoria:" }
-                        select name="category" id="filter_category"
-                               class="block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm" {
-                            option value="" selected[params.category.is_none()] { "Wszystkie Kategorie" }
+                        label for="filter_category_admin" ."block text-sm font-medium text-gray-700 mb-1" { "Kategoria:" }
+                        select name="category" id="filter_category_admin" class="admin-filter-select" {
+                            option value="" selected[params.category.is_none()] { "Wszystkie" }
                             @for cat_variant in Category::iter() {
                                 option value=(cat_variant.as_ref()) selected[params.category.as_ref() == Some(&cat_variant)] { (cat_variant.to_string()) }
                             }
                         }
                     }
-                    // Filtr statusu
                     div {
-                        label for="filter_status" ."block text-sm font-medium text-gray-700 mb-1" { "Status:" }
-                        select name="status" id="filter_status"
-                               class="block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm" {
-                            option value="" selected[params.status.is_none()] { "Wszystkie Statusy" } // Pozwala adminowi nie filtrować po statusie
+                        label for="filter_status_admin" ."block text-sm font-medium text-gray-700 mb-1" { "Status:" }
+                        select name="status" id="filter_status_admin" class="admin-filter-select" {
+                            option value="" selected[params.status.is_none()] { "Wszystkie" }
                             @for status_variant in ProductStatus::iter() {
                                 option value=(status_variant.as_ref()) selected[params.status.as_ref() == Some(&status_variant)] { (status_variant.to_string()) }
                             }
                         }
                     }
-                    // Wyszukiwanie tekstowe
-                    div {
-                        label for="search_query" ."block text-sm font-medium text-gray-700 mb-1" { "Szukaj:" }
-                        input type="search" name="search" id="search_query"
-                               value=[params.search.as_deref()]
-                               placeholder="Nazwa, opis..."
-                               class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                    div ."lg:col-span-1" {
+                        label for="search_query_admin" ."block text-sm font-medium text-gray-700 mb-1" { "Szukaj:" }
+                        input type="search" name="search" id="search_query_admin" value=[params.search.as_deref()]
+                               placeholder="Nazwa, opis..." class="admin-filter-input";
                     }
-                    // Przyciski formularza filtrów
-                    div ."flex space-x-2" {
-                        button type="submit"
-                               class="w-full sm:w-auto bg-gray-700 hover:bg-gray-800 text-white font-semibold py-2 px-4 rounded-md shadow-sm text-sm transition-colors" {
-                            "Filtruj"
-                        }
-                        // Przycisk do resetowania filtrów (link do tej samej strony bez parametrów)
-                        a href="/htmx/admin/products" hx-get="/htmx/admin/products"
-                           hx-target="#admin-product-list-container" hx-swap="outerHTML"
-                           class="w-full sm:w-auto block text-center bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-2 px-4 rounded-md shadow-sm text-sm transition-colors" {
-                            "Resetuj"
-                        }
+                    div ."flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 items-end lg:col-start-4" {
+                        button type="submit" class="admin-filter-button bg-gray-700 hover:bg-gray-800 text-white w-full sm:w-auto" { "Filtruj" }
+                        a href="/htmx/admin/products" hx-get="/htmx/admin/products" hx-target="#admin-product-list-container" hx-swap="outerHTML"
+                           class="admin-filter-button bg-gray-200 hover:bg-gray-300 text-gray-700 w-full sm:w-auto text-center" { "Resetuj" }
                     }
                 }
+                @if let Some(sort_val) = &params.sort_by { input type="hidden" name="sort-by" value=(sort_val); }
+                @if let Some(order_val) = &params.order { input type="hidden" name="order" value=(order_val); }
+                input type="hidden" name="limit" value=(current_limit);
             }
 
-            // Tabela produktów
+            // Tabela produktów (bez zmian w tej części)
             div ."overflow-x-auto bg-white rounded-lg shadow-md border border-gray-200" {
                 table ."min-w-full divide-y divide-gray-200" {
                     thead ."bg-gray-100" {
                         tr {
-                            th ."px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider" { "Zdjęcie" }
-                            th ."px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider" {
-                                (sort_link("/htmx/admin/products", &params, "name", "Nazwa"))
-                            }
-                            th ."px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider" {
-                                (sort_link("/htmx/admin/products", &params, "price", "Cena"))
-                            }
-                            th ."px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider" { "Status" }
-                            th ."px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider" { "Kategoria" }
-                            // Załóżmy, że masz created_at w Product i ListingParams obsługuje sortowanie po "created_at"
-                            th ."px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider" {
-                                (sort_link("/htmx/admin/products", &params, "created_at", "Data dodania"))
-                            }
-                            th ."px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider" { "Akcje" }
+                            th scope="col" class="admin-th" { "Zdjęcie" }
+                            th scope="col" class="admin-th" { (sort_link("/htmx/admin/products", &params, "name", "Nazwa")) }
+                            th scope="col" class="admin-th" { (sort_link("/htmx/admin/products", &params, "price", "Cena")) }
+                            th scope="col" class="admin-th" { "Status" }
+                            th scope="col" class="admin-th" { "Kategoria" }
+                            th scope="col" class="admin-th" { (sort_link("/htmx/admin/products", &params, "created_at", "Dodano")) }
+                            th scope="col" class="admin-th text-right" { "Akcje" }
                         }
                     }
                     tbody ."bg-white divide-y divide-gray-200" {
                         @if paginated_response.data.is_empty() {
-                            tr {
-                                td colspan="7" ."px-4 py-4 text-center text-gray-500 italic" { "Nie znaleziono produktów spełniających kryteria." }
-                            }
+                            tr { td colspan="7" class="px-4 py-10 text-center text-gray-500 italic text-lg" { "Nie znaleziono produktów." } }
                         }
                         @for product in &paginated_response.data {
-                            tr ."hover:bg-gray-50 transition-colors" {
-                                td ."px-4 py-2 whitespace-nowrap" {
-                                    a href=(format!("/products/{}", product.id)) target="_blank" // Otwiera w nowej karcie
-                                       title="Zobacz produkt w sklepie" {
+                            tr ."hover:bg-pink-50/30 transition-colors duration-150 ease-in-out" {
+                                td class="admin-td-image" {
+                                     a href=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
+                                       hx-get=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
+                                       hx-target="#admin-content" hx-swap="innerHTML"
+                                       title="Edytuj produkt" class="block w-12 h-12" {
                                         @if let Some(image_url) = product.images.get(0) {
-                                            img src=(image_url) alt=(product.name) class="h-12 w-12 rounded-md object-cover hover:opacity-80 transition-opacity";
+                                            img src=(image_url) alt=(product.name) class="h-full w-full rounded-md object-cover shadow-sm hover:shadow-md transition-shadow";
                                         } @else {
-                                            div ."h-12 w-12 rounded-md bg-gray-200 flex items-center justify-center text-xs text-gray-400" { "Brak" }
+                                            div class="h-full w-full rounded-md bg-gray-200 flex items-center justify-center text-xs text-gray-400" { "N/A" }
                                         }
                                     }
                                 }
-                                td ."px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900" {
-                                    a href=(format!("/products/{}", product.id)) target="_blank" class="hover:text-pink-600" {
+                                td class="admin-td font-medium text-gray-900" {
+                                    a href=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
+                                       hx-get=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
+                                       hx-target="#admin-content" hx-swap="innerHTML"
+                                       class="hover:text-pink-700 hover:underline" {
                                         (product.name)
                                     }
                                 }
-                                td ."px-4 py-2 whitespace-nowrap text-sm text-gray-700" { (format_price_maud(product.price)) }
-                                td ."px-4 py-2 whitespace-nowrap text-sm" {
-                                    // Można dodać kolorowanie statusu
-                                    span class=(get_status_badge_classes(product.status.clone())) {
-                                        (product.status.to_string()) // Użyje Display z Strum dla polskiej nazwy
-                                    }
+                                td class="admin-td text-gray-700" { (format_price_maud(product.price)) }
+                                td class="admin-td" {
+                                    span class=(get_status_badge_classes(product.status.clone())) { (product.status.to_string()) }
                                 }
-                                td ."px-4 py-2 whitespace-nowrap text-sm text-gray-500" { (product.category.to_string()) }
-                                td ."px-4 py-2 whitespace-nowrap text-sm text-gray-500" {
-                                    @if let Some(created_at_val) = Some(product.created_at) {
-                                        (created_at_val.format("%Y-%m-%d %H:%M").to_string())
-                                        "-"
-                                    } @else {
+                                td class="admin-td text-gray-600" { (product.category.to_string()) }
+                                td class="admin-td text-gray-500 text-xs" { (product.created_at.format("%Y-%m-%d %H:%M").to_string()) }
+                                td class="admin-td text-right space-x-2" {
+                                    a href=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
+                                       hx-get=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
+                                       hx-target="#admin-content" hx-swap="innerHTML"
+                                       class="admin-action-button text-indigo-600 hover:text-indigo-800" title="Edytuj" {
+                                        svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5" {
+                                            path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" {}
+                                        }
                                     }
-                                }
-                                td ."px-4 py-2 whitespace-nowrap text-right text-sm font-medium space-x-2" {
-                                    a href=(format!("/htmx/admin/products/{}/edit", product.id))
-                                       hx-get=(format!("/htmx/admin/products/{}/edit", product.id))
-                                       hx-target="#admin-content" // Ładuje formularz edycji do głównego kontenera
-                                       hx-swap="innerHTML"
-                                       class="text-indigo-600 hover:text-indigo-800 hover:underline" { "Edytuj" }
-
                                     button hx-delete=(format!("/api/products/{}", product.id))
-                                           hx-confirm="Czy na pewno chcesz usunąć ten produkt?"
-                                           // Odświeżenie listy po usunięciu
-                                           hx-target="closest tr" // Celuje w najbliższy wiersz tabeli
-                                           hx-swap="outerHTML"   // Usuwa wiersz z tabeli (lub można odświeżyć całą listę)
-                                           class="text-red-600 hover:text-red-800 hover:underline" {
-                                        "Usuń"
+                                           hx-confirm="Czy na pewno chcesz nieodwracalnie usunąć ten produkt?"
+                                           hx-target="closest tr" hx-swap="outerHTML"
+                                           class="admin-action-button text-red-600 hover:text-red-800" title="Usuń" {
+                                        svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5" {
+                                            path "fill-rule"="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" "clip-rule"="evenodd" {}
+                                        }
                                     }
                                 }
                             }
@@ -3495,26 +3469,70 @@ pub async fn admin_products_list_htmx_handler(
                 }
             }
 
-            // Paginacja
+            // Paginacja - Z NOWĄ LOGIKĄ RENDEROWANIA
             @if paginated_response.total_pages > 1 {
-                div ."mt-6 flex justify-between items-center" {
-                    div ."text-sm text-gray-600" {
-                        "Strona " (paginated_response.current_page) " z " (paginated_response.total_pages)
-                        " (Łącznie: " (paginated_response.total_items) " produktów)"
+                nav class="mt-6 flex flex-col sm:flex-row justify-between items-center text-sm" aria-label="Paginacja produktów" {
+                    div class="text-gray-600 mb-2 sm:mb-0" {
+                        "Strona " strong { (paginated_response.current_page) }
+                        " z " strong { (paginated_response.total_pages) }
+                        " (Łącznie: " strong { (paginated_response.total_items) } " produktów)"
                     }
-                    div ."flex space-x-1" {
-                        @if paginated_response.current_page > 1 {
-                            a href="#"
-                               hx-get=(format!("/htmx/admin/products?{}&offset={}", params.clone_with_new_offset((paginated_response.current_page - 2) * current_limit).to_query_string_for_pagination(), (paginated_response.current_page - 2) * current_limit))
-                               hx-target="#admin-product-list-container" hx-swap="outerHTML"
-                               class="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-100" { "Poprzednia" }
+                    div class="flex space-x-1" {
+                        @let base_pagination_url = format!("/htmx/admin/products?{}&limit={}", params.to_query_string_with_skips(&["offset", "limit"]), current_limit);
+                        @let current_p = paginated_response.current_page;
+                        @let total_p = paginated_response.total_pages;
+                        @let side_window = 1; // Ile stron pokazać obok bieżącej, pierwszej i ostatniej
+
+                        // Przycisk "Pierwsza"
+                        @if current_p > 1 {
+                            { a href=(format!("{}&offset=0", base_pagination_url)) hx-get=(format!("{}&offset=0", base_pagination_url))
+                               hx-target="#admin-product-list-container" hx-swap="outerHTML" class="admin-pagination-button" { "«" } }
+                        } @else {
+                            { span class="admin-pagination-button-disabled" { "«" } }
                         }
-                        // Można dodać numery stron
-                        @if paginated_response.current_page < paginated_response.total_pages {
-                            a href="#"
-                               hx-get=(format!("/htmx/admin/products?{}&offset={}", params.clone_with_new_offset(paginated_response.current_page * current_limit).to_query_string_for_pagination(), paginated_response.current_page * current_limit))
-                               hx-target="#admin-product-list-container" hx-swap="outerHTML"
-                               class="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-100" { "Następna" }
+                        // Przycisk "Poprzednia"
+                        @if current_p > 1 {
+                            { a href=(format!("{}&offset={}", base_pagination_url, (current_p - 2) * current_limit))
+                               hx-get=(format!("{}&offset={}", base_pagination_url, (current_p - 2) * current_limit))
+                               hx-target="#admin-product-list-container" hx-swap="outerHTML" class="admin-pagination-button" { "‹" } }
+                        } @else {
+                            { span class="admin-pagination-button-disabled" { "‹" } }
+                        }
+
+                        // Numery stron - generowane przez funkcję pomocniczą
+                        @let pagination_items_vec = generate_pagination_items(current_p, total_p, side_window);
+                        @for item in pagination_items_vec {
+                            @match item {
+                                PaginationItem::Page(page_num_val) => {
+                                    @if page_num_val == current_p {
+                                        { span class="admin-pagination-button-active" { (page_num_val) } }
+                                    } @else {
+                                        { a href=(format!("{}&offset={}", base_pagination_url, (page_num_val - 1) * current_limit))
+                                           hx-get=(format!("{}&offset={}", base_pagination_url, (page_num_val - 1) * current_limit))
+                                           hx-target="#admin-product-list-container" hx-swap="outerHTML" class="admin-pagination-button" { (page_num_val) } }
+                                    }
+                                }
+                                PaginationItem::Dots => {
+                                    { span class="admin-pagination-dots" { "..." } }
+                                }
+                            }
+                        }
+
+                        // Przycisk "Następna"
+                        @if current_p < total_p {
+                            { a href=(format!("{}&offset={}", base_pagination_url, current_p * current_limit))
+                               hx-get=(format!("{}&offset={}", base_pagination_url, current_p * current_limit))
+                               hx-target="#admin-product-list-container" hx-swap="outerHTML" class="admin-pagination-button" { "›" } }
+                        } @else {
+                            { span class="admin-pagination-button-disabled" { "›" } }
+                        }
+                        // Przycisk "Ostatnia"
+                        @if current_p < total_p {
+                            { a href=(format!("{}&offset={}", base_pagination_url, (total_p - 1) * current_limit))
+                               hx-get=(format!("{}&offset={}", base_pagination_url, (total_p - 1) * current_limit))
+                               hx-target="#admin-product-list-container" hx-swap="outerHTML" class="admin-pagination-button" { "»" } }
+                        } @else {
+                            { span class="admin-pagination-button-disabled" { "»" } }
                         }
                     }
                 }
@@ -3536,7 +3554,7 @@ fn sort_link(
     if current_params.sort_by() == sort_field {
         if current_params.order() == "asc" {
             next_order = "desc";
-            icon = "↑"; // Strzałka w górę dla ASC
+            icon = "↑"; // Strzałka w górę dla ASC:
         } else {
             // next_order pozostaje "asc" (domyślnie, aby przełączać)
             icon = "↓"; // Strzałka w dół dla DESC
@@ -3747,4 +3765,370 @@ pub async fn admin_product_new_form_htmx_handler(claims: TokenClaims) -> Result<
                 }
             }
         })
+}
+
+pub async fn admin_product_edit_form_htmx_handler(
+    State(app_state): State<AppState>,
+    claims: TokenClaims,
+    Path(product_id): Path<Uuid>,
+) -> Result<Markup, AppError> {
+    if claims.role != Role::Admin {
+        return Err(AppError::UnauthorizedAccess(
+            "Brak uprawnień administratora.".to_string(),
+        ));
+    }
+    tracing::info!(
+        "Admin ID {} żąda formularza edycji dla produktu ID {}",
+        claims.sub,
+        product_id
+    );
+
+    let product_to_edit = sqlx::query_as::<_, Product>("SELECT * FROM products WHERE id = $1")
+        .bind(product_id)
+        .fetch_one(&app_state.db_pool)
+        .await
+        .map_err(|err| match err {
+            sqlx::Error::RowNotFound => AppError::NotFound,
+            _ => AppError::SqlxError(err),
+        })?;
+
+    let existing_images_json_for_alpine: String =
+        serde_json::to_string(&product_to_edit.images).unwrap_or_else(|_| "[]".to_string());
+
+    let alpine_data_script = format!(
+        r#"
+        {{
+            imagePreviews: JSON.parse('{existing_images_json}').concat(Array(Math.max(0, 8 - JSON.parse('{existing_images_json}').length)).fill(null)),
+            imageFiles: Array(8).fill(null),
+            imagesToDelete: [],
+            productStatus: '{current_status}',
+
+            handleFileChange(event, index) {{
+                const file = event.target.files[0];
+                if (file) {{
+                    this.imageFiles[index] = file;
+                    const reader = new FileReader();
+                    reader.onload = (e) => {{ this.imagePreviews[index] = e.target.result; }};
+                    reader.readAsDataURL(file);
+
+                    const originalUrl = this.getOriginalUrlForSlot(index);
+                    if (originalUrl) {{
+                        const deleteIdx = this.imagesToDelete.indexOf(originalUrl);
+                        if (deleteIdx > -1) this.imagesToDelete.splice(deleteIdx, 1);
+                    }}
+                }} else {{
+                    const originalUrl = this.getOriginalUrlForSlot(index);
+                    if (originalUrl && this.imagePreviews[index] !== originalUrl) {{
+                        this.imagePreviews[index] = originalUrl;
+                        this.imageFiles[index] = null;
+                    }} else if (!originalUrl) {{
+                        this.imagePreviews[index] = null;
+                        this.imageFiles[index] = null;
+                    }}
+                    event.target.value = null;
+                }}
+            }},
+            removeImage(index, inputId) {{ // inputId jest teraz przekazywany
+                const originalUrl = this.getOriginalUrlForSlot(index);
+                if (originalUrl && this.imagePreviews[index] === originalUrl && !this.imagesToDelete.includes(originalUrl)) {{
+                    this.imagesToDelete.push(originalUrl);
+                }}
+                this.imagePreviews[index] = null;
+                this.imageFiles[index] = null;
+                const fileInput = document.getElementById(inputId); // używamy inputId
+                if (fileInput) fileInput.value = null;
+            }},
+            cancelDeletion(index) {{
+                const originalUrl = this.getOriginalUrlForSlot(index);
+                if (originalUrl) {{
+                    const deleteIdx = this.imagesToDelete.indexOf(originalUrl);
+                    if (deleteIdx > -1) {{
+                        this.imagesToDelete.splice(deleteIdx, 1);
+                        this.imagePreviews[index] = originalUrl;
+                        this.imageFiles[index] = null;
+                    }}
+                }}
+            }},
+            getOriginalUrlForSlot(index) {{
+                const existingImages = JSON.parse('{existing_images_json_escaped}');
+                return existingImages[index] || null;
+            }},
+            isSlotFilled(index) {{ return this.imagePreviews[index] !== null; }},
+            getSlotImageSrc(index) {{ return this.imagePreviews[index]; }},
+            isMarkedForDeletion(index) {{
+                const originalUrl = this.getOriginalUrlForSlot(index);
+                return originalUrl && this.imagesToDelete.includes(originalUrl) && this.imageFiles[index] === null;
+            }}
+        }}
+        "#,
+        existing_images_json = existing_images_json_for_alpine,
+        existing_images_json_escaped = existing_images_json_for_alpine
+            .replace('\'', "\\'")
+            .replace('\\', "\\\\"), // Dodatkowe escapowanie
+        current_status = product_to_edit.status.as_ref()
+    );
+
+    Ok(html! {
+        div #admin-product-edit-form-container ."p-4 sm:p-6 lg:p-8 bg-gray-50 min-h-screen" {
+            div ."max-w-4xl mx-auto" {
+                div ."flex justify-between items-center mb-6 pb-3 border-b border-gray-300" {
+                    h2 ."text-2xl sm:text-3xl font-semibold text-gray-800" { "Edytuj Produkt: " span."text-pink-600"{(product_to_edit.name)} }
+                    a href="/htmx/admin/products"
+                       hx-get="/htmx/admin/products"
+                       hx-target="#admin-content" hx-swap="innerHTML"
+                       class="text-sm text-pink-600 hover:text-pink-700 hover:underline font-medium transition-colors" {
+                        "← Wróć do listy"
+                    }
+                }
+                div #edit-product-messages ."mb-4 min-h-[2em]" {}
+
+                form
+                    hx-encoding="multipart/form-data"
+                    hx-patch=(format!("/api/products/{}", product_to_edit.id))
+                    hx-target="#edit-product-messages"
+                    "hx-on::config-request"="
+                        let alpineData = $el.closest('[x-data]').__x.$data;
+                        if (alpineData && alpineData.imagesToDelete) {
+                            event.detail.parameters['urls_to_delete'] = JSON.stringify(alpineData.imagesToDelete);
+                        }
+                    "
+                    class="space-y-8 bg-white p-6 sm:p-8 rounded-xl shadow-xl border border-gray-200"
+                    x-data=(PreEscaped(alpine_data_script)) {
+
+                    // Sekcja: Dane Podstawowe
+                    section {
+                        h3 ."text-xl font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-200" { "Dane Podstawowe" }
+                        div ."space-y-5" {
+                            div {
+                                label for="name" ."block text-sm font-medium text-gray-700 mb-1" { "Nazwa produktu *" }
+                                input type="text" name="name" id="name" required value=(product_to_edit.name)
+                                       class="appearance-none block w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition duration-150 ease-in-out sm:text-sm";
+                            }
+                            div {
+                                label for="description" ."block text-sm font-medium text-gray-700 mb-1" { "Opis produktu *" }
+                                textarea name="description" id="description" rows="6" required
+                                          class="appearance-none block w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition duration-150 ease-in-out sm:text-sm" {
+                                    (product_to_edit.description)
+                                }
+                            }
+                            div {
+                                label for="price" ."block text-sm font-medium text-gray-700 mb-1" { "Cena (w groszach) *" }
+                                input type="number" name="price" id="price" required min="0" step="1" value=(product_to_edit.price)
+                                       class="appearance-none block w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition duration-150 ease-in-out sm:text-sm";
+                            }
+                        }
+                    }
+
+                    // Sekcja: Klasyfikacja i Status
+                    section {
+                        h3 ."text-xl font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-200" { "Klasyfikacja i Status" }
+                        div ."grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5" {
+                            div {
+                                label for="gender" ."block text-sm font-medium text-gray-700 mb-1" { "Płeć *" }
+                                select name="gender" id="gender" required class="block w-full mt-1 py-2.5 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm" {
+                                    @for gender_variant in ProductGender::iter() {
+                                        option value=(gender_variant.as_ref()) selected[product_to_edit.gender == gender_variant] { (gender_variant.to_string()) }
+                                    }
+                                }
+                            }
+                            div {
+                                label for="condition" ."block text-sm font-medium text-gray-700 mb-1" { "Stan *" }
+                                select name="condition" id="condition" required class="block w-full mt-1 py-2.5 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm" {
+                                    @for condition_variant in ProductCondition::iter() {
+                                        option value=(condition_variant.as_ref()) selected[product_to_edit.condition == condition_variant] { (condition_variant.to_string()) }
+                                    }
+                                }
+                            }
+                            div {
+                                label for="category" ."block text-sm font-medium text-gray-700 mb-1" { "Kategoria *" }
+                                select name="category" id="category" required class="block w-full mt-1 py-2.5 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm" {
+                                    @for cat_variant in Category::iter() {
+                                        option value=(cat_variant.as_ref()) selected[product_to_edit.category == cat_variant] { (cat_variant.to_string()) }
+                                    }
+                                }
+                            }
+                            div {
+                                label for="status" ."block text-sm font-medium text-gray-700 mb-1" { "Status *" }
+                                select name="status" id="status" required x-model="productStatus" class="block w-full mt-1 py-2.5 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm" {
+                                    @for status_variant in ProductStatus::iter() {
+                                        option value=(status_variant.as_ref()) { (status_variant.to_string()) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Sekcja: Zdjęcia Produktu
+                    section {
+                        h3 ."text-xl font-semibold text-gray-700 mb-2 pb-2 border-b border-gray-200" { "Zdjęcia Produktu" }
+                        p ."text-xs text-gray-500 mb-4" { "Produkt musi mieć przynajmniej jedno zdjęcie. Pierwsze zdjęcie jest zdjęciem głównym." }
+
+                        div ."grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4" {
+                            @for i in 0..8 {
+                                @let slot_input_id = format!("image_file_slot_{}", i);
+                                div class="relative aspect-square border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-400 hover:border-pink-400 transition-colors group"
+                                    x-bind:class="{
+                                        '!border-solid !border-pink-500 shadow-lg': isSlotFilled(i) && !isMarkedForDeletion(i),
+                                        '!border-red-500 !border-solid opacity-60': isMarkedForDeletion(i)
+                                    }"
+                                {
+                                    // Podgląd obrazka
+                                    template x-if="isSlotFilled(i) && !isMarkedForDeletion(i)" {
+                                        div ."absolute inset-0 w-full h-full" {
+                                            img x-bind:src="getSlotImageSrc(i)" alt=(format!("Podgląd {}", i+1))
+                                                 class="w-full h-full object-cover rounded-md";
+                                            button type="button"
+                                                   "@click.prevent"=(format!("removeImage({}, '{}')", i, slot_input_id)) // *** POPRAWIONA LINIA ***
+                                                   class="absolute top-1 right-1 p-0.5 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-700 transition-all text-xs w-5 h-5 flex items-center justify-center shadow-md"
+                                                   title="Oznacz do usunięcia / Usuń nowy" {
+                                                // SVG dla ikony "X" lub kosza (upewnij się, że path ma {} na końcu)
+                                                svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3" { // Zmieniono na w-3 h-3 dla mniejszej ikony
+                                                    path "fill-rule"="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" "clip-rule"="evenodd" {} // *** POPRAWIONA LINIA (dodano {}) ***
+                                                }
+                                            }
+                                        }
+                                    }
+                                    // Informacja "Do usunięcia"
+                                    template x-if="isMarkedForDeletion(i)" {
+                                        div ."absolute inset-0 w-full h-full flex flex-col items-center justify-center bg-gray-100/80 rounded-md p-2 text-center" {
+                                            span ."text-red-600 font-semibold text-xs" { "OZNACZONO DO USUNIĘCIA" }
+                                            button type="button" "@click.prevent"="cancelDeletion(i)"
+                                                   class="mt-1 text-[0.7rem] text-blue-600 hover:underline font-medium" {
+                                                "Anuluj usunięcie"
+                                            }
+                                        }
+                                    }
+                                    // Placeholder do dodania nowego zdjęcia
+                                    template x-if="!isSlotFilled(i) || (isMarkedForDeletion(i) && imagePreviews[i] === null)" {
+                                        label for=(slot_input_id) class="cursor-pointer p-2 text-center w-full h-full flex flex-col items-center justify-center hover:bg-pink-50 transition-colors rounded-md" {
+                                            // SVG dla ikony "+" (upewnij się, że path ma {} na końcu)
+                                            svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-8 h-8 text-gray-400" {
+                                                path d="M9.25 13.25a.75.75 0 001.5 0V4.793l2.97 2.97a.75.75 0 001.06-1.06l-4.25-4.25a.75.75 0 00-1.06 0L5.22 6.704a.75.75 0 001.06 1.06L9.25 4.793v8.457z" {} // *** POPRAWIONA LINIA (dodano {}) ***
+                                                path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" {} // *** POPRAWIONA LINIA (dodano {}) ***
+                                            }
+                                            div ."text-xs mt-1 text-gray-500" {
+                                                 @if i == 0 { "Zmień/Dodaj główne" } @else { "Dodaj zdjęcie" }
+                                            }
+                                        }
+                                    }
+                                    input type="file" name=(format!("image_file_{}", i + 1)) id=(slot_input_id) accept="image/jpeg,image/png,image/webp"
+                                           "@change"="handleFileChange($event, i)"
+                                           class="opacity-0 absolute inset-0 w-full h-full cursor-pointer";
+                                }
+                            }
+                        }
+                    }
+
+                    // Przyciski Akcji
+                    section ."pt-8 border-t border-gray-200 mt-8" {
+                        div ."flex flex-col sm:flex-row justify-end items-center gap-3" {
+                            a href="/htmx/admin/products"
+                               hx-get="/htmx/admin/products" hx-target="#admin-content" hx-swap="innerHTML"
+                               class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 transition-all w-full sm:w-auto text-center" {
+                                "Anuluj"
+                            }
+                            button type="submit"
+                                   class="w-full sm:w-auto inline-flex justify-center items-center px-8 py-2.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-transform transform hover:scale-105" {
+                                span { "Zapisz Zmiany" }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    })
+}
+
+fn generate_pagination_items(
+    current_page: i64,
+    total_pages: i64,
+    window_size: i64,
+) -> Vec<PaginationItem> {
+    if total_pages <= 0 {
+        return Vec::new();
+    }
+
+    let mut items = Vec::new();
+    let mut last_added_page = 0;
+
+    for page_num in 1..=total_pages {
+        // Warunki, kiedy numer strony powinien być wyświetlony:
+        // 1. Pierwsza strona
+        // 2. Ostatnia strona
+        // 3. Strony w "oknie" wokół bieżącej strony
+        let should_display_page = page_num == 1
+            || page_num == total_pages
+            || (page_num >= current_page - window_size && page_num <= current_page + window_size);
+
+        if should_display_page {
+            // Jeśli jest przerwa od ostatnio dodanej strony, wstaw kropki
+            if last_added_page > 0 && page_num > last_added_page + 1 {
+                // Upewnij się, że nie dodajesz kropek tuż po stronie 1, jeśli okno zaczyna się od 3
+                // lub tuż przed ostatnią stroną, jeśli okno kończy się na total_pages - 2
+                if items.last() != Some(&PaginationItem::Dots) {
+                    // Unikaj podwójnych kropek
+                    items.push(PaginationItem::Dots);
+                }
+            }
+            items.push(PaginationItem::Page(page_num));
+            last_added_page = page_num;
+        }
+    }
+    // Czasami ostatnia pętla może nie dodać kropek przed ostatnią stroną, jeśli warunek przerwy nie został spełniony
+    // np. current=1, total=10, window=1 -> [1, Dots, 9, 10] zamiast [1, Dots, 10]
+    // Ta dodatkowa weryfikacja może pomóc, ale logika powyżej powinna być już dość solidna.
+    // Jeśli ostatnim elementem nie jest strona total_pages, a przedostatnim nie są kropki, i jest luka...
+    if total_pages > 1
+        && last_added_page < total_pages
+        && items.last() != Some(&PaginationItem::Dots)
+    {
+        // Ten warunek może być zbyt agresywny, powyższa pętla powinna sobie radzić.
+        // Jeśli jest problem z ostatnimi kropkami, można tu dodać logikę.
+    }
+
+    // Prostsze podejście do kropek może być takie:
+    // Zawsze dodaj 1.
+    // Jeśli current_page - window > 2, dodaj kropki.
+    // Dodaj strony od max(2, current_page - window) do min(total_pages - 1, current_page + window).
+    // Jeśli current_page + window < total_pages - 1, dodaj kropki.
+    // Zawsze dodaj total_pages (jeśli > 1).
+    // To jest klasyczny algorytm paginacji.
+
+    // Użyjemy bardziej bezpośredniej logiki budowania listy `items`, jak poniżej,
+    // która jest często spotykana i bardziej przewidywalna.
+
+    if total_pages <= 1 {
+        // Jeśli jest 0 lub 1 strona, nie ma co pokazywać z kropkami
+        if total_pages == 1 {
+            return vec![PaginationItem::Page(1)];
+        }
+        return Vec::new();
+    }
+
+    let mut pages_to_render = std::collections::HashSet::new();
+    pages_to_render.insert(1); // Zawsze pierwsza
+    pages_to_render.insert(total_pages); // Zawsze ostatnia
+
+    for i in -window_size..=window_size {
+        let page_in_window = current_page + i;
+        if page_in_window > 0 && page_in_window <= total_pages {
+            pages_to_render.insert(page_in_window);
+        }
+    }
+
+    let mut sorted_pages: Vec<i64> = pages_to_render.into_iter().collect();
+    sorted_pages.sort_unstable();
+
+    let mut final_items = Vec::new();
+    let mut last_page_num = 0;
+
+    for page_num in sorted_pages {
+        if last_page_num > 0 && page_num > last_page_num + 1 {
+            final_items.push(PaginationItem::Dots);
+        }
+        final_items.push(PaginationItem::Page(page_num));
+        last_page_num = page_num;
+    }
+
+    final_items
 }

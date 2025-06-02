@@ -438,7 +438,7 @@ pub async fn create_product_handler(
 
 pub async fn update_product_partial_handler(
     State(app_state): State<AppState>,
-    Path(product_id): Path<Uuid>,
+    Path(product_id): Path<Uuid>, // Zmieniono z id na product_id dla jasności, ale w main.rs ścieżka używa {id} - trzymajmy się {id}
     claims: TokenClaims,
     mut multipart: Multipart,
 ) -> Result<Json<Product>, AppError> {
@@ -449,17 +449,18 @@ pub async fn update_product_partial_handler(
     }
 
     tracing::info!(
-        "Obsłużono zapytanie PATCH /api/products/{} - aktualizacja: (multipart)",
+        "Obsłużono zapytanie PATCH /api/products/{} - aktualizacja (multipart)",
         product_id,
     );
 
-    // Pobierz istniejący produkt z bazy
+    // Rozpocznij transakcję (zalecane)
+    // let mut tx = app_state.db_pool.begin().await.map_err(AppError::SqlxError)?;
+
     let mut existing_product = sqlx::query_as::<_, Product>(
-        r#"
-            SELECT * FROM products WHERE id = $1 FOR UPDATE"#,
+        "SELECT * FROM products WHERE id = $1 FOR UPDATE", // FOR UPDATE w transakcji
     )
     .bind(product_id)
-    .fetch_one(&app_state.db_pool)
+    .fetch_one(&app_state.db_pool) // Jeśli używasz transakcji, zmień na &mut *tx
     .await
     .map_err(|err| match err {
         sqlx::Error::RowNotFound => {
@@ -467,155 +468,147 @@ pub async fn update_product_partial_handler(
             AppError::NotFound
         }
         _ => {
-            tracing::error!(
-                "PATCH: Błąd bazy danych podczas pobierania produktu {}: {:?}",
-                product_id,
-                err
-            );
+            tracing::error!("PATCH: Błąd bazy danych (pobieranie): {}", err);
             AppError::SqlxError(err)
         }
     })?;
 
-    // Przetwarzanie danych multipart
     let mut text_fields: HashMap<String, String> = HashMap::new();
     let mut new_image_uploads: Vec<(String, Vec<u8>)> = Vec::new();
-    let mut urls_to_delete_str: Option<String> = None;
+    let mut urls_to_delete_json_opt: Option<String> = None;
 
-    while let Some(field) = multipart.next_field().await? {
+    while let Some(field) = multipart.next_field().await.map_err(AppError::from)? {
         let field_name = match field.name() {
             Some(name) => name.to_string(),
-            None => {
-                tracing::warn!("Odebrano pole multipart bez nazwy w update, pomijam.");
-                continue;
-            }
+            None => continue,
         };
 
-        let original_filename_opt = field.file_name().map(|s| s.to_string());
-        tracing::info!(
-            "Aktualizacja produktu - Przetwarzanie pola: name='{}', filename='{:?}'",
-            field_name,
-            original_filename_opt
-        );
-
         if field_name.starts_with("image_file_") {
-            // Nowe pliki do wgrania
-            let filename = original_filename_opt.unwrap_or_else(|| format!("{}.jpg", field_name));
-            let bytes = field.bytes().await?; // Używamy '?' - wymaga From<MultipartError>
-            if !bytes.is_empty() {
-                new_image_uploads.push((filename.clone(), bytes.to_vec()));
-                tracing::info!(
-                    "Aktualizacja produktu - Dodano plik do wgrania: {}, rozmiar: {} bajtów",
-                    filename,
-                    bytes.len()
-                );
-            } else {
-                tracing::warn!(
-                    "Aktualizacja produktu - Odebrano puste pole pliku: {}",
-                    filename
-                );
+            if let Some(filename) = field.file_name().map(|s| s.to_string()) {
+                let bytes = field.bytes().await.map_err(AppError::from)?;
+                if !bytes.is_empty() {
+                    new_image_uploads.push((filename.clone(), bytes.into()));
+                    tracing::info!("Dodano nowy plik do wgrania: {}", filename);
+                }
             }
         } else if field_name == "urls_to_delete" {
-            // Lista URL-i do usunięcia (jako JSON string)
-            urls_to_delete_str = Some(field.text().await?); // Używamy '?'
-            tracing::info!("Aktualizacja produktu - Odebrano urls_to_delete");
-        } else {
-            // Inne pola tekstowe (name, description, etc.)
-            let value = field.text().await?; // Używamy '?'
-            text_fields.insert(field_name.clone(), value);
+            urls_to_delete_json_opt = Some(field.text().await.map_err(AppError::from)?);
             tracing::info!(
-                "Aktualizacja produktu - Odebrano pole tekstowe: name='{}', value='{}'",
-                field_name,
-                text_fields.get(&field_name).unwrap_or(&"".to_string())
+                "Odebrano listę URLi do usunięcia: {:?}",
+                urls_to_delete_json_opt
             );
+        } else {
+            text_fields.insert(field_name, field.text().await.map_err(AppError::from)?);
         }
     }
 
+    // Aktualizacja pól tekstowych produktu
     if let Some(name) = text_fields.get("name") {
         existing_product.name = name.clone();
     }
     if let Some(description) = text_fields.get("description") {
         existing_product.description = description.clone();
     }
-    if let Some(price) = text_fields.get("price") {
-        existing_product.price = price
+    if let Some(price_str) = text_fields.get("price") {
+        existing_product.price = price_str
             .parse()
             .map_err(|_| AppError::UnprocessableEntity("Nieprawidłowy format ceny".to_string()))?;
     }
-
-    if let Some(gender) = text_fields.get("gender") {
-        existing_product.gender = ProductGender::from_str(&gender).map_err(|_| {
-            AppError::UnprocessableEntity("Nieprawidłowa sub-kategoria produktu".to_string())
+    if let Some(gender_str) = text_fields.get("gender") {
+        existing_product.gender = ProductGender::from_str(gender_str).map_err(|e| {
+            AppError::UnprocessableEntity(format!(
+                "Nieprawidłowa płeć: {}, błąd: {}",
+                gender_str, e
+            ))
+        })?;
+    }
+    if let Some(condition_str) = text_fields.get("condition") {
+        existing_product.condition = ProductCondition::from_str(condition_str).map_err(|e| {
+            AppError::UnprocessableEntity(format!(
+                "Nieprawidłowy stan: {}, błąd: {}",
+                condition_str, e
+            ))
+        })?;
+    }
+    if let Some(category_str) = text_fields.get("category") {
+        existing_product.category = Category::from_str(category_str).map_err(|e| {
+            AppError::UnprocessableEntity(format!(
+                "Nieprawidłowa kategoria: {}, błąd: {}",
+                category_str, e
+            ))
+        })?;
+    }
+    if let Some(status_str) = text_fields.get("status") {
+        existing_product.status = ProductStatus::from_str(status_str).map_err(|e| {
+            AppError::UnprocessableEntity(format!(
+                "Nieprawidłowy status: {}, błąd: {}",
+                status_str, e
+            ))
         })?;
     }
 
-    if let Some(condition) = text_fields.get("condition") {
-        existing_product.condition = ProductCondition::from_str(&condition).map_err(|_| {
-            AppError::UnprocessableEntity("Nieprawidłowy stan produktu".to_string())
-        })?;
-    }
-    if let Some(category) = text_fields.get("category") {
-        existing_product.category = Category::from_str(&category).map_err(|_| {
-            AppError::UnprocessableEntity("Nieprawidłowa kategoria produktu".to_string())
-        })?;
-    }
-    if let Some(status) = text_fields.get("status") {
-        existing_product.status = ProductStatus::from_str(&status).map_err(|_| {
-            AppError::UnprocessableEntity("Nieprawidłowy status produktu".to_string())
-        })?;
-    }
+    let mut final_image_urls = existing_product.images.clone();
 
-    // Przetwarzanie obrazków do usunięcia
-    let mut current_image_urls = existing_product.images.clone(); // Klonujemy, aby móc modyfikować
-    if let Some(json_str) = urls_to_delete_str {
-        match serde_json::from_str::<Vec<String>>(&json_str) {
-            Ok(parsed_urls_to_delete) => {
-                let mut delete_futures = Vec::new();
-                tracing::debug!(
-                    "URL-e do usunięcia (po parsowaniu JSON): {:?}",
-                    parsed_urls_to_delete,
-                );
-                for url_to_delete in parsed_urls_to_delete {
-                    let url_to_delete_clone = url_to_delete.clone();
-                    if let Some(public_id) = extract_public_id_from_url(
-                        &url_to_delete,
-                        &app_state.cloudinary_config.cloud_name,
-                    ) {
-                        let config_clone = app_state.cloudinary_config.clone();
-                        delete_futures.push(async move {
-                            tracing::info!("Próba usunięcia obrazka z Cloudinary, public_id: '{}' (z URL: '{}')", public_id, url_to_delete_clone);
-                            delete_image_from_cloudinary(&public_id, &config_clone).await
-                        });
-                        // Usuń URL z listy bieżących obrazków produktu
-                        current_image_urls.retain(|url| url != &url_to_delete);
-                    } else {
-                        tracing::warn!(
-                            "Nie można wyodrębnić public_id z URL do usunięcia: {}",
-                            url_to_delete
-                        );
+    // 1. Usuwanie obrazków
+    if let Some(json_str) = urls_to_delete_json_opt {
+        if !json_str.is_empty() && json_str != "[]" {
+            match serde_json::from_str::<Vec<String>>(&json_str) {
+                Ok(urls_to_delete) => {
+                    if !urls_to_delete.is_empty() {
+                        tracing::info!("Oznaczono do usunięcia z Cloudinary: {:?}", urls_to_delete);
+                        let mut delete_futures = Vec::new();
+                        for url_to_delete in &urls_to_delete {
+                            if let Some(public_id) = extract_public_id_from_url(
+                                url_to_delete,
+                                &app_state.cloudinary_config.cloud_name,
+                            ) {
+                                let config_clone = app_state.cloudinary_config.clone();
+                                let url_clone_log = url_to_delete.clone();
+                                delete_futures.push(async move {
+                                    delete_image_from_cloudinary(&public_id, &config_clone).await.map_err(|e| {
+                                        tracing::error!("Błąd usuwania z Cloudinary (public_id: {} z URL: {}): {:?}", public_id, url_clone_log, e);
+                                        e // Przekaż błąd dalej, aby try_join_all go złapał
+                                    })
+                                });
+                            } else {
+                                tracing::warn!(
+                                    "Nie udało się wyekstrahować public_id z URL: {}",
+                                    url_to_delete
+                                );
+                            }
+                        }
+                        if !delete_futures.is_empty() {
+                            if let Err(e) = try_join_all(delete_futures).await {
+                                // Logujemy błąd, ale kontynuujemy, chyba że polityka jest inna
+                                tracing::error!(
+                                    "Wystąpiły błędy podczas usuwania obrazków z Cloudinary: {:?}. Aktualizacja będzie kontynuowana.",
+                                    e
+                                );
+                            } else {
+                                tracing::info!("Pomyślnie usunięto obrazki z Cloudinary.");
+                            }
+                        }
+                        // Usuń z listy final_image_urls te, które były do usunięcia
+                        final_image_urls.retain(|url| !urls_to_delete.contains(url));
                     }
                 }
-                // Czekanie na zakończenie operacji usuwania z Cloudinary
-                if !delete_futures.is_empty() {
-                    try_join_all(delete_futures).await.map_err(|e| {
-                        tracing::error!("Błąd podczas usuwania obrazków z Cloudinary: {:?}", e);
-                        AppError::InternalServerError(format!(
-                            "Częściowy błąd usuwania obrazków. Oryginalny błąd: {:?}",
-                            e
-                        ))
-                    })?;
+                Err(e) => {
+                    tracing::error!(
+                        "Błąd parsowania JSON dla urls_to_delete: '{}'. Treść JSON: '{}'",
+                        e,
+                        json_str
+                    );
+                    return Err(AppError::UnprocessableEntity(
+                        "Nieprawidłowy format listy URLi do usunięcia.".to_string(),
+                    ));
                 }
-            }
-            Err(e) => {
-                tracing::error!("Błąd parsowania JSON dla urls_to_delete: {}", e);
-                return Err(AppError::UnprocessableEntity(
-                    "Nieprawidłowy format listy URL-i do usunięcia.".to_string(),
-                ));
             }
         }
     }
 
-    // Wgrywanie nowych obrazków i dodawanie ich URL
+    // 2. Wgrywanie nowych obrazków
     if !new_image_uploads.is_empty() {
+        tracing::info!("Wgrywanie {} nowych obrazków...", new_image_uploads.len());
         let mut upload_futures = Vec::new();
         for (filename, bytes) in new_image_uploads {
             let config_clone = app_state.cloudinary_config.clone();
@@ -623,38 +616,60 @@ pub async fn update_product_partial_handler(
                 upload_image_to_cloudinary(bytes, filename, &config_clone).await
             });
         }
-        let new_cloudinary_urls: Vec<String> = try_join_all(upload_futures).await?;
-        current_image_urls.extend(new_cloudinary_urls);
+        match try_join_all(upload_futures).await {
+            Ok(new_urls) => {
+                tracing::info!("Pomyślnie wgrano nowe obrazki. URL-e: {:?}", new_urls);
+                final_image_urls.extend(new_urls);
+            }
+            Err(e) => {
+                tracing::error!("Krytyczny błąd podczas wgrywania nowych obrazków: {:?}", e);
+                // tx.rollback().await.ok(); // Wykofaj transakcję, jeśli jest
+                return Err(AppError::InternalServerError(format!(
+                    "Błąd wgrywania nowych obrazków: {:?}",
+                    e
+                )));
+            }
+        }
     }
 
-    // Walidacja
-    if current_image_urls.is_empty() {
+    // Walidacja: produkt musi mieć co najmniej jeden obrazek
+    if final_image_urls.is_empty() {
+        // tx.rollback().await.ok();
         return Err(AppError::UnprocessableEntity(
-            "Produkt musi mieć przynajmniej jeden obrazek".to_string(),
+            "Produkt musi mieć przynajmniej jeden obrazek. Wszystkie zostały usunięte lub żadne nie zostały dodane.".to_string(),
         ));
     }
-    existing_product.images = current_image_urls;
+    existing_product.images = final_image_urls; // Zaktualizowana lista obrazków
 
-    let updated_product = sqlx::query_as::<_, Product>(r#"
+    // Aktualizacja w bazie danych
+    let updated_product_db = sqlx::query_as::<_, Product>(
+        r#"
             UPDATE products
-            SET name = $1, description = $2, price = $3, gender = $4, condition = $5, category = $6, status = $7, images = $8
+            SET name = $1, description = $2, price = $3, gender = $4, condition = $5, category = $6, status = $7, images = $8, updated_at = NOW()
             WHERE id = $9
             RETURNING *
-        "#).bind(&existing_product.name)
-        .bind(&existing_product.description)
-        .bind(&existing_product.price)
-        .bind(&existing_product.gender)
-        .bind(&existing_product.condition)
-        .bind(&existing_product.category)
-        .bind(&existing_product.status)
-        .bind(&existing_product.images)
-        .bind(product_id)
-        .fetch_one(&app_state.db_pool)
-        .await?;
+        "#,
+    )
+    .bind(&existing_product.name)
+    .bind(&existing_product.description)
+    .bind(existing_product.price)
+    .bind(existing_product.gender)
+    .bind(existing_product.condition)
+    .bind(existing_product.category)
+    .bind(existing_product.status)
+    .bind(&existing_product.images)
+    .bind(product_id)
+    .fetch_one(&app_state.db_pool) // Jeśli używasz transakcji, zmień na &mut *tx
+    .await.map_err(|e| {
+        tracing::error!("Błąd aktualizacji produktu w DB: {}", e);
+        // tx.rollback().await.ok();
+        AppError::SqlxError(e)
+    })?;
 
-    tracing::info!("Zaktualizowano produkt o ID: {}", product_id);
+    // tx.commit().await.map_err(AppError::SqlxError)?; // Zatwierdź transakcję
 
-    Ok(Json(updated_product))
+    tracing::info!("Pomyślnie zaktualizowano produkt o ID: {}", product_id);
+    Ok(Json(updated_product_db))
 }
 
 pub async fn delete_product_handler(

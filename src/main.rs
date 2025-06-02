@@ -5,17 +5,7 @@ use axum::extract::DefaultBodyLimit;
 use axum::response::Html;
 use axum::routing::{delete, get, post};
 use dotenvy::dotenv;
-use htmx_handlers::{
-    about_us_page_handler, add_item_to_cart_htmx_handler, admin_dashboard_htmx_handler,
-    admin_product_new_form_htmx_handler, admin_products_list_htmx_handler, checkout_page_handler,
-    contact_page_handler, faq_page_handler, gender_page_handler, get_cart_details_htmx_handler,
-    get_product_detail_htmx_handler, list_products_htmx_handler, login_page_htmx_handler,
-    my_account_data_htmx_handler, my_account_page_handler, my_order_details_htmx_handler,
-    my_orders_htmx_handler, privacy_policy_page_handler, registration_page_htmx_handler,
-    remove_item_from_cart_htmx_handler, shipping_returns_page_handler,
-    terms_of_service_page_handler,
-};
-// use htmx_handlers::*;
+use htmx_handlers::*;
 use reqwest::StatusCode;
 use sqlx::postgres::PgPoolOptions;
 use std::env;
@@ -186,8 +176,8 @@ async fn main() {
             get(admin_product_new_form_htmx_handler),
         )
         .route(
-            "/products/:product_id",
-            get(serve_single_product_page_handler),
+            "/htmx/admin/products/{product_id}/edit",
+            get(admin_product_edit_form_htmx_handler),
         )
         .nest_service("/static", ServeDir::new("static"))
         .layer(TraceLayer::new_for_http())
