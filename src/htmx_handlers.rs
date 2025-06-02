@@ -3293,7 +3293,7 @@ pub async fn admin_dashboard_htmx_handler(claims: TokenClaims) -> Result<Markup,
                 h2 ."text-xl font-semibold mb-4" { "Panel Admina" }
                 a href="/htmx/admin/products" hx-get="/htmx/admin/products" hx-target="#admin-content" hx-swap="innerHTML"
                    class="block py-2 px-3 rounded hover:bg-gray-700" { "Zarządzaj Produktami" }
-                a href="/htmx/admin/zamowienia" hx-get="/htmx/admin/zamowienia" hx-target="#admin-content" hx-swap="innerHTML"
+                a href="/htmx/admin/orders" hx-get="/htmx/admin/orders" hx-target="#admin-content" hx-swap="innerHTML"
                    class="block py-2 px-3 rounded hover:bg-gray-700" { "Zarządzaj Zamówieniami" }
 
                 hr ."my-4 border-gray-700";

@@ -417,7 +417,6 @@ document.body.addEventListener("htmx:beforeSwap", function (event) {
     productApiPatchRegex.test(requestConfig.path)
   ) {
     if (xhr && xhr.status === 200) {
-      // Sukces (200 OK)
       try {
         const responseJson = JSON.parse(xhr.responseText);
         // Proste sprawdzenie, czy odpowiedź wygląda jak obiekt produktu (posiada np. 'id' i 'name')
@@ -451,12 +450,18 @@ document.body.addEventListener("htmx:beforeSwap", function (event) {
           const targetElement = event.detail.target; // To powinien być #edit-product-messages
           if (targetElement) {
             targetElement.innerHTML = ""; // Czyści zawartość
-            // lub:
-            // targetElement.innerHTML = '<span class="text-sm text-green-600">Zmiany zapisane!</span>';
           }
 
-          console.log("Toast wyświetlony, podmiana JSON anulowana.");
+          // 4.
+          if (window.htmx) {
+            htmx.ajax("GET", "htmx/admin/products", {
+              target: "#admin-content",
+              swap: "innerHTML",
+              pushUrl: true,
+            });
+          }
         }
+        return;
         // Jeśli JSON nie jest oczekiwanym obiektem produktu, pozwól HTMX działać domyślnie
         // (może to być np. odpowiedź błędu walidacji w formacie HTML/JSON od serwera)
       } catch (e) {
