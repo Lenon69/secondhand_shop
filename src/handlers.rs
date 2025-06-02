@@ -245,7 +245,7 @@ pub async fn create_product_handler(
     State(app_state): State<AppState>,
     claims: TokenClaims,
     mut multipart: Multipart,
-) -> Result<(StatusCode, Json<Product>), AppError> {
+) -> Result<(StatusCode, HeaderMap, String), AppError> {
     // Sprawdzanie roli admina
     if claims.role != Role::Admin {
         return Err(AppError::UnauthorizedAccess(
@@ -412,11 +412,11 @@ pub async fn create_product_handler(
     let new_product_id = Uuid::new_v4();
     let product_status = ProductStatus::Available;
 
-    let new_product_db = sqlx::query_as::<_, Product>(
+    let _new_product_db = sqlx::query_as::<_, Product>(
         r#"
             INSERT INTO products (id, name, description, price, gender, condition, category, status, images)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            RETURNING id, name, description, price, gender, condition , category, status , images
+            RETURNING id, name, description, price, gender, condition , category, status, images, created_at, updated_at
         "#,
     )
     .bind(new_product_id)
@@ -433,7 +433,34 @@ pub async fn create_product_handler(
 
     tracing::info!("Utworzono produkt o ID: {}", new_product_id);
 
-    Ok((StatusCode::CREATED, Json(new_product_db)))
+    let mut headers = HeaderMap::new();
+
+    // 1. Trigger dla toasta
+    let toast_payload = serde_json::json!({
+        "showMessage": {
+            "message": "Pomyslnie dodano produkt.",
+            "type": "success"
+        }
+    });
+    if let Ok(val) = HeaderValue::from_str(&toast_payload.to_string()) {
+        headers.insert("HX-Trigger", val);
+    }
+
+    let location_payload = serde_json::json!({
+        "path": "/htmx/admin/products", // Cel przekierowania (ładowania nowej treści)
+        "target": "#admin-content",      // Gdzie nowa treść ma być załadowana
+        "swap": "innerHTML"              // Jak ma być załadowana
+    });
+    if let Ok(val) = HeaderValue::from_str(&location_payload.to_string()) {
+        headers.insert("HX-Location", val);
+    }
+
+    //    Opcjonalnie: Trigger do wyczyszczenia formularza (jeśli nie robisz tego w JS)
+    //    Można to też zrobić w JS po otrzymaniu zdarzenia "showMessage" lub specyficznego zdarzenia.
+    //    headers.insert("HX-Trigger-After-Swap", HeaderValue::from_static("clearNewProductForm"));
+
+    // Dla czyszczenia formularza przez HX-Trigger, ciało odpowiedzi może być puste.
+    Ok((StatusCode::CREATED, headers, String::new()))
 }
 
 pub async fn update_product_partial_handler(

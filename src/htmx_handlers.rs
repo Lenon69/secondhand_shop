@@ -3637,7 +3637,7 @@ pub async fn admin_product_new_form_htmx_handler(claims: TokenClaims) -> Result<
                 div #new-product-messages ."mb-4 min-h-[2em]" {}
                 form
                     hx-encoding="multipart/form-data"
-                    hx-post="/api/products" // Używam /api/products zgodnie z Twoim wcześniejszym kodem
+                    hx-post="/api/products"
                     hx-target="#new-product-messages"
                     hx-swap="innerHTML"
                     class="space-y-6 bg-white p-6 rounded-lg shadow-md border border-gray-200"
