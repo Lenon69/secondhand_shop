@@ -3792,81 +3792,9 @@ pub async fn admin_product_edit_form_htmx_handler(
             _ => AppError::SqlxError(err),
         })?;
 
-    let existing_images_json_for_alpine: String =
+    let initial_images_json =
         serde_json::to_string(&product_to_edit.images).unwrap_or_else(|_| "[]".to_string());
-
-    let alpine_data_script = format!(
-        r#"
-        {{
-            imagePreviews: JSON.parse('{existing_images_json}').concat(Array(Math.max(0, 8 - JSON.parse('{existing_images_json}').length)).fill(null)),
-            imageFiles: Array(8).fill(null),
-            imagesToDelete: [],
-            productStatus: '{current_status}',
-
-            handleFileChange(event, index) {{
-                const file = event.target.files[0];
-                if (file) {{
-                    this.imageFiles[index] = file;
-                    const reader = new FileReader();
-                    reader.onload = (e) => {{ this.imagePreviews[index] = e.target.result; }};
-                    reader.readAsDataURL(file);
-
-                    const originalUrl = this.getOriginalUrlForSlot(index);
-                    if (originalUrl) {{
-                        const deleteIdx = this.imagesToDelete.indexOf(originalUrl);
-                        if (deleteIdx > -1) this.imagesToDelete.splice(deleteIdx, 1);
-                    }}
-                }} else {{
-                    const originalUrl = this.getOriginalUrlForSlot(index);
-                    if (originalUrl && this.imagePreviews[index] !== originalUrl) {{
-                        this.imagePreviews[index] = originalUrl;
-                        this.imageFiles[index] = null;
-                    }} else if (!originalUrl) {{
-                        this.imagePreviews[index] = null;
-                        this.imageFiles[index] = null;
-                    }}
-                    event.target.value = null;
-                }}
-            }},
-            removeImage(index, inputId) {{ // inputId jest teraz przekazywany
-                const originalUrl = this.getOriginalUrlForSlot(index);
-                if (originalUrl && this.imagePreviews[index] === originalUrl && !this.imagesToDelete.includes(originalUrl)) {{
-                    this.imagesToDelete.push(originalUrl);
-                }}
-                this.imagePreviews[index] = null;
-                this.imageFiles[index] = null;
-                const fileInput = document.getElementById(inputId); // używamy inputId
-                if (fileInput) fileInput.value = null;
-            }},
-            cancelDeletion(index) {{
-                const originalUrl = this.getOriginalUrlForSlot(index);
-                if (originalUrl) {{
-                    const deleteIdx = this.imagesToDelete.indexOf(originalUrl);
-                    if (deleteIdx > -1) {{
-                        this.imagesToDelete.splice(deleteIdx, 1);
-                        this.imagePreviews[index] = originalUrl;
-                        this.imageFiles[index] = null;
-                    }}
-                }}
-            }},
-            getOriginalUrlForSlot(index) {{
-                const existingImages = JSON.parse('{existing_images_json_escaped}');
-                return existingImages[index] || null;
-            }},
-            isSlotFilled(index) {{ return this.imagePreviews[index] !== null; }},
-            getSlotImageSrc(index) {{ return this.imagePreviews[index]; }},
-            isMarkedForDeletion(index) {{
-                const originalUrl = this.getOriginalUrlForSlot(index);
-                return originalUrl && this.imagesToDelete.includes(originalUrl) && this.imageFiles[index] === null;
-            }}
-        }}
-        "#,
-        existing_images_json = existing_images_json_for_alpine,
-        existing_images_json_escaped = existing_images_json_for_alpine
-            .replace('\'', "\\'")
-            .replace('\\', "\\\\"), // Dodatkowe escapowanie
-        current_status = product_to_edit.status.as_ref()
-    );
+    let current_status_str = product_to_edit.status.as_ref().to_string();
 
     Ok(html! {
         div #admin-product-edit-form-container ."p-4 sm:p-6 lg:p-8 bg-gray-50 min-h-screen" {
@@ -3887,13 +3815,19 @@ pub async fn admin_product_edit_form_htmx_handler(
                     hx-patch=(format!("/api/products/{}", product_to_edit.id))
                     hx-target="#edit-product-messages"
                     "hx-on::config-request"="
-                        let alpineData = $el.closest('[x-data]').__x.$data;
-                        if (alpineData && alpineData.imagesToDelete) {
-                            event.detail.parameters['urls_to_delete'] = JSON.stringify(alpineData.imagesToDelete);
+                        if (event.target.__x && event.target.__x.$data && event.target.__x.$data.imagesToDelete) {
+                            event.detail.parameters['urls_to_delete'] = JSON.stringify(event.target.__x.$data.imagesToDelete);
+                        } else {
+                            console.warn('Alpine data imagesToDelete not found for hx-on::config-request');
                         }
                     "
                     class="space-y-8 bg-white p-6 sm:p-8 rounded-xl shadow-xl border border-gray-200"
-                    x-data=(PreEscaped(alpine_data_script)) {
+                    x-data="adminProductEditForm()"
+                    // *** POPRAWKA TUTAJ ***
+                    "data-initial-images"=(initial_images_json)
+                    "data-current-status"=(current_status_str)
+                    // *** KONIEC POPRAWKI ***
+                    x-init="initAlpineComponent($el.dataset.initialImages, $el.dataset.currentStatus)" {
 
                     // Sekcja: Dane Podstawowe
                     section {
@@ -3962,7 +3896,6 @@ pub async fn admin_product_edit_form_htmx_handler(
                     section {
                         h3 ."text-xl font-semibold text-gray-700 mb-2 pb-2 border-b border-gray-200" { "Zdjęcia Produktu" }
                         p ."text-xs text-gray-500 mb-4" { "Produkt musi mieć przynajmniej jedno zdjęcie. Pierwsze zdjęcie jest zdjęciem głównym." }
-
                         div ."grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4" {
                             @for i in 0..8 {
                                 @let slot_input_id = format!("image_file_slot_{}", i);
@@ -3970,25 +3903,21 @@ pub async fn admin_product_edit_form_htmx_handler(
                                     x-bind:class="{
                                         '!border-solid !border-pink-500 shadow-lg': isSlotFilled(i) && !isMarkedForDeletion(i),
                                         '!border-red-500 !border-solid opacity-60': isMarkedForDeletion(i)
-                                    }"
-                                {
-                                    // Podgląd obrazka
+                                    }" {
                                     template x-if="isSlotFilled(i) && !isMarkedForDeletion(i)" {
                                         div ."absolute inset-0 w-full h-full" {
                                             img x-bind:src="getSlotImageSrc(i)" alt=(format!("Podgląd {}", i+1))
                                                  class="w-full h-full object-cover rounded-md";
                                             button type="button"
-                                                   "@click.prevent"=(format!("removeImage({}, '{}')", i, slot_input_id)) // *** POPRAWIONA LINIA ***
+                                                   "@click.prevent"=(format!("removeImage({}, '{}')", i, slot_input_id))
                                                    class="absolute top-1 right-1 p-0.5 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-700 transition-all text-xs w-5 h-5 flex items-center justify-center shadow-md"
                                                    title="Oznacz do usunięcia / Usuń nowy" {
-                                                // SVG dla ikony "X" lub kosza (upewnij się, że path ma {} na końcu)
-                                                svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3" { // Zmieniono na w-3 h-3 dla mniejszej ikony
-                                                    path "fill-rule"="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" "clip-rule"="evenodd" {} // *** POPRAWIONA LINIA (dodano {}) ***
+                                                svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3" {
+                                                    path "fill-rule"="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" "clip-rule"="evenodd" {}
                                                 }
                                             }
                                         }
                                     }
-                                    // Informacja "Do usunięcia"
                                     template x-if="isMarkedForDeletion(i)" {
                                         div ."absolute inset-0 w-full h-full flex flex-col items-center justify-center bg-gray-100/80 rounded-md p-2 text-center" {
                                             span ."text-red-600 font-semibold text-xs" { "OZNACZONO DO USUNIĘCIA" }
@@ -3998,13 +3927,11 @@ pub async fn admin_product_edit_form_htmx_handler(
                                             }
                                         }
                                     }
-                                    // Placeholder do dodania nowego zdjęcia
                                     template x-if="!isSlotFilled(i) || (isMarkedForDeletion(i) && imagePreviews[i] === null)" {
                                         label for=(slot_input_id) class="cursor-pointer p-2 text-center w-full h-full flex flex-col items-center justify-center hover:bg-pink-50 transition-colors rounded-md" {
-                                            // SVG dla ikony "+" (upewnij się, że path ma {} na końcu)
                                             svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-8 h-8 text-gray-400" {
-                                                path d="M9.25 13.25a.75.75 0 001.5 0V4.793l2.97 2.97a.75.75 0 001.06-1.06l-4.25-4.25a.75.75 0 00-1.06 0L5.22 6.704a.75.75 0 001.06 1.06L9.25 4.793v8.457z" {} // *** POPRAWIONA LINIA (dodano {}) ***
-                                                path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" {} // *** POPRAWIONA LINIA (dodano {}) ***
+                                                path d="M9.25 13.25a.75.75 0 001.5 0V4.793l2.97 2.97a.75.75 0 001.06-1.06l-4.25-4.25a.75.75 0 00-1.06 0L5.22 6.704a.75.75 0 001.06 1.06L9.25 4.793v8.457z" {}
+                                                path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" {}
                                             }
                                             div ."text-xs mt-1 text-gray-500" {
                                                  @if i == 0 { "Zmień/Dodaj główne" } @else { "Dodaj zdjęcie" }
@@ -4033,7 +3960,7 @@ pub async fn admin_product_edit_form_htmx_handler(
                             }
                         }
                     }
-                }
+                } // koniec form
             }
         }
     })

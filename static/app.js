@@ -269,3 +269,152 @@ document.body.addEventListener("clearCartDisplay", function (evt) {
   // I zamknąć panel koszyka, jeśli jest otwarty (w Alpine)
   // window.dispatchEvent(new CustomEvent('closeCartPanel'));
 });
+
+function adminProductEditForm() {
+  return {
+    existingImagesOnInit: [], // Tablica URLi istniejących obrazków (stringi)
+    imagePreviews: Array(8).fill(null), // Podglądy (URL dla istniejących, base64 dla nowych)
+    imageFiles: Array(8).fill(null), // Obiekty File dla nowo dodanych obrazków
+    imagesToDelete: [], // Tablica URLi istniejących obrazków do usunięcia
+    productStatus: "", // Aktualny status produktu
+
+    initAlpineComponent(initialImagesJson, currentStatusStr) {
+      console.log("Inicjalizacja adminProductEditForm...");
+      console.log("Odebrane initialImagesJson:", initialImagesJson);
+      console.log("Odebrany currentStatusStr:", currentStatusStr);
+      try {
+        this.existingImagesOnInit = JSON.parse(initialImagesJson || "[]");
+      } catch (e) {
+        console.error(
+          "Błąd parsowania initialImagesJson:",
+          e,
+          initialImagesJson,
+        );
+        this.existingImagesOnInit = [];
+      }
+
+      this.productStatus = currentStatusStr || "Available"; // Ustaw domyślny, jeśli brak
+
+      // Inicjalizuj imagePreviews
+      this.imagePreviews = [...this.existingImagesOnInit];
+      while (this.imagePreviews.length < 8) {
+        this.imagePreviews.push(null);
+      }
+      console.log("Zainicjowane imagePreviews:", this.imagePreviews);
+      console.log("Zainicjowany productStatus:", this.productStatus);
+    },
+
+    getOriginalUrlForSlot(index) {
+      return this.existingImagesOnInit[index] || null;
+    },
+
+    handleFileChange(event, index) {
+      const file = event.target.files[0];
+      if (file) {
+        this.imageFiles[index] = file; // Zapisz obiekt File
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          // Aktualizuj podgląd dla tego slotu
+          // Użyj $nextTick, aby Alpine zdążył zaktualizować DOM, jeśli jest to potrzebne,
+          // chociaż bezpośrednie przypisanie powinno działać dla reaktywności.
+          this.$nextTick(() => {
+            this.imagePreviews[index] = e.target.result;
+          });
+        };
+        reader.readAsDataURL(file);
+
+        // Jeśli ten slot miał wcześniej istniejący obrazek i jest on na liście do usunięcia,
+        // usuń go z tej listy, bo użytkownik go nadpisuje.
+        const originalUrl = this.getOriginalUrlForSlot(index);
+        if (originalUrl) {
+          const deleteIdx = this.imagesToDelete.indexOf(originalUrl);
+          if (deleteIdx > -1) {
+            this.imagesToDelete.splice(deleteIdx, 1);
+          }
+        }
+      } else {
+        // Użytkownik anulował wybór pliku
+        const originalUrl = this.getOriginalUrlForSlot(index);
+        if (originalUrl && this.imagePreviews[index] !== originalUrl) {
+          // Jeśli był tam oryginalny obrazek i podgląd został zmieniony (np. na base64), przywróć go.
+          this.imagePreviews[index] = originalUrl;
+          this.imageFiles[index] = null; // Upewnij się, że nie ma tu pliku
+        } else if (!originalUrl) {
+          // Jeśli to był pusty slot na nowy obrazek
+          this.imagePreviews[index] = null;
+          this.imageFiles[index] = null;
+        }
+        // event.target.value = null; // To może być potrzebne, aby umożliwić ponowny wybór tego samego pliku, ale testuj
+      }
+    },
+
+    removeImage(index, inputId) {
+      const originalUrl = this.getOriginalUrlForSlot(index);
+
+      // Jeśli usuwamy podgląd, który był oryginalnym, istniejącym obrazkiem,
+      // i nie jest jeszcze na liście do usunięcia, dodaj go.
+      if (
+        originalUrl &&
+        this.imagePreviews[index] === originalUrl &&
+        !this.imagesToDelete.includes(originalUrl)
+      ) {
+        this.imagesToDelete.push(originalUrl);
+        console.log(
+          "Dodano do usunięcia (imagesToDelete):",
+          originalUrl,
+          this.imagesToDelete,
+        );
+      }
+
+      // Zawsze czyść podgląd i plik dla tego slotu
+      this.imagePreviews[index] = null;
+      this.imageFiles[index] = null;
+
+      const fileInput = document.getElementById(inputId);
+      if (fileInput) {
+        fileInput.value = null; // Wyczyść wartość inputu <input type="file">
+      }
+    },
+
+    cancelDeletion(index) {
+      const originalUrl = this.getOriginalUrlForSlot(index);
+      if (originalUrl) {
+        const deleteIdx = this.imagesToDelete.indexOf(originalUrl);
+        if (deleteIdx > -1) {
+          this.imagesToDelete.splice(deleteIdx, 1);
+          console.log(
+            "Anulowano usunięcie dla:",
+            originalUrl,
+            this.imagesToDelete,
+          );
+          // Przywróć oryginalny podgląd, tylko jeśli slot nie jest teraz zajęty przez nowo wybrany plik
+          if (this.imageFiles[index] === null) {
+            this.imagePreviews[index] = originalUrl;
+          }
+        }
+      }
+    },
+
+    isSlotFilled(index) {
+      return this.imagePreviews[index] !== null;
+    },
+
+    getSlotImageSrc(index) {
+      return this.imagePreviews[index];
+    },
+
+    isMarkedForDeletion(index) {
+      const originalUrl = this.getOriginalUrlForSlot(index);
+      // Jest oznaczony do usunięcia, jeśli jest na liście imagesToDelete
+      // ORAZ nie ma w tym slocie nowo dodanego pliku (imageFiles[index] jest null)
+      // ORAZ podgląd (imagePreviews[index]) został wyczyszczony (co robi removeImage)
+      // LUB podgląd jest oryginalnym URLem, ale jest na liście do usunięcia.
+      // Prostsza logika: jeśli jest na liście `imagesToDelete` i nie ma nowego pliku nadpisującego.
+      return (
+        originalUrl &&
+        this.imagesToDelete.includes(originalUrl) &&
+        this.imageFiles[index] === null
+      );
+    },
+  };
+}
