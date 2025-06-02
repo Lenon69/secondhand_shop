@@ -676,7 +676,7 @@ pub async fn delete_product_handler(
     State(app_state): State<AppState>,
     Path(product_id): Path<Uuid>,
     claims: TokenClaims,
-) -> Result<StatusCode, AppError> {
+) -> Result<(StatusCode, HeaderMap), AppError> {
     tracing::info!("Obsłużono zapytanie DELETE /api/products/{}", product_id);
 
     if claims.role != Role::Admin {
@@ -759,18 +759,39 @@ pub async fn delete_product_handler(
 
     match result {
         Ok(query_result) => {
+            let mut headers = HeaderMap::new();
             if query_result.rows_affected() == 0 {
-                // To nie powinno się zdarzyć, jeśli produkt był pobrany powyżej,
-                // ale dla pewności zostawiamy.
                 tracing::warn!(
-                    "DELETE: Nie znaleziono produktu do usunięcia o ID {} (mimo wcześniejszego pobrania)",
+                    "DELETE: Nie znaleziono produktu do usunięcia w DB o ID {} (może już usunięty). Mimo to, trigger odświeżenia listy.",
                     product_id
                 );
-                Err(AppError::NotFound)
+                // Nawet jeśli wiersz nie istniał, warto odświeżyć listę, aby UI był spójny.
             } else {
                 tracing::info!("Usunięto produkt o ID: {} z bazy danych", product_id);
-                Ok(StatusCode::NO_CONTENT)
             }
+
+            // Zawsze wysyłaj trigger do przeładowania listy
+            headers.insert(
+                "HX-Trigger",
+                HeaderValue::from_static("reloadAdminProductList"),
+            );
+
+            let toast_payload = serde_json::json!({
+                "showMessage": {
+                    "message": "Produkt zostal pomyslnie usuniety.",
+                    "type": "success"
+                }
+            });
+            // Użyj HX-Trigger-After-Swap, aby toast pojawił się po ewentualnym swapie wykonanym przez przycisk (jeśli jakiś zostawisz)
+            // Lub HX-Trigger, jeśli przycisk nie robi swapu.
+            if let Ok(val) = HeaderValue::from_str(&toast_payload.to_string()) {
+                headers.insert("HX-Trigger", val); // Możesz mieć wiele zdarzeń w jednym HX-Trigger, oddzielonych przecinkami,
+                // lub wysłać je w osobnych nagłówkach HX-Trigger-*, np. HX-Trigger-After-Settle
+            }
+
+            // Zwróć status 200 OK, aby HTMX przetworzył nagłówki HX-*.
+            // Status 204 No Content może spowodować, że niektóre przeglądarki/HTMX zignorują ciało lub nagłówki.
+            Ok((StatusCode::OK, headers))
         }
         Err(err) => {
             tracing::error!(
@@ -778,10 +799,13 @@ pub async fn delete_product_handler(
                 product_id,
                 err
             );
-            Err(AppError::SqlxError(err))
+            // W przypadku błędu nie wysyłamy triggera do przeładowania,
+            // błąd powinien być obsłużony przez mechanizmy błędów HTMX lub globalny handler błędów.
+            Err(AppError::SqlxError(err)) // Konwertuj na AppError lub zwróć bezpośrednio
         }
     }
 }
+
 pub async fn register_handler(
     State(app_state): State<AppState>,
     Form(payload): Form<RegistrationPayload>,

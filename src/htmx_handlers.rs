@@ -3336,6 +3336,8 @@ pub async fn admin_products_list_htmx_handler(
     }
     let current_limit = params.limit();
 
+    let current_query_string = build_full_query_string_from_params(&params);
+
     let paginated_response_json =
         crate::handlers::list_products(State(app_state.clone()), Query(params.clone())).await?;
     let paginated_response: PaginatedProductsResponse = paginated_response_json.0;
@@ -3343,7 +3345,12 @@ pub async fn admin_products_list_htmx_handler(
     let params_for_edit_links = params.to_query_string_with_skips(&["offset"]);
 
     Ok(html! {
-        div #admin-product-list-container ."p-1" {
+        div #admin-product-list-container ."p-1"
+            hx-get=(format!("/htmx/admin/products?{}", current_query_string))
+            hx-trigger="reloadAdminProductList from:body"  // Nasłuchuje na zdarzenie z elementu body
+            hx-swap="outerHTML"                             // Podmienia cały ten kontener
+
+        {
             // Nagłówek i przycisk dodawania (bez zmian)
             div ."flex flex-col sm:flex-row justify-between items-center mb-6 gap-4" {
                 h3 ."text-2xl font-semibold text-gray-800" { "Zarządzanie Produktami" }
