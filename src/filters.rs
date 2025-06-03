@@ -1,5 +1,5 @@
 // src/filters.rs
-use crate::models::{Category, ProductCondition, ProductGender, ProductStatus};
+use crate::models::{Category, OrderStatus, ProductCondition, ProductGender, ProductStatus};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, de};
 use std::str::FromStr;
@@ -8,6 +8,11 @@ const DEFAULT_PAGE_LIMIT: i64 = 10;
 const MAX_PAGE_LIMIT: i64 = 50;
 const DEFAULT_SORT_BY: &str = "name";
 const DEFAULT_SORT_ORDER: &str = "asc";
+
+const DEFAULT_ORDER_PAGE_LIMIT: i64 = 15;
+const MAX_ORDER_PAGE_LIMIT: i64 = 50;
+const DEFAULT_ORDER_SORT_BY: &str = "order_date";
+const DEFAULT_ORDER_SORT_ORDER: &str = "desc";
 
 #[allow(dead_code)]
 #[derive(Debug, Deserialize, Clone)]
@@ -253,5 +258,122 @@ where
     } else {
         // Próbujemy sparsować string na enum T
         T::from_str(&s).map(Some).map_err(de::Error::custom)
+    }
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "kebab-case")]
+pub struct OrderListingParams {
+    // Paginacja
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+
+    // Filtry
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_enum_from_empty_string"
+    )]
+    pub status: Option<OrderStatus>,
+    // Dla dat użyjemy String, a parsowanie do DateTime<Utc> zrobimy w handlerze
+    // lub można stworzyć niestandardowe deserializatory dla dat.
+    // Prostsze na start: String i parsowanie.
+    pub date_from: Option<String>, // np. "YYYY-MM-DD"
+    pub date_to: Option<String>,   // np. "YYYY-MM-DD"
+    pub search: Option<String>,    // Wyszukiwanie po ID zamówienia, emailu klienta itp.
+
+    // Sortowanie
+    pub sort_by: Option<String>,
+    pub order: Option<String>,
+}
+
+impl OrderListingParams {
+    pub fn limit(&self) -> i64 {
+        match self.limit {
+            Some(limit) if limit > 0 && limit <= MAX_ORDER_PAGE_LIMIT => limit,
+            Some(_) => MAX_ORDER_PAGE_LIMIT,
+            None => DEFAULT_ORDER_PAGE_LIMIT,
+        }
+    }
+
+    pub fn offset(&self) -> i64 {
+        self.offset.unwrap_or(0).max(0)
+    }
+
+    pub fn status(&self) -> Option<OrderStatus> {
+        self.status.clone()
+    }
+
+    pub fn date_from_dt(&self) -> Option<DateTime<Utc>> {
+        self.date_from.as_ref().and_then(|s| {
+            chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
+                .ok()
+                .map(|naive_date| {
+                    DateTime::from_naive_utc_and_offset(
+                        naive_date.and_hms_opt(0, 0, 0).unwrap(),
+                        Utc,
+                    )
+                })
+        })
+    }
+
+    pub fn date_to_dt(&self) -> Option<DateTime<Utc>> {
+        self.date_to.as_ref().and_then(|s| {
+            chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
+                .ok()
+                .map(|naive_date| {
+                    DateTime::from_naive_utc_and_offset(
+                        naive_date.and_hms_opt(23, 59, 59).unwrap(),
+                        Utc,
+                    )
+                }) // Koniec dnia
+        })
+    }
+
+    pub fn search(&self) -> Option<String> {
+        self.search.clone().filter(|s| !s.is_empty())
+    }
+
+    pub fn sort_by(&self) -> &str {
+        self.sort_by.as_deref().unwrap_or(DEFAULT_ORDER_SORT_BY)
+    }
+
+    pub fn order(&self) -> &str {
+        self.order.as_deref().map_or(DEFAULT_ORDER_SORT_ORDER, |o| {
+            if o.eq_ignore_ascii_case("asc") {
+                "asc"
+            } else {
+                "desc"
+            }
+        })
+    }
+
+    // Funkcja do budowania query string dla HTMX (może być potrzebna później)
+    pub fn to_query_string(&self) -> String {
+        let mut query_parts = Vec::new();
+        if let Some(val) = self.limit {
+            query_parts.push(format!("limit={}", val));
+        }
+        if let Some(val) = self.offset {
+            query_parts.push(format!("offset={}", val));
+        }
+        if let Some(val) = &self.status {
+            query_parts.push(format!("status={}", val.as_ref()));
+        }
+        if let Some(val) = &self.date_from {
+            query_parts.push(format!("date-from={}", val));
+        }
+        if let Some(val) = &self.date_to {
+            query_parts.push(format!("date-to={}", val));
+        }
+        if let Some(val) = &self.search {
+            query_parts.push(format!("search={}", urlencoding::encode(val)));
+        }
+        if let Some(val) = &self.sort_by {
+            query_parts.push(format!("sort-by={}", val));
+        }
+        if let Some(val) = &self.order {
+            query_parts.push(format!("order={}", val));
+        }
+        query_parts.join("&")
     }
 }

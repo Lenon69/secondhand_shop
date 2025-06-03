@@ -14,11 +14,10 @@ use sqlx::{Postgres, QueryBuilder};
 use crate::cart_utils::build_cart_details_response;
 use crate::cloudinary::{delete_image_from_cloudinary, extract_public_id_from_url};
 use crate::errors::AppError;
-use crate::filters::ListingParams;
+use crate::filters::{ListingParams, OrderListingParams};
 use crate::middleware::OptionalTokenClaims;
-use crate::models::Product;
 use crate::models::*;
-use crate::pagination::PaginatedProductsResponse;
+use crate::pagination::{PaginatedOrdersResponse, PaginatedProductsResponse};
 use crate::{
     auth::{create_jwt, hash_password, verify_password},
     cloudinary::upload_image_to_cloudinary,
@@ -26,7 +25,7 @@ use crate::{
 };
 use crate::{
     auth_models::{LoginPayload, RegistrationPayload, TokenClaims},
-    models::{Order, OrderStatus, ProductGender, ProductStatus},
+    models::{Order, OrderStatus, ProductGender, ProductStatus, Role, User},
 };
 use futures::future::try_join_all;
 use std::collections::HashMap;

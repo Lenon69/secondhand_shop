@@ -151,7 +151,7 @@ impl From<User> for UserPublic {
 }
 
 /// Status zamówienia
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display, AsRefStr)]
 #[sqlx(type_name = "order_status_enum")]
 #[sqlx(rename_all = "lowercase")]
 #[strum(ascii_case_insensitive)]
@@ -451,4 +451,11 @@ pub struct CheckoutFormPayload {
 pub enum PaginationItem {
     Page(i64),
     Dots,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct OrderWithCustomerInfo {
+    #[sqlx(flatten)]
+    pub order: Order,
+    pub customer_email: Option<String>,
 }
