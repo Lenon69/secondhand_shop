@@ -4281,7 +4281,8 @@ pub async fn admin_orders_list_htmx_handler(
                             tr { td colspan="7" class="px-4 py-10 text-center text-gray-500 italic text-lg" { "Nie znaleziono zamówień." } }
                         }
                         @for order_info in &paginated_orders.data {
-                            @let order = &order_info.order; // Dostęp do pól Order
+                            @let list_query_string = params.to_query_string();
+                            @let order = &order_info.order;
                                 tr id=(format!("order-row-{}", order.id)) ."hover:bg-pink-50/30 transition-colors duration-150 ease-in-out" {
 
                                     td class="admin-td font-mono text-xs text-gray-500" {
@@ -4300,8 +4301,8 @@ pub async fn admin_orders_list_htmx_handler(
                                                         format!("/htmx/admin/order-details/{}?{}", order.id, list_query_string)
                                                     }
                                                 })
-                                               hx-target="#admin-content" hx-swap="innerHTML"                                           class="hover:text-pink-600 hover:underline" {
-                                            (order.id.to_string().chars().take(8).collect::<String>()) "..."
+                                               hx-target="#admin-content" hx-swap="innerHTML"
+                                               class="hover:text-pink-600 hover:underline" {                                            (order.id.to_string().chars().take(8).collect::<String>()) "..."
                                         }
                                     }
                                     td class="admin-td" {
