@@ -4235,7 +4235,7 @@ pub async fn admin_orders_list_htmx_handler(
                         select name="status" id="filter_status_order" class="admin-filter-select" {
                             option value="" selected[params.status.is_none()] { "Wszystkie" }
                             @for status_opt in OrderStatus::iter() {
-                                option value=(status_opt.to_form_value()) selected[params.status.as_ref() == Some(&status_opt)] { (status_opt.to_string()) }
+                                option value=(status_opt.as_ref()) selected[params.status.as_ref() == Some(&status_opt)] { (status_opt.to_string()) }
                             }
                         }
                     }
