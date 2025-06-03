@@ -1763,7 +1763,7 @@ pub async fn update_order_status_handler(
             let trigger_payload = serde_json::json!({
                 "reloadAdminOrderList": true, // Zdarzenie do przeładowania listy
                 "showMessage": {              // Zdarzenie do wyświetlenia toasta
-                    "message": "Status zamówienia został pomyślnie zaktualizowany.",
+                    "message": "Status zamowienia zostal pomyslnie zaktualizowany.",
                     "type": "success"
                 }
             });

@@ -4329,7 +4329,7 @@ pub async fn admin_orders_list_htmx_handler(
                                             class="block w-full pl-3 pr-8 py-1.5 text-xs border-gray-300 focus:outline-none focus:ring-pink-500 focus:border-pink-500 rounded-md shadow-sm appearance-none"
                                             aria-label="Zmień status zamówienia" {
                                             @for status_option in OrderStatus::iter() {
-                                                option value=(status_option.as_ref()) selected[order.status == status_option] { (status_option.to_string()) }
+                                                option value=(status_option.to_form_value()) selected[order.status == status_option] { (status_option.to_string()) }
                                             }
                                         }
                                     }
