@@ -1726,7 +1726,7 @@ pub async fn update_order_status_handler(
     State(app_state): State<AppState>,
     claims: TokenClaims,
     Path(order_id): Path<Uuid>,
-    Json(payload): Json<UpdateOrderStatusPayload>,
+    Form(payload): Form<UpdateOrderStatusPayload>,
 ) -> Result<(StatusCode, HeaderMap, Json<Order>), AppError> {
     // Zwracamy też zaktualizowany Order
     if claims.role != Role::Admin {

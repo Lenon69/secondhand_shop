@@ -170,6 +170,18 @@ pub enum OrderStatus {
     Cancelled,
 }
 
+impl OrderStatus {
+    pub fn to_form_value(&self) -> &'static str {
+        match self {
+            OrderStatus::Pending => "Pending",
+            OrderStatus::Processing => "Processing",
+            OrderStatus::Shipped => "Shipped",
+            OrderStatus::Delivered => "Delivered",
+            OrderStatus::Cancelled => "Cancelled",
+        }
+    }
+}
+
 /// Reprezentuje pojedyńczą pozycję w zamówieniu
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, Validate)]
 pub struct OrderItem {

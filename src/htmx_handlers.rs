@@ -3295,9 +3295,9 @@ pub async fn admin_dashboard_htmx_handler(claims: TokenClaims) -> Result<Markup,
             // Sidebar nawigacyjny admina
             nav ."w-full md:w-64 bg-gray-800 text-white p-4 space-y-2" {
                 h2 ."text-xl font-semibold mb-4" { "Panel Admina" }
-                a href="/htmx/admin/products" hx-get="/htmx/admin/products" hx-target="#admin-content" hx-swap="innerHTML" hx-indicator="#page-wide-spinner"
+                a href="/htmx/admin/products" hx-get="/htmx/admin/products" hx-target="#admin-content" hx-swap="innerHTML"
                    class="block py-2 px-3 rounded hover:bg-gray-700" { "Zarządzaj produktami" }
-                a href="/htmx/admin/orders" hx-get="/htmx/admin/orders" hx-target="#admin-content" hx-swap="innerHTML" hx-indicator="#page-wide-spinner"
+                a href="/htmx/admin/orders" hx-get="/htmx/admin/orders" hx-target="#admin-content" hx-swap="innerHTML"
                    class="block py-2 px-3 rounded hover:bg-gray-700" { "Zarządzaj zamówieniami" }
 
                 hr ."my-4 border-gray-700";
@@ -3924,6 +3924,7 @@ pub async fn admin_product_edit_form_htmx_handler(
                             div {
                                 label for="status" ."block text-sm font-medium text-gray-700 mb-1" { "Status *" }
                                 select name="status" id="status" required x-model="productStatus" class="block w-full mt-1 py-2.5 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm" {
+
                                     @for status_variant in ProductStatus::iter() {
                                         option value=(status_variant.as_ref()) { (status_variant.to_string()) }
                                     }
@@ -4234,7 +4235,7 @@ pub async fn admin_orders_list_htmx_handler(
                         select name="status" id="filter_status_order" class="admin-filter-select" {
                             option value="" selected[params.status.is_none()] { "Wszystkie" }
                             @for status_opt in OrderStatus::iter() {
-                                option value=(status_opt.as_ref()) selected[params.status.as_ref() == Some(&status_opt)] { (status_opt.to_string()) }
+                                option value=(status_opt.to_form_value()) selected[params.status.as_ref() == Some(&status_opt)] { (status_opt.to_string()) }
                             }
                         }
                     }
@@ -4320,12 +4321,11 @@ pub async fn admin_orders_list_htmx_handler(
                                 td class="admin-td text-gray-600 text-xs" { (order.order_date.format("%Y-%m-%d %H:%M").to_string()) }
                                 td class="admin-td" {
                                     // --- Dropdown do zmiany statusu ---
-                                    div class="inline-block" {
+                                    div class="inline-block relative" {
                                         select name="status"
                                             hx-patch=(format!("/api/orders/{}", order.id))
                                             hx-trigger="change"
-                                            hx-ext="json-enc"
-                                            hx-indicator=(format!("#status-spinner-{}", order.id)) // Wskazuje na ID spinnera
+                                            // hx-indicator=(format!("#status-spinner-{}", order.id))
                                             class="block w-full pl-3 pr-8 py-1.5 text-xs border-gray-300 focus:outline-none focus:ring-pink-500 focus:border-pink-500 rounded-md shadow-sm appearance-none"
                                             aria-label="Zmień status zamówienia" {
                                             @for status_option in OrderStatus::iter() {
@@ -4485,8 +4485,8 @@ pub async fn admin_order_details_htmx_handler(
                 h1 ."text-2xl sm:text-3xl font-semibold text-gray-800" {
                     "Szczegóły Zamówienia #" (order_id_display_short)
                 }
-                a href=(format!("/htmx/admin/zamowienia?{}", back_to_list_query_string))
-                   hx-get=(format!("/htmx/admin/zamowienia?{}", back_to_list_query_string))
+                a href=(format!("/htmx/admin/orders?{}", back_to_list_query_string))
+                   hx-get=(format!("/htmx/admin/orders?{}", back_to_list_query_string))
                    hx-target="#admin-content" // Celuje w główny kontener panelu admina
                    hx-swap="innerHTML"
                    // hx-push-url=(format!("/admin/zamowienia?{}", back_to_list_query_string)) // Opcjonalnie
@@ -4515,12 +4515,9 @@ pub async fn admin_order_details_htmx_handler(
                             select name="status" id="order_status_details"
                                    hx-patch=(format!("/api/orders/{}", order.id))
                                    hx-trigger="change"
-                                   hx-ext="json-enc"
-                                   // Nie potrzebujemy hx-target/hx-swap, bo #order-details-page-container-...
-                                   // będzie nasłuchiwać na "reloadAdminOrderList" wywołany przez serwer.
                                    class="block w-full max-w-[200px] pl-3 pr-8 py-1.5 text-xs border-gray-300 focus:outline-none focus:ring-pink-500 focus:border-pink-500 rounded-md shadow-sm appearance-none" {
                                 @for status_opt in OrderStatus::iter() {
-                                    option value=(status_opt.as_ref()) selected[order.status == status_opt] { (status_opt.to_string()) }
+                                    option value=(status_opt.to_form_value()) selected[order.status == status_opt] { (status_opt.to_string()) }
                                 }
                             }
                         }
