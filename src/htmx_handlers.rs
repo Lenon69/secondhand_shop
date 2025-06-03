@@ -3292,9 +3292,9 @@ pub async fn admin_dashboard_htmx_handler(claims: TokenClaims) -> Result<Markup,
             nav ."w-full md:w-64 bg-gray-800 text-white p-4 space-y-2" {
                 h2 ."text-xl font-semibold mb-4" { "Panel Admina" }
                 a href="/htmx/admin/products" hx-get="/htmx/admin/products" hx-target="#admin-content" hx-swap="innerHTML"
-                   class="block py-2 px-3 rounded hover:bg-gray-700" { "Zarządzaj Produktami" }
+                   class="block py-2 px-3 rounded hover:bg-gray-700" { "Zarządzaj produktami" }
                 a href="/htmx/admin/orders" hx-get="/htmx/admin/orders" hx-target="#admin-content" hx-swap="innerHTML"
-                   class="block py-2 px-3 rounded hover:bg-gray-700" { "Zarządzaj Zamówieniami" }
+                   class="block py-2 px-3 rounded hover:bg-gray-700" { "Zarządzaj zamówieniami" }
 
                 hr ."my-4 border-gray-700";
                 a href="/" target="_blank" class="block py-2 px-3 rounded hover:bg-gray-700" { "Przejdź do sklepu" }
@@ -3629,149 +3629,175 @@ pub async fn admin_product_new_form_htmx_handler(claims: TokenClaims) -> Result<
         claims.sub
     );
 
+    // Dla nowego produktu, initialImages to pusta tablica, a status można ustawić domyślnie.
+    let initial_images_json = "[]".to_string();
+    let current_status_str = ProductStatus::Available.as_ref().to_string(); // Domyślny status dla nowego produktu
+
     Ok(html! {
-            div #admin-new-product-form-container ."p-4 sm:p-6 lg:p-8" {
-                div ."mb-6 pb-3 border-b border-gray-300" {
-                    h2 ."text-2xl font-semibold text-gray-800" { "Dodaj Nowy Produkt" }
+        div #admin-new-product-form-container ."p-4 sm:p-6 lg:p-8 bg-gray-50 min-h-screen" { // Zmieniono ID dla unikalności, jeśli potrzebne
+            div ."max-w-4xl mx-auto" { // Dodano max-w-4xl mx-auto dla lepszego wyglądu
+                div ."flex justify-between items-center mb-6 pb-3 border-b border-gray-300" { // Dodano spójny nagłówek
+                    h2 ."text-2xl sm:text-3xl font-semibold text-gray-800" { "Dodaj Nowy Produkt" }
+                    a href="/htmx/admin/products"
+                       hx-get="/htmx/admin/products"
+                       hx-target="#admin-content" hx-swap="innerHTML"
+                       class="text-sm text-pink-600 hover:text-pink-700 hover:underline font-medium transition-colors" {
+                        "← Wróć do listy"
+                    }
                 }
-                div #new-product-messages ."mb-4 min-h-[2em]" {}
+                div #new-product-messages ."mb-4 min-h-[2em]" {} // Dla komunikatów z HTMX
+
                 form
                     hx-encoding="multipart/form-data"
                     hx-post="/api/products"
-                    hx-target="#new-product-messages"
-                    hx-swap="innerHTML"
-                    class="space-y-6 bg-white p-6 rounded-lg shadow-md border border-gray-200"
-                    x-data="{
-                    imagePreviews: [null, null, null, null, null, null, null, null],
-                    imageFiles: [null, null, null, null, null, null, null, null],
-                    handleFileChange(event, index) {
-                        const file = event.target.files[0];
-                        if (file) {
-                            this.imageFiles[index] = file;
-                            const reader = new FileReader();
-                            reader.onload = (e) => {
-                                this.imagePreviews[index] = e.target.result;
-                            };
-                            reader.readAsDataURL(file);
-                        } else {
-                            this.imageFiles[index] = null;
-                            this.imagePreviews[index] = null;
-                            event.target.value = null;
-                        }
-                    },
-                    removeImage(index, inputId) {
-                        this.imageFiles[index] = null;
-                        this.imagePreviews[index] = null;
-                        const fileInput = document.getElementById(inputId);
-                        if (fileInput) {
-                            fileInput.value = null;
-                        }
-                    }
-                }"
+                    hx-target="#new-product-messages" // Dla błędów walidacji itp.
+                    // Sukces będzie obsługiwany przez HX-Location z serwera
+                    class="space-y-8 bg-white p-6 sm:p-8 rounded-xl shadow-xl border border-gray-200"
+                    x-data="adminProductEditForm()" // UŻYWAMY TEJ SAMEJ FUNKCJI KOMPONENTU ALPINE
+                    "data-initial-images"=(initial_images_json) // Pusta tablica dla nowego produktu
+                    "data-current-status"=(current_status_str)   // Domyślny status
+                    x-init="initAlpineComponent($el.dataset.initialImages, $el.dataset.currentStatus)"
                 {
-                    // Nazwa Produktu
-                    div {
-                        label for="name" ."block text-sm font-medium text-gray-700 mb-1" { "Nazwa produktu *" }
-                        input type="text" name="name" id="name" required
-                               class="appearance-none block w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition duration-150 ease-in-out sm:text-sm";
-                    }
-                    // Opis Produktu
-                    div {
-                        label for="description" ."block text-sm font-medium text-gray-700 mb-1" { "Opis produktu *" }
-                        textarea name="description" id="description" rows="6" required
-                                  class="appearance-none block w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition duration-150 ease-in-out sm:text-sm" {}
-                    }
-                    // Cena Produktu
-                    div {
-                        label for="price" ."block text-sm font-medium text-gray-700 mb-1" { "Cena (w groszach) *" }
-                        input type="number" name="price" id="price" required min="0" step="1"
-                               class="appearance-none block w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition duration-150 ease-in-out sm:text-sm";
-                    }
-                    // Płeć, Stan, Kategoria
-                    div ."grid grid-cols-1 md:grid-cols-3 gap-6" {
-    div {
-                            label for="gender" ."block text-sm font-medium text-gray-700 mb-1" { "Płeć *" }
-                            select name="gender" id="gender" required class="..." {
-                                @for gender_variant in ProductGender::iter() {
-                                    // value będzie "Damskie" lub "Meskie" (zgodnie z nazwą wariantu Rust)
-                                    // Tekst wyświetlany to polska nazwa (z Display -> strum(serialize), jeśli zdefiniowane, inaczej nazwa wariantu)
-                                    option value=(gender_variant.as_ref()) { (gender_variant.to_string()) }
-                                }
+                    // Ukryte pole input dla urls_to_delete (nie będzie używane, ale jest w komponencie)
+                    // Można by je pominąć, ale dla spójności z komponentem można zostawić.
+                    // LUB zmodyfikować adminProductEditForm, aby $watch nie próbował znaleźć tego pola, jeśli nie istnieje.
+                    // Na razie zostawmy, nie powinno przeszkadzać, bo imagesToDelete będzie puste.
+                    input type="hidden" name="urls_to_delete" id="urls_to_delete_hidden_input_new_form"; // INNE ID niż w edycji
+
+                    // Sekcja: Dane Podstawowe (jak w formularzu edycji, ale bez `value=`)
+                    section {
+                        h3 ."text-xl font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-200" { "Dane Podstawowe" }
+                        div ."space-y-5" {
+                            div {
+                                label for="name_new" ."block text-sm font-medium text-gray-700 mb-1" { "Nazwa produktu *" } // Unikalne ID pól
+                                input type="text" name="name" id="name_new" required
+                                       class="appearance-none block w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition duration-150 ease-in-out sm:text-sm";
+                            }
+                            // ... Inne pola: description, price (z unikalnymi ID, np. description_new, price_new)
+                            div {
+                                label for="description_new" ."block text-sm font-medium text-gray-700 mb-1" { "Opis produktu *" }
+                                textarea name="description" id="description_new" rows="6" required
+                                          class="appearance-none block w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition duration-150 ease-in-out sm:text-sm" {}
+                            }
+                            div {
+                                label for="price_new" ."block text-sm font-medium text-gray-700 mb-1" { "Cena (w groszach) *" }
+                                input type="number" name="price" id="price_new" required min="0" step="1"
+                                       class="appearance-none block w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition duration-150 ease-in-out sm:text-sm";
                             }
                         }
-                        div {
-                            label for="condition" ."block text-sm font-medium text-gray-700 mb-1" { "Stan *" }
-                            select name="condition" id="condition" required class="..." {
-                                @for condition_variant in ProductCondition::iter() {
-                                    // value będzie "New", "LikeNew" itp. (zgodnie z nazwą wariantu Rust)
-                                    // Tekst wyświetlany to polska nazwa (z Display -> strum(serialize))
-                                    option value=(condition_variant.as_ref()) { (condition_variant.to_string()) }
+                    }
+
+                    // Sekcja: Klasyfikacja i Status (jak w formularzu edycji, ale bez `selected` i `x-model` na status, bo jest domyślny)
+                    section {
+                        h3 ."text-xl font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-200" { "Klasyfikacja" } // Status będzie domyślny
+                        div ."grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-5" { // Zmieniono na 3 kolumny, bo status jest domyślny
+                            div {
+                                label for="gender_new" ."block text-sm font-medium text-gray-700 mb-1" { "Płeć *" }
+                                select name="gender" id="gender_new" required class="block w-full mt-1 py-2.5 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm" {
+                                    option value="" disabled selected { "Wybierz płeć..." }
+                                    @for gender_variant in ProductGender::iter() {
+                                        option value=(gender_variant.as_ref()) { (gender_variant.to_string()) }
+                                    }
                                 }
                             }
+                            div {
+                                label for="condition_new" ."block text-sm font-medium text-gray-700 mb-1" { "Stan *" }
+                                select name="condition" id="condition_new" required class="block w-full mt-1 py-2.5 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm" {
+                                     option value="" disabled selected { "Wybierz stan..." }
+                                    @for condition_variant in ProductCondition::iter() {
+                                        option value=(condition_variant.as_ref()) { (condition_variant.to_string()) }
+                                    }
+                                }
+                            }
+                            div {
+                                label for="category_new" ."block text-sm font-medium text-gray-700 mb-1" { "Kategoria *" }
+                                select name="category" id="category_new" required class="block w-full mt-1 py-2.5 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm" {
+                                     option value="" disabled selected { "Wybierz kategorię..." }
+                                    @for cat_variant in Category::iter() {
+                                        option value=(cat_variant.as_ref()) { (cat_variant.to_string()) }
+                                    }
+                                }
+                            }
+                            // Pole status jest ustawiane domyślnie na serwerze, nie potrzebujemy go w formularzu nowego produktu,
+                            // lub można je dodać jako ukryte pole, jeśli backend tego wymagałby jawnie.
+                            // W create_product_handler status jest ustawiany na ProductStatus::Available.
                         }
-                        div {
-                            label for="category" ."block text-sm font-medium text-gray-700 mb-1" { "Kategoria *" }
-                            select name="category" id="category" required class="..." {
-                                @for cat_variant in Category::iter() {
-                                    // value będzie np. "KurtkiPlaszcze" (zgodnie z nazwą wariantu Rust)
-                                    // Tekst wyświetlany to polska nazwa (z Display -> strum(serialize))
-                                    option value=(cat_variant.as_ref()) { (cat_variant.to_string()) }
-                                }
-                            }
-                        }                }
-                    // Obrazki Produktu
-                    div {
-                        label ."block text-sm font-medium text-gray-700 mb-2" { "Zdjęcia produktu (min. 1, max. 8) *" }
+                    }
+
+                    // Sekcja: Zdjęcia Produktu (TA SAMA LOGIKA HTML CO W EDYCJI)
+                    section {
+                        // input type="hidden" name="urls_to_delete" id="urls_to_delete_hidden_input_new_form"; // Już dodane na początku formularza
+                        h3 ."text-xl font-semibold text-gray-700 mb-2 pb-2 border-b border-gray-200" { "Zdjęcia Produktu" }
+                        p ."text-xs text-gray-500 mb-4" { "Dodaj od 1 do 8 zdjęć. Pierwsze zdjęcie będzie zdjęciem głównym." }
                         div ."grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4" {
                             @for i in 0..8 {
-                                @let input_id = format!("image_file_{}", i + 1);
-                                // POPRAWKA TUTAJ:
-                                @let x_if_preview_condition = format!("imagePreviews[{}]", i);
-                                @let x_if_no_preview_condition = format!("!imagePreviews[{}]", i);
-                                @let alpine_remove_image_call = format!("removeImage({}, '{}')", i, input_id);
-                                @let alpine_handle_file_change_call = format!("handleFileChange($event, {})", i);
+                                @let slot_input_id = format!("new_form_image_file_slot_{}", i); // Unikalne ID dla inputu pliku
+                                @let input_name = format!("image_file_{}", i + 1); // Nazwa pola dla backendu
 
-                                div ."relative aspect-square border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-400 hover:border-pink-400 transition-colors" {
-                                    // Podgląd obrazka
-                                    template x-if=(x_if_preview_condition) { // Użycie sformatowanego stringa
-                                        div ."absolute inset-0 w-full h-full group" {
-                                            img x-bind:src=(format!("imagePreviews[{}]",i)) alt=(format!("Podgląd obrazka {}", i+1)) // x-bind:src również wymaga pełnego stringa
+                                div class="relative aspect-square border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-400 hover:border-pink-400 transition-colors group"
+                                    "x-bind:class"=(format!("{{ \
+                                        '!border-solid !border-pink-500 shadow-lg': imagePreviews[{}], \
+                                        'hover:bg-pink-50/20': !imagePreviews[{}] \
+                                    }}", i, i)) { // Uproszczony x-bind:class, bo nie ma 'isMarkedForDeletion'
+
+                                    // --- Podgląd obrazka i przycisk "X" (tylko dla nowych podglądów) ---
+                                    template "x-if"=(format!("imagePreviews[{}]", i)) { // isSlotFilled jest true, jeśli imagePreviews[i] nie jest null
+                                        div ."absolute inset-0 w-full h-full" {
+                                            img "x-bind:src"=(format!("imagePreviews[{}]", i)) // getSlotImageSrc zwróci imagePreviews[i]
+                                                 alt=(format!("Podgląd zdjęcia {}", i + 1))
                                                  class="w-full h-full object-cover rounded-md";
                                             button type="button"
-                                                   "@click"=(alpine_remove_image_call) // Użycie sformatowanego stringa
-                                                   class="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-700 transition-opacity text-xs"
-                                                   title="Usuń obrazek" {
-                                                "X"
+                                                   "@click.prevent"=(format!("removeImage({}, '{}')", i, slot_input_id))
+                                                   class="absolute top-1 right-1 p-0.5 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-700 transition-all text-xs w-5 h-5 flex items-center justify-center shadow-md z-10"
+                                                   title="Usuń ten podgląd" {
+                                                svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3" {
+                                                    path "fill-rule"="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" "clip-rule"="evenodd" {}
+                                                }
                                             }
                                         }
                                     }
-                                    // Input pliku
-                                    template x-if=(x_if_no_preview_condition) { // Użycie sformatowanego stringa
-                                        label for=(input_id) class="cursor-pointer p-2 text-center" {
-                                            div ."text-2xl" { "+" }
-                                            div ."text-xs mt-1" {
-                                                @if i == 0 { "Dodaj główne" } @else { "Dodaj zdjęcie" }
+
+                                    // --- Labelka do dodawania pliku (widoczna, gdy nie ma podglądu) ---
+                                    // Nie ma potrzeby używania isMarkedForDeletion, bo to nowy produkt
+                                    template "x-if"=(format!("!imagePreviews[{}]", i)) {
+                                        label for=(slot_input_id) class="cursor-pointer p-2 text-center w-full h-full flex flex-col items-center justify-center hover:bg-pink-50/50 transition-colors rounded-md" {
+                                            svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-8 h-8 text-gray-400 group-hover:text-pink-500 transition-colors" {
+                                                path d="M9.25 13.25a.75.75 0 001.5 0V4.793l2.97 2.97a.75.75 0 001.06-1.06l-4.25-4.25a.75.75 0 00-1.06 0L5.22 6.704a.75.75 0 001.06 1.06L9.25 4.793v8.457z" {}
+                                                path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" {}
+                                            }
+                                            div ."text-xs mt-1 text-gray-500 group-hover:text-pink-600 transition-colors" {
+                                                 @if i == 0 { "Dodaj główne *" } @else { "Dodaj zdjęcie" }
                                             }
                                         }
                                     }
-                                    input type="file" name=(input_id) id=(input_id) accept="image/jpeg, image/png, image/webp"
-                                           "@change"=(alpine_handle_file_change_call) // Użycie sformatowanego stringa
-                                           class="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                                    input type="file" name=(input_name) id=(slot_input_id)
+                                           accept="image/jpeg,image/png,image/webp"
+                                           "@change"=(format!("handleFileChange($event, {})", i))
+                                           class="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-0"
                                            required[i == 0];
                                 }
                             }
                         }
                     }
-                    // Przycisk Dodaj Produkt
-                    div ."pt-5 border-t border-gray-200 mt-8" {
-                        button type="submit"
-                               class="w-full sm:w-auto inline-flex justify-center items-center px-8 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-transform transform hover:scale-105" {
-                            span { "Dodaj Produkt" }
+
+                    // Przyciski Akcji
+                    section ."pt-8 border-t border-gray-200 mt-8" {
+                        div ."flex flex-col sm:flex-row justify-end items-center gap-3" {
+                            a href="/htmx/admin/products"
+                               hx-get="/htmx/admin/products" hx-target="#admin-content" hx-swap="innerHTML"
+                               class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 transition-all w-full sm:w-auto text-center" {
+                                "Anuluj"
+                            }
+                            button type="submit"
+                                   class="w-full sm:w-auto inline-flex justify-center items-center px-8 py-2.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-transform transform hover:scale-105" {
+                                span { "Dodaj Produkt" } // Usunięto globalny spinner z przycisku, jeśli jest zarządzany inaczej
+                            }
                         }
                     }
-                }
+                } // koniec form
             }
-        })
+        }
+    })
 }
 
 pub async fn admin_product_edit_form_htmx_handler(
