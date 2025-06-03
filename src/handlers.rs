@@ -1610,10 +1610,25 @@ pub async fn get_order_details_handler(
     // 1. Pobieranie zamówienia
     let order_optional = sqlx::query_as::<_, Order>(
         r#"
-            SELECT id, user_id, order_date, status, total_price,
-                   shipping_address_line1, shipping_address_line2,
-                   shipping_city, shipping_postal_code, shipping_country, payment_method,
-                   created_at, updated_at
+            SELECT
+                id,
+                user_id,
+                order_date,
+                status,
+                total_price,
+                shipping_first_name,
+                shipping_last_name, 
+                shipping_address_line1,
+                shipping_address_line2,
+                shipping_city,
+                shipping_postal_code,
+                shipping_country,
+                shipping_phone,     
+                payment_method,
+                guest_email,       
+                guest_session_id,  
+                created_at,
+                updated_at
             FROM orders
             WHERE id = $1
         "#,
