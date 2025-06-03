@@ -1157,7 +1157,6 @@ pub async fn create_order_handler(
     guest_cart_id_header: Option<TypedHeader<XGuestCartId>>,
     Form(payload): Form<CheckoutFormPayload>,
 ) -> Result<(HeaderMap, StatusCode), AppError> {
-    // Zmieniono odpowiedź na (HeaderMap, StatusCode)
     // Walidacja payloadu
     if let Err(validation_errors) = payload.validate() {
         tracing::warn!("Błąd walidacji danych checkout: {:?}", validation_errors);
@@ -1267,8 +1266,9 @@ pub async fn create_order_handler(
 
     // 2. Przetwórz pozycje koszyka (logika pozostaje podobna)
     let mut order_items_to_create: Vec<(Uuid, i64)> = Vec::with_capacity(cart_items_db.len());
-    let mut total_price_items: i64 = 0; // Tylko suma produktów
+    let mut total_price_items: i64 = 0;
     let mut product_ids_to_mark_reserved: Vec<Uuid> = Vec::new();
+    let selected_shipping_cost = payload.shipping_cost_selected;
 
     for cart_item in &cart_items_db {
         let product =
@@ -1317,9 +1317,33 @@ pub async fn create_order_handler(
         AppError::Validation("Nieprawidłowa metoda płatności.".to_string())
     })?;
 
-    // TODO: Dodaj logikę dla kosztów dostawy - na razie total_price to suma produktów
-    let shipping_cost: i64 = 1500;
-    let final_total_price = total_price_items + shipping_cost;
+    // Walidacja wybranego kosztu dostawy (ważne!)
+    let allowed_shipping_costs = [1600, 2000]; // Definiujemy dozwolone koszty (w groszach)
+    if total_price_items > 0 && !allowed_shipping_costs.contains(&selected_shipping_cost) {
+        // Jeśli koszyk nie jest pusty, koszt dostawy musi być jedną z dozwolonych wartości
+        tracing::warn!(
+            "Nieprawidłowy lub nie wybrany koszt dostawy: {}. Dozwolone: {:?}",
+            selected_shipping_cost,
+            allowed_shipping_costs
+        );
+        // Możesz zwrócić błąd walidacji przez HX-Trigger
+        let mut headers = HeaderMap::new();
+        let error_message = "Prosze wybrac prawidlowa metode dostawy.";
+        headers.insert(
+            "HX-Trigger",
+            HeaderValue::from_str(&format!(
+                r#"{{"showMessage": {{"message": "{}", "type": "error"}}}}"#,
+                error_message.replace('"', "\\\"")
+            ))
+            .map_err(|_| {
+                AppError::InternalServerError("Failed to create HX-Trigger header".to_string())
+            })?,
+        );
+        headers.insert("HX-Reswap", HeaderValue::from_static("none"));
+        return Ok((headers, StatusCode::UNPROCESSABLE_ENTITY)); // Lub BadRequest
+    }
+
+    let final_total_price = total_price_items + selected_shipping_cost;
 
     // 3. Wstaw rekord do tabeli `orders`
     let initial_status = OrderStatus::Pending;
@@ -1404,7 +1428,12 @@ pub async fn create_order_handler(
 
     tx.commit().await?;
 
-    tracing::info!("Utworzono nowe zamówienie ID: {}", order_id);
+    tracing::info!(
+        "Utworzono nowe zamówienie ID: {} z kosztem dostawy: {} gr, suma końcowa: {} gr",
+        order_id, // Upewnij się, że order_id jest zdefiniowane
+        selected_shipping_cost,
+        final_total_price
+    );
 
     // Przygotuj odpowiedź dla HTMX
     let mut headers = HeaderMap::new();

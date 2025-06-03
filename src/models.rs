@@ -1,7 +1,11 @@
 // src/models.rs
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::{
+    self, Deserialize, Deserializer, Serialize,
+    de::{self, Unexpected, Visitor},
+};
 use sqlx::Type;
+use std::str::FromStr;
 use strum_macros::{AsRefStr, Display, EnumIter, EnumString};
 use uuid::Uuid;
 use validator::Validate;
@@ -459,6 +463,9 @@ pub struct CheckoutFormPayload {
 
     #[validate(length(min = 1, message = "Metoda płatności jest wymagana."))]
     pub payment_method: String,
+
+    #[serde(default, deserialize_with = "deserialize_i64_from_string_or_number")]
+    pub shipping_cost_selected: i64, // Wartość w groszach
 }
 
 #[derive(Debug, PartialEq, Clone, Display, EnumIter)]
@@ -472,4 +479,44 @@ pub struct OrderWithCustomerInfo {
     #[sqlx(flatten)]
     pub order: Order,
     pub customer_email: Option<String>,
+}
+
+// Funkcja deserializująca i64 ze stringa lub liczby
+fn deserialize_i64_from_string_or_number<'de, D>(deserializer: D) -> Result<i64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct I64Visitor;
+
+    impl<'de> Visitor<'de> for I64Visitor {
+        type Value = i64;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("an integer or a string representing an integer")
+        }
+
+        fn visit_i64<E>(self, value: i64) -> Result<i64, E>
+        where
+            E: de::Error,
+        {
+            Ok(value)
+        }
+
+        fn visit_u64<E>(self, value: u64) -> Result<i64, E>
+        where
+            E: de::Error,
+        {
+            i64::try_from(value)
+                .map_err(|_| de::Error::invalid_value(Unexpected::Unsigned(value), &self))
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<i64, E>
+        where
+            E: de::Error,
+        {
+            i64::from_str(value)
+                .map_err(|_| de::Error::invalid_value(Unexpected::Str(value), &self))
+        }
+    }
+    deserializer.deserialize_any(I64Visitor)
 }
