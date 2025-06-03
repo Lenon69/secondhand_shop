@@ -157,7 +157,7 @@ async fn main() {
         )
         .route("/htmx/logowanie", get(login_page_htmx_handler))
         .route("/htmx/rejestracja", get(registration_page_htmx_handler))
-        .route("/htmx/moje-konto", get(my_account_page_handler))
+        .route("/htmx/my-account", get(my_account_page_handler))
         .route("/htmx/moje-konto/zamowienia", get(my_orders_htmx_handler))
         .route("/htmx/moje-konto/dane", get(my_account_data_htmx_handler))
         .route("/htmx/checkout", get(checkout_page_handler))
@@ -179,6 +179,11 @@ async fn main() {
             "/htmx/admin/products/{product_id}/edit",
             get(admin_product_edit_form_htmx_handler),
         )
+        .route(
+            "/htmx/admin/order-details/{order_id}",
+            get(admin_order_details_htmx_handler),
+        )
+        .route("/htmx/admin/orders", get(admin_orders_list_htmx_handler))
         .nest_service("/static", ServeDir::new("static"))
         .layer(TraceLayer::new_for_http())
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024))

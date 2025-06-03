@@ -150,7 +150,7 @@
                               this.navigateToHtmx('/', '/htmx/products?limit=9&sort_by=name&order=asc');
                               this.currentMobilePage = '';
                           } else if (this.isAuthenticated && (path.startsWith('/logowanie') || path.startsWith('/rejestracja'))) {
-                               this.navigateToHtmx('/moje-konto', '/htmx/moje-konto');
+                               this.navigateToHtmx('/moje-konto', '/htmx/my-account');
                                this.currentMobilePage = 'moje-konto';
                           }
                       }, 1); // Drobne opóźnienie, aby dać app.js szansę na działanie
@@ -319,7 +319,7 @@
           </div>
         <div class="hidden lg:flex items-center space-x-4">
          <a  x-bind:href="isAuthenticated ? '/moje-konto' : '/logowanie'"
-            x-bind:hx-get="isAuthenticated ? '/htmx/moje-konto' : '/htmx/logowanie'"
+            x-bind:hx-get="isAuthenticated ? '/htmx/my-account' : '/htmx/logowanie'"
             hx-target="#content" hx-swap="innerHTML"
             x-bind:hx-push-url="isAuthenticated ? '/moje-konto' : '/logowanie'"
             @click="currentMobilePage = isAuthenticated ? 'moje-konto' : 'logowanie'"
@@ -616,7 +616,7 @@
             <div class="pt-4 pb-3 border-t border-gray-200">
                 <div class="flex items-center px-3">
                      <a x-bind:href="isAuthenticated ? '/moje-konto' : '/logowanie'"
-                        x-bind:hx-get="isAuthenticated ? '/htmx/moje-konto' : '/htmx/logowanie'"
+                        x-bind:hx-get="isAuthenticated ? '/htmx/my-account' : '/htmx/logowanie'"
                         hx-target="#content"
                         hx-swap="innerHTML"
                         x-bind:hx-push-url="isAuthenticated ? '/moje-konto' : '/logowanie'"

@@ -16,6 +16,7 @@ use crate::cloudinary::{delete_image_from_cloudinary, extract_public_id_from_url
 use crate::errors::AppError;
 use crate::filters::{ListingParams, OrderListingParams};
 use crate::middleware::OptionalTokenClaims;
+use crate::models::Product;
 use crate::models::*;
 use crate::pagination::{PaginatedOrdersResponse, PaginatedProductsResponse};
 use crate::{
@@ -1435,39 +1436,167 @@ pub async fn create_order_handler(
 
 pub async fn list_orders_handler(
     State(app_state): State<AppState>,
-    claims: TokenClaims,
-) -> Result<Json<Vec<Order>>, AppError> {
+    claims: TokenClaims, // Potrzebne do rozróżnienia admin/klient
+    Query(params): Query<OrderListingParams>, // Nowe parametry filtrowania
+) -> Result<Json<PaginatedOrdersResponse<OrderWithCustomerInfo>>, AppError> {
+    // Zmieniony typ odpowiedzi
     let user_id = claims.sub;
     let user_role = claims.role;
 
-    let orders: Vec<Order>;
+    let limit = params.limit();
+    let offset = params.offset();
 
-    if user_role == Role::Admin {
-        //Admin widzi wszystkie zamówienia
-        orders = sqlx::query_as::<_, Order>(
-            r#"
-                SELECT id, user_id, order_date, status, total_price, shipping_address_line1, shipping_address_line2, shipping_city, shipping_postal_code, shipping_country, payment_method, created_at, updated_at
-                FROM orders
-                ORDER BY order_date DESC
-                "#
-        ).fetch_all(&app_state.db_pool).await?;
-        tracing::info!("Admin {} pobrał listę wszystkich zamówień", user_id);
+    // --- Budowanie zapytania COUNT ---
+    let mut count_query_builder: QueryBuilder<Postgres> = QueryBuilder::new(
+        "SELECT COUNT(DISTINCT o.id) FROM orders o LEFT JOIN users u ON o.user_id = u.id",
+    );
+    let mut conditions_added_count = false;
+    let mut append_where_or_and_count = |builder: &mut QueryBuilder<Postgres>| {
+        if !conditions_added_count {
+            builder.push(" WHERE ");
+            conditions_added_count = true;
+        } else {
+            builder.push(" AND ");
+        }
+    };
+
+    // --- Budowanie zapytania o DANE ---
+    let mut data_query_builder: QueryBuilder<Postgres> = QueryBuilder::new(
+        r#"
+            SELECT
+                o.id, o.user_id, o.order_date, o.status, o.total_price,
+                o.shipping_first_name, o.shipping_last_name,
+                o.shipping_address_line1, o.shipping_address_line2,
+                o.shipping_city, o.shipping_postal_code, o.shipping_country, o.shipping_phone,
+                o.payment_method, o.guest_email, o.guest_session_id,
+                o.created_at, o.updated_at,
+                COALESCE(u.email, o.guest_email) as customer_email
+            FROM orders o
+            LEFT JOIN users u ON o.user_id = u.id
+        "#, // Wybieramy customer_email
+    );
+    let mut conditions_added_data = false;
+    let mut append_where_or_and_data = |builder: &mut QueryBuilder<Postgres>| {
+        if !conditions_added_data {
+            builder.push(" WHERE ");
+            conditions_added_data = true;
+        } else {
+            builder.push(" AND ");
+        }
+    };
+
+    if user_role != Role::Admin {
+        // Klient widzi tylko swoje zamówienia
+        append_where_or_and_count(&mut count_query_builder);
+        count_query_builder.push(" o.user_id = ").push_bind(user_id);
+        append_where_or_and_data(&mut data_query_builder);
+        data_query_builder.push(" o.user_id = ").push_bind(user_id);
+        tracing::info!(
+            "Użytkownik {} pobrał listę swoich zamówień z filtrami: {:?}",
+            user_id,
+            params
+        );
     } else {
-        //Customer widzi tylko swoje zamówienia {
-        orders = sqlx::query_as::<_, Order>(
-            r#"
-                SELECT id, user_id, order_date, status, total_price, shipping_address_line1, shipping_address_line2, shipping_city, shipping_postal_code, shipping_country, payment_method, created_at, updated_at
-                FROM orders
-                WHERE user_id = $1
-                ORDER BY order_date DESC
-            "#,
-        )
-        .bind(user_id)
-        .fetch_all(&app_state.db_pool).await?;
-        tracing::info!("Użytkownik {} pobrał listę swoich zamówień", user_id);
+        // Admin może filtrować
+        tracing::info!(
+            "Admin {} pobrał listę zamówień z filtrami: {:?}",
+            user_id,
+            params
+        );
+        if let Some(status_filter) = params.status() {
+            append_where_or_and_count(&mut count_query_builder);
+            count_query_builder
+                .push(" o.status = ")
+                .push_bind(status_filter.clone()); // .clone() jeśli status_filter jest referencją
+            append_where_or_and_data(&mut data_query_builder);
+            data_query_builder
+                .push(" o.status = ")
+                .push_bind(status_filter);
+        }
+        if let Some(date_from) = params.date_from_dt() {
+            append_where_or_and_count(&mut count_query_builder);
+            count_query_builder
+                .push(" o.order_date >= ")
+                .push_bind(date_from);
+            append_where_or_and_data(&mut data_query_builder);
+            data_query_builder
+                .push(" o.order_date >= ")
+                .push_bind(date_from);
+        }
+        if let Some(date_to) = params.date_to_dt() {
+            append_where_or_and_count(&mut count_query_builder);
+            count_query_builder
+                .push(" o.order_date <= ")
+                .push_bind(date_to);
+            append_where_or_and_data(&mut data_query_builder);
+            data_query_builder
+                .push(" o.order_date <= ")
+                .push_bind(date_to);
+        }
+        if let Some(search_term) = params.search() {
+            let like_pattern = format!("%{}%", search_term);
+            append_where_or_and_count(&mut count_query_builder);
+            count_query_builder
+                .push(" (CAST(o.id AS TEXT) ILIKE ")
+                .push_bind(like_pattern.clone())
+                .push(" OR o.shipping_last_name ILIKE ")
+                .push_bind(like_pattern.clone())
+                .push(" OR o.guest_email ILIKE ")
+                .push_bind(like_pattern.clone())
+                .push(" OR u.email ILIKE ")
+                .push_bind(like_pattern.clone())
+                .push(") ");
+            append_where_or_and_data(&mut data_query_builder);
+            data_query_builder
+                .push(" (CAST(o.id AS TEXT) ILIKE ")
+                .push_bind(like_pattern.clone())
+                .push(" OR o.shipping_last_name ILIKE ")
+                .push_bind(like_pattern.clone())
+                .push(" OR o.guest_email ILIKE ")
+                .push_bind(like_pattern.clone())
+                .push(" OR u.email ILIKE ")
+                .push_bind(like_pattern) // Nie klonujemy ostatniego
+                .push(") ");
+        }
     }
 
-    Ok(Json(orders))
+    // Wykonanie zapytania COUNT
+    let total_items = count_query_builder
+        .build_query_scalar::<i64>()
+        .fetch_one(&app_state.db_pool)
+        .await?;
+
+    // Dodanie sortowania i paginacji do zapytania o DANE
+    let sort_column = match params.sort_by() {
+        "total_price" => "o.total_price",
+        "status" => "o.status",
+        // Dodaj inne kolumny, jeśli potrzebujesz
+        _ => "o.order_date", // Domyślnie po dacie zamówienia
+    };
+    data_query_builder.push(format_args!(" ORDER BY {} {}", sort_column, params.order()));
+    data_query_builder.push(" LIMIT ").push_bind(limit);
+    data_query_builder.push(" OFFSET ").push_bind(offset);
+
+    // Wykonanie zapytania o DANE
+    let orders_with_info = data_query_builder
+        .build_query_as::<OrderWithCustomerInfo>() // Używamy nowej struktury
+        .fetch_all(&app_state.db_pool)
+        .await?;
+
+    let total_pages = if total_items == 0 {
+        0
+    } else {
+        (total_items as f64 / limit as f64).ceil() as i64
+    };
+    let current_page = (offset as f64 / limit as f64).floor() as i64 + 1;
+
+    Ok(Json(PaginatedOrdersResponse {
+        total_items,
+        total_pages,
+        current_page,
+        per_page: limit,
+        data: orders_with_info,
+    }))
 }
 
 pub async fn get_order_details_handler(
@@ -1583,43 +1712,52 @@ pub async fn update_order_status_handler(
     claims: TokenClaims,
     Path(order_id): Path<Uuid>,
     Json(payload): Json<UpdateOrderStatusPayload>,
-) -> Result<Json<Order>, AppError> {
-    let user_id = claims.sub;
-    let user_role = claims.role;
-
-    if user_role != Role::Admin {
-        tracing::warn!(
-            "Nieautoryzowana prośba zmiany statusu zamówienia: order_id={}, user_id={}, user_role={:?}",
-            order_id,
-            user_id,
-            user_role
-        );
+) -> Result<(StatusCode, HeaderMap, Json<Order>), AppError> {
+    // Zwracamy też zaktualizowany Order
+    if claims.role != Role::Admin {
         return Err(AppError::UnauthorizedAccess(
             "Tylko administrator może zmieniać status zamówienia".to_string(),
         ));
     }
 
-    // Aktualizacja statusu w bazie danych
-    let updated_order = sqlx::query_as::<_, Order>(r#"
+    let updated_order_opt = sqlx::query_as::<_, Order>(
+        r#"
             UPDATE orders
             SET status = $1, updated_at = CURRENT_TIMESTAMP
             WHERE id = $2
-            RETURNING id, user_id, order_date, status, total_price, shipping_address_line1, shipping_address_line2, shipping_city, shipping_postal_code, shipping_country, payment_method, created_at, updated_at
-        "#).bind(&payload.status)
-        .bind(order_id)
-        .fetch_optional(&app_state.db_pool)
-        .await?;
+            RETURNING *
+        "#,
+    )
+    .bind(&payload.status)
+    .bind(order_id)
+    .fetch_optional(&app_state.db_pool)
+    .await?;
 
-    // Sprawdzenie czy zamówienie zostało znalezione i zaktualizowane
-    match updated_order {
+    match updated_order_opt {
         Some(order) => {
             tracing::info!(
                 "Zaktualizowano status zamówienia: order_id={}, nowy_status={:?}, admin_id={}",
                 order_id,
                 payload.status,
-                user_id
+                claims.sub
             );
-            Ok(Json(order))
+
+            let mut headers = HeaderMap::new();
+
+            // Jeden HX-Trigger z obiektem JSON zawierającym wiele zdarzeń
+            let trigger_payload = serde_json::json!({
+                "reloadAdminOrderList": true, // Zdarzenie do przeładowania listy
+                "showMessage": {              // Zdarzenie do wyświetlenia toasta
+                    "message": "Status zamówienia został pomyślnie zaktualizowany.",
+                    "type": "success"
+                }
+            });
+
+            if let Ok(val) = HeaderValue::from_str(&trigger_payload.to_string()) {
+                headers.insert("HX-Trigger", val);
+            }
+
+            Ok((StatusCode::OK, headers, Json(order))) // Zwracamy OK, nagłówki i zaktualizowany obiekt Order
         }
         None => {
             tracing::warn!(

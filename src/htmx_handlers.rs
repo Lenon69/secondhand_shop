@@ -20,10 +20,12 @@ use uuid::Uuid;
 
 use crate::{
     auth::Role,
+    filters::OrderListingParams,
     models::{
-        OrderItem, OrderItemDetailsPublic, ProductCondition, ProductGender, ProductStatus,
-        UserShippingDetails,
+        OrderDetailsResponse, OrderItem, OrderItemDetailsPublic, OrderWithCustomerInfo,
+        ProductCondition, ProductGender, ProductStatus, UserShippingDetails,
     },
+    pagination::PaginatedOrdersResponse,
 };
 #[allow(unused_imports)]
 use crate::{
@@ -3068,6 +3070,8 @@ pub async fn my_order_details_htmx_handler(
     Path(order_id): Path<Uuid>,
 ) -> Result<Markup, AppError> {
     let user_id = claims.sub;
+    let user_role = claims.role;
+
     tracing::info!(
         "MAUD: Użytkownik ID {} żąda szczegółów zamówienia ID {}",
         user_id,
@@ -3106,16 +3110,16 @@ pub async fn my_order_details_htmx_handler(
     };
 
     // 2. Autoryzacja: Sprawdź, czy zalogowany użytkownik jest właścicielem zamówienia
-    // Dla "Moje Zamówienia", user_id w zamówieniu musi pasować i nie być None.
-    if order.user_id != Some(user_id) {
+    if user_role != Role::Admin && order.user_id != Some(user_id) {
+        // <--- POPRAWNA LOGIKA DLA ADMINA
         tracing::warn!(
-            "Nieautoryzowany dostęp do zamówienia: order_id={}, user_id={}, order_owner_id={:?}",
+            "Nieautoryzowany dostęp do zamówienia: order_id={}, user_id={}, user_role={:?}",
             order_id,
             user_id,
-            order.user_id
+            user_role
         );
         return Err(AppError::UnauthorizedAccess(
-            "Nie masz uprawnień do tego zamówienia.".to_string(),
+            "Nie masz uprawnień do tego zamówienia".to_string(),
         ));
     }
 
@@ -3291,9 +3295,9 @@ pub async fn admin_dashboard_htmx_handler(claims: TokenClaims) -> Result<Markup,
             // Sidebar nawigacyjny admina
             nav ."w-full md:w-64 bg-gray-800 text-white p-4 space-y-2" {
                 h2 ."text-xl font-semibold mb-4" { "Panel Admina" }
-                a href="/htmx/admin/products" hx-get="/htmx/admin/products" hx-target="#admin-content" hx-swap="innerHTML"
+                a href="/htmx/admin/products" hx-get="/htmx/admin/products" hx-target="#admin-content" hx-swap="innerHTML" hx-indicator="#page-wide-spinner"
                    class="block py-2 px-3 rounded hover:bg-gray-700" { "Zarządzaj produktami" }
-                a href="/htmx/admin/orders" hx-get="/htmx/admin/orders" hx-target="#admin-content" hx-swap="innerHTML"
+                a href="/htmx/admin/orders" hx-get="/htmx/admin/orders" hx-target="#admin-content" hx-swap="innerHTML" hx-indicator="#page-wide-spinner"
                    class="block py-2 px-3 rounded hover:bg-gray-700" { "Zarządzaj zamówieniami" }
 
                 hr ."my-4 border-gray-700";
@@ -3307,9 +3311,18 @@ pub async fn admin_dashboard_htmx_handler(claims: TokenClaims) -> Result<Markup,
                 }
             }
             // Główny kontener na treść panelu admina
-            main #admin-content ."flex-1 p-6 bg-gray-100" {
-                // hx-get="/htmx/admin/produkty" hx-trigger="load" hx-swap="innerHTML"
-                p { "Witaj w panelu administratora!" }
+            main #admin-content ."flex-1 p-6 bg-gray-100 relative" {
+                // === DEFINICJA SPINNERA ===
+                div id="page-wide-spinner"
+                    class="fixed inset-0 bg-gray-800 bg-opacity-50 flex justify-center items-center z-[9999]"
+                    style="display: none;" {
+                    svg class="animate-spin h-12 w-12 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" {
+                        circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" {}
+                        path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" {}
+                    }
+                }
+                // === KONIEC DEFINICJI SPINNERA ===
+                p { "Witaj w panelu administratora! Wybierz opcję z menu." }
             }
         }
     })
@@ -3353,7 +3366,7 @@ pub async fn admin_products_list_htmx_handler(
         {
             // Nagłówek i przycisk dodawania (bez zmian)
             div ."flex flex-col sm:flex-row justify-between items-center mb-6 gap-4" {
-                h3 ."text-2xl font-semibold text-gray-800" { "Zarządzanie Produktami" }
+                h3 ."text-2xl font-semibold text-gray-800" { "Zarządzanie produktami" }
                 a href="/htmx/admin/products/new-form"
                    hx-get="/htmx/admin/products/new-form"
                    hx-target="#admin-content"
@@ -4092,4 +4105,514 @@ fn generate_pagination_items(
     }
 
     final_items
+}
+
+// Funkcja pomocnicza do generowania linków sortowania dla zamówień
+fn order_sort_link(
+    base_url: &str,
+    current_params: &OrderListingParams,
+    sort_field: &str,
+    display_name: &str,
+) -> Markup {
+    let mut next_order_dir = "asc";
+    let mut icon = "↕";
+
+    if current_params.sort_by() == sort_field {
+        if current_params.order() == "asc" {
+            next_order_dir = "desc";
+            icon = "↑";
+        } else {
+            icon = "↓";
+        }
+    }
+
+    // Zachowaj istniejące filtry i paginację (offset zostanie zresetowany przez sortowanie)
+    let mut query_params_vec = Vec::new();
+    if let Some(s) = &current_params.status {
+        query_params_vec.push(format!("status={}", s.as_ref()));
+    }
+    if let Some(df) = &current_params.date_from {
+        query_params_vec.push(format!("date-from={}", df));
+    }
+    if let Some(dt) = &current_params.date_to {
+        query_params_vec.push(format!("date-to={}", dt));
+    }
+    if let Some(sr) = &current_params.search {
+        query_params_vec.push(format!("search={}", urlencoding::encode(sr)));
+    }
+    if let Some(l) = current_params.limit {
+        query_params_vec.push(format!("limit={}", l));
+    }
+    // Offset jest resetowany przy sortowaniu
+    // query_params_vec.push("offset=0".to_string());
+
+    query_params_vec.push(format!("sort-by={}", sort_field));
+    query_params_vec.push(format!("order={}", next_order_dir));
+
+    let query_string = query_params_vec.join("&");
+    let hx_get_url = format!("{}?{}", base_url, query_string);
+
+    html! {
+        a href="#" // href nie jest potrzebny, HTMX go nadpisze
+           hx-get=(hx_get_url)
+           hx-target="#admin-orders-list-container" // Celuje w kontener listy zamówień
+           hx-swap="outerHTML"
+           class="flex items-center space-x-1 hover:text-pink-600" {
+            span { (display_name) }
+            span class="text-xs" { (PreEscaped(icon)) }
+        }
+    }
+}
+
+pub async fn admin_orders_list_htmx_handler(
+    State(app_state): State<AppState>,
+    claims: TokenClaims,
+    Query(params): Query<OrderListingParams>,
+) -> Result<Markup, AppError> {
+    if claims.role != Role::Admin {
+        return Err(AppError::UnauthorizedAccess(
+            "Brak uprawnień administratora.".to_string(),
+        ));
+    }
+
+    // Wywołaj zmodyfikowany list_orders_handler (API)
+    let paginated_response_axum_json = crate::handlers::list_orders_handler(
+        State(app_state.clone()), // Klonujemy, bo app_state jest używane dalej
+        claims.clone(),           // Klonujemy claims
+        Query(params.clone()),
+    )
+    .await?;
+    let paginated_orders: PaginatedOrdersResponse<OrderWithCustomerInfo> =
+        paginated_response_axum_json.0;
+
+    let current_limit = params.limit(); // Używamy metody z OrderListingParams
+
+    // Przygotuj query string dla linków paginacji, zachowując filtry i sortowanie
+    let mut pagination_query_params = Vec::new();
+    if let Some(s) = &params.status {
+        pagination_query_params.push(format!("status={}", s.as_ref()));
+    }
+    if let Some(df) = &params.date_from {
+        pagination_query_params.push(format!("date-from={}", df));
+    }
+    if let Some(dt) = &params.date_to {
+        pagination_query_params.push(format!("date-to={}", dt));
+    }
+    if let Some(srch) = &params.search {
+        pagination_query_params.push(format!("search={}", urlencoding::encode(srch)));
+    }
+    pagination_query_params.push(format!("sort-by={}", params.sort_by()));
+    pagination_query_params.push(format!("order={}", params.order()));
+    pagination_query_params.push(format!("limit={}", current_limit));
+    let base_pagination_query_string_for_links = pagination_query_params.join("&");
+
+    Ok(html! {
+        div #admin-orders-list-container ."p-1"
+            hx-get=(format!("/htmx/admin/orders?{}", params.to_query_string()))
+            hx-trigger="reloadAdminOrderList from:body"
+            hx-swap="outerHTML"
+        {
+            div ."flex justify-between items-center mb-6" {
+                h3 ."text-2xl sm:text-3xl font-semibold text-gray-800" { "Zarządzanie zamówieniami" }
+            }
+
+            // --- Formularz Filtrów ---
+            form hx-get="/htmx/admin/orders"
+                 hx-target="#admin-orders-list-container" // Odświeża ten sam kontener
+                 hx-swap="outerHTML" // Zastępuje cały kontener nową, przefiltrowaną listą
+                 class="mb-6 p-4 bg-white rounded-lg shadow-sm border border-gray-200" {
+
+                // Ukryte pola do zachowania sortowania i limitu przy filtrowaniu
+                input type="hidden" name="limit" value=(current_limit);
+                @if let Some(sort_val) = &params.sort_by { input type="hidden" name="sort-by" value=(sort_val); }
+                @if let Some(order_val) = &params.order { input type="hidden" name="order" value=(order_val); }
+
+
+                div ."grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 items-end" {
+                    div {
+                        label for="filter_status_order" ."block text-sm font-medium text-gray-700 mb-1" { "Status:" }
+                        select name="status" id="filter_status_order" class="admin-filter-select" {
+                            option value="" selected[params.status.is_none()] { "Wszystkie" }
+                            @for status_opt in OrderStatus::iter() {
+                                option value=(status_opt.as_ref()) selected[params.status.as_ref() == Some(&status_opt)] { (status_opt.to_string()) }
+                            }
+                        }
+                    }
+                    div {
+                        label for="filter_date_from" ."block text-sm font-medium text-gray-700 mb-1" { "Data od:" }
+                        input type="date" name="date_from" id="filter_date_from" value=[params.date_from.as_deref()] class="admin-filter-input";
+                    }
+                    div {
+                        label for="filter_date_to" ."block text-sm font-medium text-gray-700 mb-1" { "Data do:" }
+                        input type="date" name="date_to" id="filter_date_to" value=[params.date_to.as_deref()] class="admin-filter-input";
+                    }
+                    div {
+                        label for="search_order" ."block text-sm font-medium text-gray-700 mb-1" { "Szukaj:" }
+                        input type="search" name="search" id="search_order" value=[params.search.as_deref()] placeholder="ID, Nazwisko, Email..." class="admin-filter-input";
+                    }
+                    div ."flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 items-end pt-2 sm:pt-0" { // Dodano pt-2 dla mobile
+                        button type="submit" class="admin-filter-button bg-pink-600 hover:bg-pink-700 text-white w-full sm:w-auto" { "Filtruj" }
+                        a href="/htmx/admin/orders" // Link do resetowania filtrów (ładuje stronę z domyślnymi parametrami)
+                           hx-get="/htmx/admin/orders" // Upewnij się, że ten GET nie przekazuje starych params, jeśli to reset
+                           hx-target="#admin-orders-list-container" hx-swap="outerHTML"
+                           class="admin-filter-button bg-gray-200 hover:bg-gray-300 text-gray-700 w-full sm:w-auto text-center" {
+                            "Resetuj"
+                        }
+                    }
+                }
+            }
+
+            // --- Tabela Zamówień ---
+            div ."overflow-x-auto bg-white rounded-lg shadow-md border border-gray-200" {
+                table ."min-w-full divide-y divide-gray-200" {
+                    thead ."bg-gray-100" {
+                        tr {
+                            th scope="col" class="admin-th" { "ID Zam." }
+                            th scope="col" class="admin-th" { "Klient" }
+                            th scope="col" class="admin-th" { (order_sort_link("/htmx/admin/orders", &params, "order_date", "Data Zam.")) }
+                            th scope="col" class="admin-th" { (order_sort_link("/htmx/admin/orders", &params, "status", "Status")) }
+                            th scope="col" class="admin-th text-right" { (order_sort_link("/htmx/admin/orders", &params, "total_price", "Suma")) }
+                            th scope="col" class="admin-th" { "Płatność" }
+                            th scope="col" class="admin-th text-center" { "Akcje" }
+                        }
+                    }
+                    tbody ."bg-white divide-y divide-gray-200" {
+                        @if paginated_orders.data.is_empty() {
+                            tr { td colspan="7" class="px-4 py-10 text-center text-gray-500 italic text-lg" { "Nie znaleziono zamówień." } }
+                        }
+                        @for order_info in &paginated_orders.data {
+                            @let order = &order_info.order; // Dostęp do pól Order
+                                tr id=(format!("order-row-{}", order.id)) ."hover:bg-pink-50/30 transition-colors duration-150 ease-in-out" {
+
+                                    td class="admin-td font-mono text-xs text-gray-500" {
+                                        a href=({
+                                                    // Dodaj '?' tylko jeśli list_query_string nie jest pusty
+                                                    if list_query_string.is_empty() {
+                                                        format!("/htmx/admin/order-details/{}", order.id)
+                                                    } else {
+                                                        format!("/htmx/admin/order-details/{}?{}", order.id, list_query_string)
+                                                    }
+                                                })
+                                               hx-get=({ // Ta sama logika dla hx-get
+                                                    if list_query_string.is_empty() {
+                                                        format!("/htmx/admin/order-details/{}", order.id)
+                                                    } else {
+                                                        format!("/htmx/admin/order-details/{}?{}", order.id, list_query_string)
+                                                    }
+                                                })
+                                               hx-target="#admin-content" hx-swap="innerHTML"                                           class="hover:text-pink-600 hover:underline" {
+                                            (order.id.to_string().chars().take(8).collect::<String>()) "..."
+                                        }
+                                    }
+                                    td class="admin-td" {
+
+                                    @if let Some(email) = &order_info.customer_email {
+                                        span class="text-gray-800" { (email) }
+                                    } @else if order.user_id.is_some() {
+                                        span class="text-gray-500 italic" { "Użytkownik ID: " (order.user_id.unwrap().to_string().chars().take(8).collect::<String>()) "..." }
+                                    } @else {
+                                        span class="text-gray-500 italic" { "Gość" }
+                                    }
+                                    br;
+                                    small class="text-gray-500" { (order.shipping_first_name) " " (order.shipping_last_name) }
+                                }
+                                td class="admin-td text-gray-600 text-xs" { (order.order_date.format("%Y-%m-%d %H:%M").to_string()) }
+                                td class="admin-td" {
+                                    // --- Dropdown do zmiany statusu ---
+                                    div class="inline-block" {
+                                        select name="status"
+                                            hx-patch=(format!("/api/orders/{}", order.id))
+                                            hx-trigger="change"
+                                            hx-ext="json-enc"
+                                            hx-indicator=(format!("#status-spinner-{}", order.id)) // Wskazuje na ID spinnera
+                                            class="block w-full pl-3 pr-8 py-1.5 text-xs border-gray-300 focus:outline-none focus:ring-pink-500 focus:border-pink-500 rounded-md shadow-sm appearance-none"
+                                            aria-label="Zmień status zamówienia" {
+                                            @for status_option in OrderStatus::iter() {
+                                                option value=(status_option.as_ref()) selected[order.status == status_option] { (status_option.to_string()) }
+                                            }
+                                        }
+                                    }
+                                }
+                                td class="admin-td text-right font-medium text-gray-800" { (format_price_maud(order.total_price)) }
+                                td class="admin-td text-xs text-gray-600" {
+                                    @if let Some(pm) = &order.payment_method {
+                                        (pm.to_string())
+                                    } @else {
+                                        "Brak info"
+                                    }
+                                }
+
+                                td class="admin-td text-center" {
+                                    a href=({ // Ta sama logika dla href
+                                                if list_query_string.is_empty() {
+                                                    format!("/htmx/admin/order-details/{}", order.id)
+                                                } else {
+                                                    format!("/htmx/admin/order-details/{}?{}", order.id, list_query_string)
+                                                }
+                                            })
+                                           hx-get=({ // Ta sama logika dla hx-get
+                                                if list_query_string.is_empty() {
+                                                    format!("/htmx/admin/order-details/{}", order.id)
+                                                } else {
+                                                    format!("/htmx/admin/order-details/{}?{}", order.id, list_query_string)
+                                                }
+                                            })
+                                           hx-target="#admin-content" hx-swap="innerHTML"                                        svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 inline-block" {
+                                            path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" {}
+                                            path "fill-rule"="evenodd" d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41zM14 10a4 4 0 11-8 0 4 4 0 018 0z" "clip-rule"="evenodd" {}
+                                        }
+                                    }
+                                    // Przycisk usuwania zamówienia (jeśli potrzebny - ostrożnie!)
+                                    // button hx-delete=(format!("/api/orders/{}", order.id)) ...
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- Paginacja ---
+            @if paginated_orders.total_pages > 1 {
+                nav class="mt-6 flex flex-col sm:flex-row justify-between items-center text-sm" aria-label="Paginacja zamówień" {
+                    div class="text-gray-600 mb-2 sm:mb-0" {
+                        "Strona " strong { (paginated_orders.current_page) }
+                        " z " strong { (paginated_orders.total_pages) }
+                        " (Łącznie: " strong { (paginated_orders.total_items) } " zamówień)"
+                    }
+                    div class="flex space-x-1" {
+                        @let current_p_orders = paginated_orders.current_page;
+                        @let total_p_orders = paginated_orders.total_pages;
+                        @let side_window_orders = 1;
+
+                        // Przycisk "Pierwsza"
+                        @if current_p_orders > 1 {
+                            { a href=(format!("/htmx/admin/orders?{}&offset=0", base_pagination_query_string_for_links))
+                               hx-get=(format!("/htmx/admin/orders?{}&offset=0", base_pagination_query_string_for_links))
+                               hx-target="#admin-orders-list-container" hx-swap="outerHTML" class="admin-pagination-button" { "«" } }
+                        } @else { { span class="admin-pagination-button-disabled" { "«" } } }
+                        // Przycisk "Poprzednia"
+                        @if current_p_orders > 1 {
+                            { a href=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, (current_p_orders - 2) * current_limit))
+                               hx-get=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, (current_p_orders - 2) * current_limit))
+                               hx-target="#admin-orders-list-container" hx-swap="outerHTML" class="admin-pagination-button" { "‹" } }
+                        } @else { { span class="admin-pagination-button-disabled" { "‹" } } }
+
+                        @let pagination_items_vec_orders = generate_pagination_items(current_p_orders, total_p_orders, side_window_orders);
+                        @for item_order in pagination_items_vec_orders {
+                            @match item_order {
+                                PaginationItem::Page(page_num_val_order) => {
+                                    @if page_num_val_order == current_p_orders {
+                                        { span class="admin-pagination-button-active" { (page_num_val_order) } }
+                                    } @else {
+                                        { a href=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, (page_num_val_order - 1) * current_limit))
+                                           hx-get=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, (page_num_val_order - 1) * current_limit))
+                                           hx-target="#admin-orders-list-container" hx-swap="outerHTML" class="admin-pagination-button" { (page_num_val_order) } }
+                                    }
+                                }
+                                PaginationItem::Dots => { { span class="admin-pagination-dots" { "..." } } }
+                            }
+                        }
+
+                        // Przycisk "Następna"
+                        @if current_p_orders < total_p_orders {
+                            { a href=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, current_p_orders * current_limit))
+                               hx-get=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, current_p_orders * current_limit))
+                               hx-target="#admin-orders-list-container" hx-swap="outerHTML" class="admin-pagination-button" { "›" } }
+                        } @else { { span class="admin-pagination-button-disabled" { "›" } } }
+                        // Przycisk "Ostatnia"
+                        @if current_p_orders < total_p_orders {
+                            { a href=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, (total_p_orders - 1) * current_limit))
+                               hx-get=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, (total_p_orders - 1) * current_limit))
+                               hx-target="#admin-orders-list-container" hx-swap="outerHTML" class="admin-pagination-button" { "»" } }
+                        } @else { { span class="admin-pagination-button-disabled" { "»" } } }
+                    }
+                }
+            }
+        }
+    })
+}
+
+pub async fn admin_order_details_htmx_handler(
+    State(app_state): State<AppState>,
+    claims: TokenClaims,
+    Path(order_id): Path<Uuid>,
+    // Opcjonalnie: Query(params) jeśli chcesz przekazać parametry powrotu do listy
+    Query(list_params): Query<OrderListingParams>, // Aby zbudować link "Wróć do listy"
+) -> Result<Markup, AppError> {
+    if claims.role != Role::Admin {
+        return Err(AppError::UnauthorizedAccess(
+            "Brak uprawnień administratora.".to_string(),
+        ));
+    }
+
+    tracing::info!(
+        "Admin ID {} żąda szczegółów zamówienia ID {}",
+        claims.sub,
+        order_id
+    );
+
+    // Wywołaj istniejący handler API do pobrania szczegółów zamówienia
+    // get_order_details_handler już sprawdza uprawnienia admina
+    let order_details_response_json = crate::handlers::get_order_details_handler(
+        State(app_state.clone()),
+        claims.clone(), // Przekaż claims
+        Path(order_id),
+    )
+    .await?;
+    let order_details: OrderDetailsResponse = order_details_response_json.0;
+    let order = &order_details.order; // Skrót do danych zamówienia
+
+    let order_id_display_short = order.id.to_string().chars().take(8).collect::<String>();
+    let order_date_display = order.order_date.format("%d-%m-%Y %H:%M").to_string();
+
+    // Przygotuj query string dla linku powrotnego do listy zamówień, zachowując filtry
+    let back_to_list_query_string = list_params.to_query_string();
+
+    Ok(html! {
+        // Kontener dla strony szczegółów, który będzie nasłuchiwał na odświeżenie
+        // po zmianie statusu na tej stronie.
+        div id=(format!("order-details-page-container-{}", order.id)) // Unikalne ID kontenera
+            hx-get=(format!("/htmx/admin/order-details/{}?{}", order.id, back_to_list_query_string)) // URL do przeładowania tej strony z parametrami listy
+            hx-trigger="reloadAdminOrderList from:body" // Nasłuchuje na ten sam globalny trigger
+                                                        // Można też zdefiniować bardziej specyficzny trigger np. refreshOrderDetails-{order.id}
+                                                        // i zmodyfikować update_order_status_handler, aby go wysyłał,
+                                                        // jeśli zmiana statusu pochodzi z tej strony (np. przez dodatkowy parametr w PATCH).
+                                                        // Na razie użyjemy globalnego.
+            hx-swap="innerHTML" // Podmienia zawartość tego diva
+        {
+            div ."flex justify-between items-center mb-6 pb-4 border-b border-gray-200" {
+                h1 ."text-2xl sm:text-3xl font-semibold text-gray-800" {
+                    "Szczegóły Zamówienia #" (order_id_display_short)
+                }
+                a href=(format!("/htmx/admin/zamowienia?{}", back_to_list_query_string))
+                   hx-get=(format!("/htmx/admin/zamowienia?{}", back_to_list_query_string))
+                   hx-target="#admin-content" // Celuje w główny kontener panelu admina
+                   hx-swap="innerHTML"
+                   // hx-push-url=(format!("/admin/zamowienia?{}", back_to_list_query_string)) // Opcjonalnie
+                   class="text-sm text-pink-600 hover:text-pink-700 hover:underline" {
+                    "← Wróć do listy zamówień"
+                }
+            }
+
+            // --- Podsumowanie Zamówienia i Edycja Statusu ---
+            div ."bg-white shadow-md rounded-lg p-6 mb-6" {
+                h2 ."text-xl font-semibold text-gray-800 mb-4" { "Podsumowanie" }
+                div ."grid grid-cols-1 md:grid-cols-2 gap-4 text-sm" {
+                    div {
+                        p ."text-gray-600" { "ID Zamówienia: " strong ."text-gray-900" { (order.id) } }
+                        p ."text-gray-600" { "Data złożenia: " strong ."text-gray-900" { (order_date_display) } }
+                        p ."text-gray-600" { "Suma zamówienia: " strong ."text-pink-600 font-semibold" { (format_price_maud(order.total_price)) } }
+                        p ."text-gray-600" { "Metoda płatności: "
+                            strong ."text-gray-900" {
+                                @if let Some(pm) = &order.payment_method { (pm.to_string()) } @else { "Nieokreślona" }
+                            }
+                        }
+                    }
+                    div {
+                        div ."flex items-center space-x-3 mb-2" {
+                            label for="order_status_details" ."text-gray-600 font-medium whitespace-nowrap" { "Status zamówienia:" }
+                            select name="status" id="order_status_details"
+                                   hx-patch=(format!("/api/orders/{}", order.id))
+                                   hx-trigger="change"
+                                   hx-ext="json-enc"
+                                   // Nie potrzebujemy hx-target/hx-swap, bo #order-details-page-container-...
+                                   // będzie nasłuchiwać na "reloadAdminOrderList" wywołany przez serwer.
+                                   class="block w-full max-w-[200px] pl-3 pr-8 py-1.5 text-xs border-gray-300 focus:outline-none focus:ring-pink-500 focus:border-pink-500 rounded-md shadow-sm appearance-none" {
+                                @for status_opt in OrderStatus::iter() {
+                                    option value=(status_opt.as_ref()) selected[order.status == status_opt] { (status_opt.to_string()) }
+                                }
+                            }
+                        }
+                        // Wyświetlenie aktualnego statusu jako badge (opcjonalne, bo select go pokazuje)
+                        // span class=(format!("px-3 py-1 text-xs font-semibold rounded-full {}", get_order_status_badge_classes(order.status.clone()))) {
+                        //     (order.status.to_string())
+                        // }
+                    }
+                }
+            }
+
+            // --- Dane Klienta i Wysyłki ---
+            div ."bg-white shadow-md rounded-lg p-6 mb-6" {
+                h2 ."text-xl font-semibold text-gray-800 mb-4" { "Dane Klienta i Dostawy" }
+                div ."grid grid-cols-1 md:grid-cols-2 gap-6 text-sm" {
+                    div {
+                        h3 ."text-md font-semibold text-gray-700 mb-1" { "Klient:" }
+                        @if let Some(user_id_val) = order.user_id {
+                            p ."text-gray-800" { "ID Użytkownika: " (user_id_val) }
+                            // Tutaj można by pobrać i wyświetlić email użytkownika, jeśli OrderDetailsResponse go nie zawiera
+                            // Na razie zakładamy, że get_order_details_handler może dołączyć email
+                            // lub użyjemy order.guest_email jeśli user_id jest None
+                        }
+                        @if let Some(guest_email_val) = &order.guest_email {
+                             p ."text-gray-800" { "Email (Gość): " (guest_email_val) }
+                        }
+                    }
+                    div {
+                        h3 ."text-md font-semibold text-gray-700 mb-1" { "Adres dostawy:" }
+                        p ."text-gray-800" {
+                            (order.shipping_first_name) " " (order.shipping_last_name) br;
+                            (order.shipping_address_line1) br;
+                            @if let Some(line2) = &order.shipping_address_line2 { (line2) br; }
+                            (order.shipping_postal_code) " " (order.shipping_city) br;
+                            (order.shipping_country) br;
+                            "Tel: " (order.shipping_phone)
+                        }
+                    }
+                }
+            }
+
+            // --- Lista Produktów w Zamówieniu ---
+            div ."bg-white shadow-md rounded-lg p-6" {
+                h2 ."text-xl font-semibold text-gray-800 mb-4" { "Zamówione Produkty (" (order_details.items.len()) ")" }
+                @if order_details.items.is_empty() {
+                    p ."text-gray-500" { "Brak produktów w tym zamówieniu." }
+                } @else {
+                    ul role="list" ."divide-y divide-gray-200" {
+                        @for item_detail in &order_details.items {
+                            li ."py-4 flex flex-col sm:flex-row sm:items-center" {
+                                @if let Some(image_url) = item_detail.product.images.get(0) {
+                                    img src=(image_url) alt=(item_detail.product.name)
+                                         class="h-20 w-20 sm:h-24 sm:w-24 flex-shrink-0 rounded-md border border-gray-200 object-cover mb-3 sm:mb-0 sm:mr-4";
+                                } @else {
+                                    div class="h-20 w-20 sm:h-24 sm:w-24 flex-shrink-0 rounded-md border border-gray-200 bg-gray-100 flex items-center justify-center text-xs text-gray-400 mb-3 sm:mb-0 sm:mr-4" {
+                                        "Brak zdjęcia"
+                                    }
+                                }
+                                div ."flex-grow min-w-0" {
+                                    // Link do strony produktu (użyjemy istniejącego /htmx/produkt/{id})
+                                    a href=(format!("/produkty/{}", item_detail.product.id)) // Link dla nowej karty
+                                       hx-get=(format!("/htmx/produkt/{}", item_detail.product.id)) // HTMX ładowanie
+                                       hx-target="#admin-content" // lub inny globalny kontener, jeśli chcesz opuścić panel admina
+                                       hx-swap="innerHTML"
+                                       hx-push-url=(format!("/produkty/{}", item_detail.product.id))
+                                       class="text-sm font-medium text-pink-600 hover:text-pink-700 hover:underline block truncate" {
+                                        (item_detail.product.name)
+                                    }
+                                    p ."text-xs text-gray-500 mt-1" { "Kategoria: " (item_detail.product.category.to_string()) }
+                                    p ."text-xs text-gray-500" { "Stan: " (item_detail.product.condition.to_string()) }
+                                }
+                                div ."ml-0 sm:ml-4 mt-2 sm:mt-0 text-left sm:text-right flex-shrink-0" {
+                                    p ."text-sm text-gray-700" { "Cena (zakup): " strong{ (format_price_maud(item_detail.price_at_purchase)) } }
+                                    // Jeśli masz ilość (quantity) w OrderItemDetailsPublic:
+                                    // p ."text-xs text-gray-500" { "Ilość: " (item_detail.quantity) }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } // Koniec #order-details-page-container
+    })
+}
+
+// Funkcja pomocnicza do klas badge dla statusu zamówienia (możesz ją przenieść)
+#[allow(dead_code)] // Aby uniknąć ostrzeżenia, jeśli nie jest używana bezpośrednio w tym pliku
+fn get_order_status_badge_classes(status: OrderStatus) -> &'static str {
+    match status {
+        OrderStatus::Pending => "bg-yellow-100 text-yellow-800",
+        OrderStatus::Processing => "bg-blue-100 text-blue-800",
+        OrderStatus::Shipped => "bg-teal-100 text-teal-800", // Zmieniono na teal dla lepszego kontrastu
+        OrderStatus::Delivered => "bg-green-100 text-green-800",
+        OrderStatus::Cancelled => "bg-red-100 text-red-800",
+    }
 }
