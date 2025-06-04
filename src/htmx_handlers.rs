@@ -702,7 +702,7 @@ pub async fn add_item_to_cart_htmx_handler(
                 tx.rollback().await?; // Ważne: wycofaj transakcję, bo nic nie dodajemy
 
                 let trigger_payload = serde_json::json!({
-                    "showMessage": { "type": "warning", "message": format!("Produkt '{}' jest obecnie niedostępny.", product.name) }
+                    "showMessage": { "type": "warning", "message": format!("Produkt '{}' jest obecnie niedostepny.", product.name) }
                 });
                 if let Ok(val) = HeaderValue::from_str(&trigger_payload.to_string()) {
                     headers.insert("HX-Trigger", val);
@@ -2433,9 +2433,10 @@ pub async fn my_orders_htmx_handler(
                 shipping_postal_code,
                 shipping_country,
                 shipping_phone,        
+                shipping_method_name,
+                payment_method,
                 guest_email,           
                 guest_session_id,      
-                payment_method,
                 created_at,
                 updated_at
             FROM orders
@@ -2520,23 +2521,23 @@ pub async fn checkout_page_handler(
 ) -> Result<(HeaderMap, Markup), AppError> {
     tracing::info!("MAUD: /htmx/checkout - żądanie strony kasy");
 
-    // Uzyskaj połączenie z puli raz na początku
+    // --- Sekcja 1: Pobieranie danych i inicjalizacja ---
     let mut conn = app_state.db_pool.acquire().await.map_err(|e| {
         tracing::error!("MAUD Checkout: Nie można uzyskać połączenia z puli: {}", e);
         AppError::InternalServerError("Błąd serwera przy ładowaniu danych do kasy".to_string())
     })?;
 
-    // --- 1. Pobierz dane koszyka ---
     let mut cart_details_response_opt: Option<CartDetailsResponse> = None;
     let mut final_guest_cart_id_for_trigger: Option<Uuid> = None;
     let mut user_logged_in_id: Option<Uuid> = None;
 
+    // Pobieranie danych koszyka w zależności od statusu użytkownika (zalogowany/gość)
     if let Ok(claims) = &user_claims_result {
         user_logged_in_id = Some(claims.sub);
         if let Some(cart) =
             sqlx::query_as::<_, ShoppingCart>("SELECT * FROM shopping_carts WHERE user_id = $1")
                 .bind(claims.sub)
-                .fetch_optional(&mut *conn) // Użyj istniejącego połączenia
+                .fetch_optional(&mut *conn)
                 .await?
         {
             cart_details_response_opt =
@@ -2548,7 +2549,7 @@ pub async fn checkout_page_handler(
             "SELECT * FROM shopping_carts WHERE guest_session_id = $1",
         )
         .bind(guest_id)
-        .fetch_optional(&mut *conn) // Użyj istniejącego połączenia
+        .fetch_optional(&mut *conn)
         .await?
         {
             cart_details_response_opt =
@@ -2557,48 +2558,44 @@ pub async fn checkout_page_handler(
     }
 
     let cart_details = cart_details_response_opt.unwrap_or_else(|| CartDetailsResponse {
-        cart_id: Uuid::nil(),
+        cart_id: Uuid::nil(), // Lub inne domyślne UUID, jeśli Uuid::nil() nie jest odpowiednie
         user_id: None,
         items: vec![],
         total_items: 0,
-        total_price: 0, // Ta wartość będzie bazą dla Alpine.js
+        total_price: 0,
         updated_at: chrono::Utc::now(),
     });
 
-    // --- 2. Pobierz zapisane dane wysyłki użytkownika, jeśli jest zalogowany ---
-    let mut user_shipping_data_for_form: UserShippingDetails = UserShippingDetails::default(); // Domyślnie puste
+    // Pobieranie zapisanych danych wysyłki użytkownika, jeśli jest zalogowany
+    let mut user_shipping_data_for_form: UserShippingDetails = UserShippingDetails::default();
     if let Some(current_user_id) = user_logged_in_id {
-        // Użyj nowego połączenia z puli dla tego zapytania, aby nie trzymać 'conn' zbyt długo,
-        // lub upewnij się, że 'conn' jest przekazywane poprawnie, jeśli jest potrzebne później.
-        // Dla tego konkretnego zapytania można użyć app_state.db_pool bezpośrednio.
         if let Some(fetched_details) = sqlx::query_as::<_, UserShippingDetails>(
             "SELECT * FROM user_shipping_details WHERE user_id = $1",
         )
         .bind(current_user_id)
-        .fetch_optional(&app_state.db_pool) // Użycie puli bezpośrednio jest OK
+        .fetch_optional(&app_state.db_pool)
         .await?
         {
             user_shipping_data_for_form = fetched_details;
         } else {
-            // Jeśli nie ma danych, upewnij się, że user_id jest ustawiony, jeśli domyślna implementacja tego nie robi.
-            user_shipping_data_for_form.user_id = current_user_id;
+            user_shipping_data_for_form.user_id = current_user_id; // Ustaw user_id, jeśli tworzymy domyślne
         }
     }
 
-    // --- Przygotuj nagłówek HX-Trigger dla aktualizacji licznika koszyka ---
+    // Przygotowanie nagłówka HX-Trigger do aktualizacji licznika koszyka w UI
     let mut headers = HeaderMap::new();
-    let trigger_payload = serde_json::json!({
+    let trigger_payload_cart_count = serde_json::json!({
         "updateCartCount": {
             "newCount": cart_details.total_items,
             "newCartTotalPrice": cart_details.total_price,
             "newGuestCartId": final_guest_cart_id_for_trigger
         }
     });
-    if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
+    if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload_cart_count.to_string()) {
         headers.insert("HX-Trigger", trigger_value);
     }
 
-    // --- 3. Sprawdź czy koszyk nie jest pusty ---
+    // --- Sekcja 2: Obsługa pustego koszyka ---
     if cart_details.items.is_empty() {
         let markup = html! {
             div ."max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 text-center" {
@@ -2606,22 +2603,21 @@ pub async fn checkout_page_handler(
                     h2 ."text-2xl font-bold text-gray-800 mb-4" { "Twój koszyk jest pusty" }
                     p ."text-gray-600 mb-6" { "Nie możesz przejść do kasy z pustym koszykiem." }
                     a href="/"
-                       "hx-get"="/htmx/products?limit=9" // Poprawiony link, aby pasował do Twojej struktury
-                       "hx-target"="#content"
-                       "hx-swap"="innerHTML"
-                       "hx-push-url"="/"
+                       hx-get="/htmx/products?limit=9" // Upewnij się, że ten link jest aktualny
+                       hx-target="#content"
+                       hx-swap="innerHTML"
+                       hx-push-url="/"
                        class="inline-block bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200" {
                         "Wróć do sklepu"
                     }
                 }
             }
         };
-        return Ok((headers, markup));
+        return Ok((headers, markup)); // Zwracamy nagłówki nawet dla pustego koszyka
     }
 
-    // --- 4. Renderuj formularz kasy ---
+    // --- Sekcja 3: Przygotowanie danych dla szablonu Maud ---
     let countries = vec![
-        // Możesz to przenieść do stałej lub konfiguracji
         "Polska",
         "Niemcy",
         "Czechy",
@@ -2632,31 +2628,186 @@ pub async fn checkout_page_handler(
         "Holandia",
         "Włochy",
     ];
-    let total_price_items = cart_details.total_price;
-    // let items_for_summary = cart_details.items.clone();
+    let total_price_items = cart_details.total_price; // Suma cen produktów (w groszach)
+    let items_for_summary = cart_details.items.clone(); // Klonujemy, aby przekazać do szablonu
 
+    // --- Sekcja 4: Renderowanie Głównego Formularza Kasy i Podsumowania ---
     let markup = html! {
         div ."max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12" {
-            div ."flex flex-col lg:flex-row gap-8" {
-                // --- Lewa kolumna: Formularz danych ---
-                div ."lg:w-2/3" {
-                    h1 ."text-2xl sm:text-3xl font-bold text-gray-900 mb-6" { "Dane do zamówienia" }
+            div ."flex flex-col lg:flex-row gap-8" { // Główny kontener flex
 
-                    form #checkout-form
+                // --- Kolumna Podsumowania Zamówienia (Zielone Pole - na mobilnych order-1, na lg order-2) ---
+                div ."lg:w-1/3 lg:order-2" {
+                    div x-data={(format!( // Formatowanie całego obiektu x-data jako string Rusta
+                        r#"{{
+                            subtotal: {}, 
+                            selectedShippingCost: 0,
+                            selectedShippingKeyInternal: '', // Wewnętrzny stan Alpine dla klucza metody
+                            shippingOptions: [
+                                {{ id: 'inpost', name: 'Paczkomat InPost 24/7', cost: 1600, displayCost: '16,00 zł' }},
+                                {{ id: 'poczta', name: 'Poczta Polska S.A.', cost: 2000, displayCost: '20,00 zł' }}
+                            ],
+                            initComponent() {{
+                                console.log('Alpine Checkout Summary: initComponent started.');
+                                const hiddenInput = document.getElementById('selected_shipping_method_key_input');
+                                if (!hiddenInput) {{
+                                    console.error('Alpine BŁĄD KRYTYCZNY: Ukryte pole #selected_shipping_method_key_input nie istnieje w DOM!');
+                                    return;
+                                }}
+                                // Domyślnie ustaw pierwszą opcję, jeśli koszyk nie jest pusty i nic nie jest wybrane (ukryte pole jest puste)
+                                if (this.subtotal > 0 && this.shippingOptions.length > 0 && !hiddenInput.value) {{
+                                    console.log('Alpine initComponent: Ustawianie domyślnej metody dostawy (pierwsza z listy).');
+                                    this.selectShippingOption(this.shippingOptions[0]);
+                                }} else if (hiddenInput.value) {{
+                                    // Synchronizuj z wartością ukrytego pola, jeśli już istnieje (np. po przeładowaniu z błędem walidacji)
+                                    const initialOption = this.shippingOptions.find(opt => opt.id === hiddenInput.value);
+                                    if (initialOption) {{
+                                        this.selectedShippingCost = initialOption.cost;
+                                        this.selectedShippingKeyInternal = initialOption.id;
+                                        const radio = document.getElementById(initialOption.id + '_shipping_option');
+                                        if (radio) {{ this.$nextTick(() => {{ radio.checked = true; }}); }}
+                                        console.log('Alpine initComponent: Zsynchronizowano z wartością ukrytego pola:', initialOption.id);
+                                    }} else {{ // Wartość z HTML nie pasuje - wyczyść lub ustaw pierwszą
+                                         console.warn('Alpine initComponent: Wartość w ukrytym polu (' + hiddenInput.value + ') nie pasuje. Resetuję.');
+                                         if (this.shippingOptions.length > 0) {{ this.selectShippingOption(this.shippingOptions[0]); }}
+                                         else {{ hiddenInput.value = ''; this.selectedShippingCost = 0; this.selectedShippingKeyInternal = '';}}
+                                    }}
+                                }}
+                            }},
+                            selectShippingOption(option) {{
+                                console.log('Alpine: selectShippingOption wywołane z opcją:', JSON.stringify(option));
+                                if (!option || typeof option.cost === 'undefined' || typeof option.id === 'undefined') {{
+                                     console.error('Alpine BŁĄD: Nieprawidłowy obiekt opcji w selectShippingOption:', option);
+                                     return;
+                                }}
+                                this.selectedShippingCost = option.cost;
+                                this.selectedShippingKeyInternal = option.id;
+                                const hiddenInputKeyElem = document.getElementById('selected_shipping_method_key_input');
+                                if (hiddenInputKeyElem) {{
+                                    hiddenInputKeyElem.value = option.id;
+                                    console.log('Alpine: Ustawiono #selected_shipping_method_key_input na:', hiddenInputKeyElem.value);
+                                }} else {{
+                                    console.error('Alpine BŁĄD: Nie znaleziono #selected_shipping_method_key_input w selectShippingOption!');
+                                }}
+                            }},
+                            get grandTotal() {{ return this.subtotal + this.selectedShippingCost; }},
+                            formatPrice(priceInGrosz) {{
+                                if (typeof priceInGrosz !== 'number' || isNaN(priceInGrosz)) return '0,00 zł';
+                                return (priceInGrosz / 100).toFixed(2).replace('.', ',') + ' zł';
+                            }}
+                        }}"#,
+                        total_price_items // Wstawienie wartości subtotal z Rusta
+                    ))}
+                    x-init="initComponent()"
+                    class="bg-white p-6 rounded-lg shadow-md border border-gray-200 sticky top-20 md:top-40" { // Zmieniono top dla lepszego dopasowania
+                        h2 ."text-xl font-semibold text-gray-800 mb-4" { "Twoje zamówienie" }
+
+                        // Lista produktów w koszyku
+                        div ."border-b border-gray-200 pb-4 mb-4" {
+                            ul role="list" class="divide-y divide-gray-200 max-h-60 overflow-y-auto" {
+                                @if items_for_summary.is_empty() {
+                                    li { p ."text-gray-500 py-2" { "Koszyk jest pusty." } }
+                                } @else {
+                                    @for item_summary in &items_for_summary {
+                                        li class="py-3 flex justify-between items-center" {
+                                            // ... (kod wyświetlania produktu - bez zmian) ...
+                                            div class="flex items-center min-w-0" {
+                                                @if !item_summary.product.images.is_empty() {
+                                                    img src=(item_summary.product.images[0]) alt=(item_summary.product.name)
+                                                         class="h-12 w-12 sm:h-16 sm:w-16 flex-shrink-0 rounded-md border border-gray-200 object-cover";
+                                                } @else {
+                                                    div class="h-12 w-12 sm:h-16 sm:w-16 flex-shrink-0 rounded-md border border-gray-200 bg-gray-100 flex items-center justify-center" {
+                                                        span class="text-xs text-gray-500" { "Brak foto" }
+                                                    }
+                                                }
+                                                div class="ml-3 sm:ml-4 min-w-0 flex-1" {
+                                                    h3 class="text-sm font-medium text-gray-900 truncate" { (item_summary.product.name) }
+                                                    p class="text-xs text-gray-500 mt-1" {
+                                                        (item_summary.product.category.to_string())
+                                                    }
+                                                }
+                                            }
+                                            p class="text-sm font-medium text-gray-900 ml-2 whitespace-nowrap" {
+                                                (format_price_maud(item_summary.product.price)) // Zakładam, że masz format_price_maud
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Sekcja wyboru metody dostawy
+                        div class="mb-4" {
+                            h3 ."text-sm font-medium text-gray-900 mb-2" { "Metoda dostawy:" }
+                            fieldset {
+                                legend class="sr-only" { "Wybierz metodę dostawy" }
+                                div class="space-y-2" {
+                                    template x-for="option in shippingOptions" x-bind:key="option.id" {
+                                        div class="flex items-center" {
+                                            input x-bind:id="option.id + '_shipping_option'"
+                                                   name="shipping_method_visual_selector" // Dla grupowania wizualnego radio
+                                                   type="radio"
+                                                   x-on:click="selectShippingOption(option)" // Wywołaj nową funkcję
+                                                   x-bind:checked="selectedShippingKeyInternal === option.id" // Synchronizacja zaznaczenia
+                                                   class="h-4 w-4 text-pink-600 border-gray-300 focus:ring-pink-500";
+                                            label x-bind:for="option.id + '_shipping_option'" class="ml-3 block text-sm text-gray-700 hover:cursor-pointer" {
+                                                span x-text="option.name" {};
+                                                " - "
+                                                span x-text="option.displayCost" class="font-medium" {};
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Podsumowanie cen
+                        div class="space-y-3" {
+                            div class="flex justify-between" {
+                                span class="text-sm text-gray-600" { "Suma częściowa" }
+                                span class="text-sm font-medium text-gray-900" x-text="formatPrice(subtotal)" {}
+                            }
+                            div class="flex justify-between" {
+                                span class="text-sm text-gray-600" { "Dostawa" }
+                                span class="text-sm font-medium text-gray-900" id="checkout-shipping-cost"
+                                      x-text="selectedShippingCost > 0 ? formatPrice(selectedShippingCost) : (subtotal > 0 ? 'Wybierz metodę' : formatPrice(0))" {}
+                            }
+                            div class="flex justify-between border-t border-gray-200 pt-3" {
+                                span class="text-base font-semibold text-gray-900" { "Do zapłaty" }
+                                span class="text-base font-semibold text-pink-600" id="checkout-grand-total"
+                                      x-text="formatPrice(grandTotal)" {}
+                            }
+                        }
+                        // Linki do regulaminu i polityki prywatności
+                        div class="mt-6 pt-6 border-t border-gray-200" {
+                            p class="text-xs text-gray-500" {
+                                "Klikając „Złóż zamówienie i zapłać”, akceptujesz "
+                                a href="/regulamin" hx-get="/htmx/page/regulamin" hx-target="#content" hx-swap="innerHTML" hx-push-url="/regulamin"
+                                   class="text-pink-600 hover:underline" { "Regulamin sklepu" }
+                                " oraz "
+                                a href="/polityka-prywatnosci" hx-get="/htmx/page/polityka-prywatnosci" hx-target="#content" hx-swap="innerHTML" hx-push-url="/polityka-prywatnosci"
+                                   class="text-pink-600 hover:underline" { "Politykę prywatności" }
+                                "."
+                            }
+                        }
+                    }
+                }
+
+                // --- Kolumna Formularza Danych (Czerwone Pole pod nim - na mobilnych order-2, na lg order-1) ---
+                div ."lg:w-2/3 lg:order-1" {
+                    h1 ."text-2xl sm:text-3xl font-bold text-gray-900 mb-6" { "Dane do zamówienia" }
+                    form #checkout-form // ID formularza
                          hx-post="/api/orders"
-                         // hx-ext="json-enc"
-                         // Rozważ, co ma się stać po wysłaniu. Może przekierowanie na stronę podsumowania/płatności?
-                         // HX-Redirect z serwera byłby tu dobry.
-                         hx-target="this" hx-swap="outerHTML" // Może nie być idealne
-                         // Albo hx-target="#checkout-messages" hx-swap="innerHTML" dla komunikatów
+                         hx-target="this" hx-swap="outerHTML" // Lub inny target dla komunikatów
                          class="space-y-6" {
 
-                        // >>> NOWE UKRYTE POLE NA KOSZT DOSTAWY <<<
-                        input type="hidden" name="shipping_cost_selected" id="selected_shipping_cost_input" value="0";
+                        // Ukryte pole na klucz metody dostawy
+                        input type="hidden" name="shipping_method_key" id="selected_shipping_method_key_input" value="" required; // value="" i required
 
-                        div #checkout-messages {} // Miejsce na ewentualne komunikaty z formularza
+                        div #checkout-messages {}
 
-                        @if user_claims_result.is_err() { // Lub inna logika sprawdzająca, czy to gość
+                        // Sekcja emaila dla gościa
+                        @if user_claims_result.is_err() {
                             div ."mt-4" {
                                 label for="guest_checkout_email" class="block text-sm font-medium text-gray-700 mb-1" { "Twój adres email *" }
                                 input type="email" id="guest_checkout_email" name="guest_checkout_email" required
@@ -2666,7 +2817,7 @@ pub async fn checkout_page_handler(
                             }
                         }
 
-
+                        // Fieldset: Dane dostawy
                         // Sekcja dostawy
                         fieldset ."bg-white p-6 rounded-lg shadow-sm border border-gray-200" {
                             legend ."text-lg font-semibold text-gray-800 px-2" { "Dane dostawy" }
@@ -2819,105 +2970,22 @@ pub async fn checkout_page_handler(
                                 }
                             }
                         } // koniec fieldset metody płatności
+                    } // Koniec form #checkout-form
 
-                        // Przyciski
-                        div ."mt-8 flex flex-col sm:flex-row-reverse justify-between items-center gap-4" {
-                            button type="submit"
-                                   class="w-full sm:w-auto px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-all duration-200 transform hover:scale-105" {
-                                "Złóż zamówienie i zapłać"
-                            }
-                            a href="/" // Link do strony głównej
-                               "hx-get"="/htmx/products?limit=9" // Endpoint HTMX dla strony głównej
-                               "hx-target"="#content"
-                               "hx-swap"="innerHTML"
-                               "hx-push-url"="/"
-                               class="w-full sm:w-auto px-6 py-3 border border-gray-300 rounded-md shadow-sm text-base font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 text-center" {
-                                "Wróć do sklepu"
-                            }
+                    // Przyciski akcji (Czerwone Pole)
+                    div ."mt-8 flex flex-col sm:flex-row-reverse justify-between items-center gap-4" {
+                        button type="submit" form="checkout-form" // Atrybut 'form' wskazuje na ID formularza
+                               class="w-full sm:w-auto px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-all duration-200 transform hover:scale-105" {
+                            "Złóż zamówienie i zapłać"
                         }
-                    } // koniec form
-                } // koniec lewej kolumny (formularz)
-
-                // --- Prawa kolumna: Podsumowanie zamówienia (ZMODYFIKOWANA) ---
-                div ."lg:w-1/3" {
-                    div x-data={(format!(
-                        r#"{{
-                            subtotal: {},
-                            selectedShippingCost: 0,
-                            shippingOptions: [
-                                {{ id: 'inpost', name: 'Paczkomat InPost 24/7', cost: 1600, displayCost: '16,00 zł' }},
-                                {{ id: 'poczta', name: 'Poczta Polska S.A.', cost: 2000, displayCost: '20,00 zł' }}
-                            ],
-                            get grandTotal() {{ return this.subtotal + this.selectedShippingCost; }},
-                            formatPrice(priceInGrosz) {{
-                                if (typeof priceInGrosz !== 'number' || isNaN(priceInGrosz)) return '0,00 zł';
-                                return (priceInGrosz / 100).toFixed(2).replace('.', ',') + ' zł';
-                            }},
-                            updateSelectedShipping(cost, optionId) {{
-                                this.selectedShippingCost = cost;
-                                const hiddenInputCost = document.getElementById('selected_shipping_cost_input');
-                                if (hiddenInputCost) {{ hiddenInputCost.value = cost; }}
-                                console.log('Selected shipping cost:', cost, 'Option ID:', optionId);
-                            }}
-                        }}"#,
-                        total_price_items
-                        ))}
-                        class="bg-white p-6 rounded-lg shadow-md border border-gray-200 sticky top-40" {
-                        h2 ."text-xl font-semibold text-gray-800 mb-4" { "Twoje zamówienie" }
-
-                        // Lista produktów (bez zmian)
-                        div ."border-b border-gray-200 pb-4 mb-4" {
-                            ul role="list" class="divide-y divide-gray-200 max-h-60 overflow-y-auto" {
-                                // ... (pętla @for item_summary in &items_for_summary) ...
-                            }
+                        a href="/" hx-get="/htmx/products?limit=9" hx-target="#content" hx-swap="innerHTML" hx-push-url="/"
+                           class="w-full sm:w-auto px-6 py-3 border border-gray-300 rounded-md shadow-sm text-base font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 text-center" {
+                            "Wróć do sklepu"
                         }
-
-                        // >>> NOWA SEKCJA WYBORU DOSTAWY <<<
-                        div class="mb-4" {
-                            h3 ."text-sm font-medium text-gray-900 mb-2" { "Metoda dostawy:" }
-                            fieldset {
-                                legend class="sr-only" { "Wybierz metodę dostawy" }
-                                div class="space-y-2" {
-                                    template x-for="option in shippingOptions" x-bind:key="option.id" {
-                                        div class="flex items-center" {
-                                            input x-bind:id="option.id + '_shipping_option'"
-                                                   name="shipping_method_visual_selector"
-                                                   type="radio"
-                                                   x-on:click="updateSelectedShipping(option.cost, option.id)"
-                                                   class="h-4 w-4 text-pink-600 border-gray-300 focus:ring-pink-500";
-                                            label x-bind:for="option.id + '_shipping_option'" class="ml-3 block text-sm text-gray-700 hover:cursor-pointer" {
-                                                span x-text="option.name" {};
-                                                " - "
-                                                span x-text="option.displayCost" class="font-medium" {};
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Podsumowanie cen (ZMODYFIKOWANE)
-                        div class="space-y-3" {
-                            div class="flex justify-between" {
-                                span class="text-sm text-gray-600" { "Suma częściowa" }
-                                span class="text-sm font-medium text-gray-900" x-text="formatPrice(subtotal)" {}
-                            }
-                            div class="flex justify-between" {
-                                span class="text-sm text-gray-600" { "Dostawa" }
-                                span class="text-sm font-medium text-gray-900" id="checkout-shipping-cost"
-                                      x-text="selectedShippingCost > 0 ? formatPrice(selectedShippingCost) : (subtotal > 0 ? 'Wybierz metodę' : formatPrice(0))" {}
-                            }
-                            div class="flex justify-between border-t border-gray-200 pt-3" {
-                                span class="text-base font-semibold text-gray-900" { "Do zapłaty" }
-                                span class="text-base font-semibold text-pink-600" id="checkout-grand-total"
-                                      x-text="formatPrice(grandTotal)" {}
-                            }
-                        }
-                        // ... (linki do regulaminu itp.) ...
-                    } // koniec diva sticky
-                } // koniec prawej kolumny
-            } // koniec flex-container
-        } // koniec max-w-7xl
+                    }
+                }
+            }
+        }
     };
 
     Ok((headers, markup))
@@ -3088,12 +3156,25 @@ pub async fn my_order_details_htmx_handler(
     let order_opt = sqlx::query_as::<_, Order>(
         r#"
             SELECT
-                id, user_id, order_date, status, total_price,
-                shipping_first_name, shipping_last_name,
-                shipping_address_line1, shipping_address_line2,
-                shipping_city, shipping_postal_code, shipping_country, shipping_phone,
-                guest_email, guest_session_id, payment_method,
-                created_at, updated_at
+                id,
+                user_id,
+                order_date,
+                status,
+                total_price,
+                shipping_first_name,
+                shipping_last_name,
+                shipping_address_line1,
+                shipping_address_line2,
+                shipping_city,
+                shipping_postal_code,
+                shipping_country,
+                shipping_phone,
+                shipping_method_name,
+                payment_method,
+                guest_email,
+                guest_session_id,
+                created_at,
+                updated_at
             FROM orders
             WHERE id = $1
         "#,
@@ -3197,94 +3278,97 @@ pub async fn my_order_details_htmx_handler(
     };
 
     Ok(html! {
-            div #order-details-section {
-                div ."flex justify-between items-center mb-6 pb-4 border-b border-gray-200" {
-                    h2 ."text-2xl sm:text-3xl font-semibold text-gray-800" {
-                        "Szczegóły zamówienia #" (order_id_display_short)
+        div #order-details-section {
+            div ."flex justify-between items-center mb-6 pb-4 border-b border-gray-200" {
+                h2 ."text-2xl sm:text-3xl font-semibold text-gray-800" {
+                    "Szczegóły zamówienia #" (order_id_display_short)
+                }
+                a href="/moje-konto/zamowienia"
+                   hx-get="/htmx/moje-konto/zamowienia"
+                   hx-target="#my-account-content"
+                   hx-swap="innerHTML"
+                   hx-push-url="/moje-konto/zamowienia"
+                   class="text-sm text-pink-600 hover:text-pink-700 hover:underline" {
+                    "← Wróć do listy zamówień"
+                }
+            }
+
+            // Podstawowe informacje o zamówieniu
+            div ."grid grid-cols-1 md:grid-cols-2 gap-6 mb-6" {
+                div ."space-y-2" {
+                    p ."text-sm text-gray-600" { "Data złożenia:" strong ."text-gray-900 ml-1" { (order_date_display) } }
+                    p ."text-sm text-gray-600" { "Status:"
+                        span class=(format!("ml-1 px-2 py-0.5 text-xs font-semibold rounded-full {}", status_classes)) {
+                            (order_status_display)
+                        }
                     }
-                    a href="/moje-konto/zamowienia"
-                       hx-get="/htmx/moje-konto/zamowienia"
-                       hx-target="#my-account-content"
-                       hx-swap="innerHTML"
-                       hx-push-url="/moje-konto/zamowienia"
-                       class="text-sm text-pink-600 hover:text-pink-700 hover:underline" {
-                        "← Wróć do listy zamówień"
+                    p ."text-sm text-gray-600" { "Suma zamówienia:" strong ."text-gray-900 ml-1" { (order_total_display) } }
+                    p ."text-sm text-gray-600" { "Forma płatności:"
+                        strong ."text-gray-900 ml-1" {
+                            @if let Some(pm) = &order.payment_method {
+                                (pm.to_string()) // Użyje implementacji Display z Strum (np. "BLIK", "Przelew tradycyjny")
+                            } @else {
+                                "Nie określono"
+                            }
+                        }
+                    }
+                    @if let Some(shipping_name) = &order.shipping_method_name {
+                            p ."text-sm text-gray-600" { "Metoda dostawy:"
+                                strong ."text-gray-900 ml-1" { (shipping_name) }
+                            }
+                        }
+                    }
+
+                // Adres dostawy
+                div {
+                    h3 ."text-md font-semibold text-gray-700 mb-1" { "Adres dostawy:" }
+                    p ."text-sm text-gray-800" {
+                        (order.shipping_first_name) " " (order.shipping_last_name) br;
+                        (order.shipping_address_line1) br;
+                        @if let Some(line2) = &order.shipping_address_line2 {
+                            (line2) br;
+                        }
+                        (order.shipping_postal_code) " " (order.shipping_city) br;
+                        (order.shipping_country) br;
+                        "Tel: " (order.shipping_phone)
+
                     }
                 }
+            }
 
-                // Podstawowe informacje o zamówieniu
-                div ."grid grid-cols-1 md:grid-cols-2 gap-6 mb-6" {
-                    div ."space-y-2" {
-                        p ."text-sm text-gray-600" { "Data złożenia:" strong ."text-gray-900 ml-1" { (order_date_display) } }
-                        p ."text-sm text-gray-600" { "Status:"
-                            span class=(format!("ml-1 px-2 py-0.5 text-xs font-semibold rounded-full {}", status_classes)) {
-                                (order_status_display)
-                            }
-                        }
-                        p ."text-sm text-gray-600" { "Suma zamówienia:" strong ."text-gray-900 ml-1" { (order_total_display) } }
-                        p ."text-sm text-gray-600" { "Forma płatności:"
-                            strong ."text-gray-900 ml-1" {
-                                @if let Some(pm) = &order.payment_method {
-                                    (pm.to_string()) // Użyje implementacji Display z Strum (np. "BLIK", "Przelew tradycyjny")
-                                } @else {
-                                    "Nie określono"
+            // Lista produktów w zamówieniu
+            h3 ."text-xl font-semibold text-gray-700 mb-3 mt-8 pt-4 border-t border-gray-200" { "Zamówione produkty:" }
+            @if items_details_public.is_empty() {
+                p ."text-gray-500" { "Brak produktów w tym zamówieniu (to nie powinno się zdarzyć, jeśli zamówienie istnieje)." }
+            } @else {
+                ul role="list" ."divide-y divide-gray-200 border-b border-gray-200" {
+                    @for item_detail in &items_details_public {
+                        li ."py-4 flex items-center" {
+                            @if !item_detail.product.images.is_empty() {
+                                img src=(item_detail.product.images[0]) alt=(item_detail.product.name)
+                                     class="h-16 w-16 sm:h-20 sm:w-20 flex-shrink-0 rounded-md border border-gray-200 object-cover mr-4";
+                            } @else {
+                                div class="h-16 w-16 sm:h-20 sm:w-20 flex-shrink-0 rounded-md border border-gray-200 bg-gray-100 flex items-center justify-center text-xs text-gray-400 mr-4" {
+                                    "Brak zdjęcia"
                                 }
                             }
-                        }
-
-    //
-                    }
-
-                    // Adres dostawy
-                    div {
-                        h3 ."text-md font-semibold text-gray-700 mb-1" { "Adres dostawy:" }
-                        p ."text-sm text-gray-800" {
-                            (order.shipping_first_name) " " (order.shipping_last_name) br;
-                            (order.shipping_address_line1) br;
-                            @if let Some(line2) = &order.shipping_address_line2 {
-                                (line2) br;
+                            div ."flex-grow min-w-0" { // min-w-0 dla poprawnego truncate
+                                p ."text-sm font-medium text-gray-900 truncate" { (item_detail.product.name) }
+                                p ."text-xs text-gray-500" { "Kategoria: " (item_detail.product.category.to_string()) }
+                                // Można dodać więcej informacji o produkcie, np. stan w momencie zakupu
                             }
-                            (order.shipping_postal_code) " " (order.shipping_city) br;
-                            (order.shipping_country) br;
-                            "Tel: " (order.shipping_phone)
-
-                        }
-                    }
-                }
-
-                // Lista produktów w zamówieniu
-                h3 ."text-xl font-semibold text-gray-700 mb-3 mt-8 pt-4 border-t border-gray-200" { "Zamówione produkty:" }
-                @if items_details_public.is_empty() {
-                    p ."text-gray-500" { "Brak produktów w tym zamówieniu (to nie powinno się zdarzyć, jeśli zamówienie istnieje)." }
-                } @else {
-                    ul role="list" ."divide-y divide-gray-200 border-b border-gray-200" {
-                        @for item_detail in &items_details_public {
-                            li ."py-4 flex items-center" {
-                                @if !item_detail.product.images.is_empty() {
-                                    img src=(item_detail.product.images[0]) alt=(item_detail.product.name)
-                                         class="h-16 w-16 sm:h-20 sm:w-20 flex-shrink-0 rounded-md border border-gray-200 object-cover mr-4";
-                                } @else {
-                                    div class="h-16 w-16 sm:h-20 sm:w-20 flex-shrink-0 rounded-md border border-gray-200 bg-gray-100 flex items-center justify-center text-xs text-gray-400 mr-4" {
-                                        "Brak zdjęcia"
-                                    }
-                                }
-                                div ."flex-grow min-w-0" { // min-w-0 dla poprawnego truncate
-                                    p ."text-sm font-medium text-gray-900 truncate" { (item_detail.product.name) }
-                                    p ."text-xs text-gray-500" { "Kategoria: " (item_detail.product.category.to_string()) }
-                                    // Można dodać więcej informacji o produkcie, np. stan w momencie zakupu
-                                }
-                                div ."ml-4 text-right" {
-                                    p ."text-sm text-gray-700" { "Cena: " (format_price_maud(item_detail.price_at_purchase)) }
-                                    // Jeśli masz ilość (quantity), tutaj byłoby:
-                                    // p ."text-xs text-gray-500" { "Ilość: " (item_detail.quantity) }
-                                    // p ."text-sm font-semibold text-gray-900" { "Suma: " (format_price_maud(item_detail.price_at_purchase * item_detail.quantity)) }
-                                }
+                            div ."ml-4 text-right" {
+                                p ."text-sm text-gray-700" { "Cena: " (format_price_maud(item_detail.price_at_purchase)) }
+                                // Jeśli masz ilość (quantity), tutaj byłoby:
+                                // p ."text-xs text-gray-500" { "Ilość: " (item_detail.quantity) }
+                                // p ."text-sm font-semibold text-gray-900" { "Suma: " (format_price_maud(item_detail.price_at_purchase * item_detail.quantity)) }
                             }
                         }
                     }
                 }
             }
-        })
+        }
+    })
 }
 
 pub async fn admin_dashboard_htmx_handler(claims: TokenClaims) -> Result<Markup, AppError> {
@@ -4512,6 +4596,9 @@ pub async fn admin_order_details_htmx_handler(
                             strong ."text-gray-900" {
                                 @if let Some(pm) = &order.payment_method { (pm.to_string()) } @else { "Nieokreślona" }
                             }
+                        }
+                        @if let Some(shipping_name) = &order.shipping_method_name {
+                            p ."text-gray-600" { "Metoda dostawy: " strong ."text-gray-900" { (shipping_name) } }
                         }
                     }
                     div {

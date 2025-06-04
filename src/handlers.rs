@@ -1166,7 +1166,7 @@ pub async fn create_order_handler(
         headers.insert(
             "HX-Trigger",
             HeaderValue::from_str(&format!(
-                r#"{{"showMessage": {{"message": "Błędy w formularzu: {}", "type": "error"}}}}"#,
+                r#"{{"showMessage": {{"message": "Bledy w formularzu: {}", "type": "error"}}}}"#,
                 error_message_str.replace('"', "\\\"")
             ))
             .map_err(|_| {
@@ -1257,8 +1257,31 @@ pub async fn create_order_handler(
             .fetch_all(&mut *tx)
             .await?;
 
+    // Ustalamy koszt i nazwę metody dostawy na podstawie klucza
+    let shipping_method_key_from_payload = &payload.shipping_method_key;
+    let (derived_shipping_cost, shipping_method_name_to_store): (i64, String) =
+        match shipping_method_key_from_payload.as_str() {
+            "inpost" => (1600, "Paczkomat InPost 24/7".to_string()),
+            "poczta" => (2000, "Poczta Polska S.A.".to_string()),
+            _ => {
+                tracing::warn!(
+                    "Nieprawidłowy lub brakujący klucz metody dostawy: '{}'",
+                    shipping_method_key_from_payload
+                );
+                let mut headers = HeaderMap::new();
+                headers.insert(
+                    "HX-Trigger",
+                    HeaderValue::from_str(r#"{{"showMessage": {{"message": "Proszę wybrać prawidłową metodę dostawy.", "type": "error"}}}}"#)
+                        .map_err(|_| AppError::InternalServerError("Failed to create HX-Trigger for shipping method".to_string()))?
+                );
+                headers.insert("HX-Reswap", HeaderValue::from_static("none"));
+                return Ok((headers, StatusCode::UNPROCESSABLE_ENTITY));
+            }
+        };
+
     if cart_items_db.is_empty() {
-        tracing::warn!("Koszyk (ID: {}) jest pusty.", cart.id);
+        // cart_items_db powinno być zdefiniowane wcześniej
+        tracing::warn!("Koszyk (ID: {}) jest pusty.", cart.id); // cart powinno być zdefiniowane wcześniej
         return Err(AppError::UnprocessableEntity(
             "Twój koszyk jest pusty.".to_string(),
         ));
@@ -1268,7 +1291,6 @@ pub async fn create_order_handler(
     let mut order_items_to_create: Vec<(Uuid, i64)> = Vec::with_capacity(cart_items_db.len());
     let mut total_price_items: i64 = 0;
     let mut product_ids_to_mark_reserved: Vec<Uuid> = Vec::new();
-    let selected_shipping_cost = payload.shipping_cost_selected;
 
     for cart_item in &cart_items_db {
         let product =
@@ -1308,22 +1330,21 @@ pub async fn create_order_handler(
         }
     }
 
-    let payment_method_enum = PaymentMethod::from_str(&payload.payment_method).map_err(|_| {
+    let _payment_method_enum = PaymentMethod::from_str(&payload.payment_method).map_err(|_| {
         tracing::warn!(
             "Nieprawidłowa metoda płatności otrzymana z formularza: {}",
             payload.payment_method
         );
-        // Zwróć błąd walidacji lub użyj domyślnej, jeśli to ma sens (raczej błąd)
         AppError::Validation("Nieprawidłowa metoda płatności.".to_string())
     })?;
 
     // Walidacja wybranego kosztu dostawy (ważne!)
     let allowed_shipping_costs = [1600, 2000]; // Definiujemy dozwolone koszty (w groszach)
-    if total_price_items > 0 && !allowed_shipping_costs.contains(&selected_shipping_cost) {
+    if total_price_items > 0 && !allowed_shipping_costs.contains(&derived_shipping_cost) {
         // Jeśli koszyk nie jest pusty, koszt dostawy musi być jedną z dozwolonych wartości
         tracing::warn!(
             "Nieprawidłowy lub nie wybrany koszt dostawy: {}. Dozwolone: {:?}",
-            selected_shipping_cost,
+            derived_shipping_cost,
             allowed_shipping_costs
         );
         // Możesz zwrócić błąd walidacji przez HX-Trigger
@@ -1343,7 +1364,9 @@ pub async fn create_order_handler(
         return Ok((headers, StatusCode::UNPROCESSABLE_ENTITY)); // Lub BadRequest
     }
 
-    let final_total_price = total_price_items + selected_shipping_cost;
+    let final_total_price = total_price_items + derived_shipping_cost;
+    let payment_method_enum = PaymentMethod::from_str(&payload.payment_method)
+        .map_err(|_| AppError::Validation("Nieprawidłowa metoda płatności.".to_string()))?;
 
     // 3. Wstaw rekord do tabeli `orders`
     let initial_status = OrderStatus::Pending;
@@ -1356,9 +1379,9 @@ pub async fn create_order_handler(
                 shipping_first_name, shipping_last_name,
                 shipping_address_line1, shipping_address_line2,
                 shipping_city, shipping_postal_code, shipping_country,
-                shipping_phone, payment_method
+                shipping_phone, payment_method, shipping_method_name
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         "#,
     )
     .bind(order_id)
@@ -1378,6 +1401,7 @@ pub async fn create_order_handler(
     .bind(&payload.shipping_country)
     .bind(&payload.shipping_phone)
     .bind(payment_method_enum)
+    .bind(Some(shipping_method_name_to_store.clone()))
     .execute(&mut *tx)
     .await?;
 
@@ -1429,9 +1453,10 @@ pub async fn create_order_handler(
     tx.commit().await?;
 
     tracing::info!(
-        "Utworzono nowe zamówienie ID: {} z kosztem dostawy: {} gr, suma końcowa: {} gr",
-        order_id, // Upewnij się, że order_id jest zdefiniowane
-        selected_shipping_cost,
+        "Utworzono nowe zamówienie ID: {} z metodą dostawy: '{}', koszt dostawy: {} gr, suma końcowa: {} gr",
+        order_id,
+        shipping_method_name_to_store,
+        derived_shipping_cost,
         final_total_price
     );
 
@@ -1493,11 +1518,22 @@ pub async fn list_orders_handler(
     let mut data_query_builder: QueryBuilder<Postgres> = QueryBuilder::new(
         r#"
             SELECT
-                o.id, o.user_id, o.order_date, o.status, o.total_price,
-                o.shipping_first_name, o.shipping_last_name,
-                o.shipping_address_line1, o.shipping_address_line2,
-                o.shipping_city, o.shipping_postal_code, o.shipping_country, o.shipping_phone,
-                o.payment_method, o.guest_email, o.guest_session_id,
+                o.id, o.user_id,
+                o.order_date,
+                o.status,
+                o.total_price,
+                o.shipping_first_name,
+                o.shipping_last_name,
+                o.shipping_address_line1,
+                o.shipping_address_line2,
+                o.shipping_city,
+                o.shipping_postal_code,
+                o.shipping_country,
+                o.shipping_phone,
+                o.shipping_method_name,
+                o.payment_method,
+                o.guest_email,
+                o.guest_session_id,
                 o.created_at, o.updated_at,
                 COALESCE(u.email, o.guest_email) as customer_email
             FROM orders o
@@ -1654,6 +1690,7 @@ pub async fn get_order_details_handler(
                 shipping_country,
                 shipping_phone,     
                 payment_method,
+                shipping_method_name,
                 guest_email,       
                 guest_session_id,  
                 created_at,

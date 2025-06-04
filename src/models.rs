@@ -222,6 +222,7 @@ pub struct Order {
     #[validate(length(min = 1, max = 30))]
     pub shipping_phone: String,
     pub payment_method: Option<PaymentMethod>,
+    pub shipping_method_name: Option<String>,
 
     #[validate(email)]
     pub guest_email: Option<String>,
@@ -464,8 +465,8 @@ pub struct CheckoutFormPayload {
     #[validate(length(min = 1, message = "Metoda płatności jest wymagana."))]
     pub payment_method: String,
 
-    #[serde(default, deserialize_with = "deserialize_i64_from_string_or_number")]
-    pub shipping_cost_selected: i64, // Wartość w groszach
+    #[validate(length(min = 1, message = "Metoda dostawy jest wymagana."))]
+    pub shipping_method_key: String, // np. "inpost", "poczta"}
 }
 
 #[derive(Debug, PartialEq, Clone, Display, EnumIter)]
@@ -482,7 +483,7 @@ pub struct OrderWithCustomerInfo {
 }
 
 // Funkcja deserializująca i64 ze stringa lub liczby
-fn deserialize_i64_from_string_or_number<'de, D>(deserializer: D) -> Result<i64, D::Error>
+fn _deserialize_i64_from_string_or_number<'de, D>(deserializer: D) -> Result<i64, D::Error>
 where
     D: Deserializer<'de>,
 {
