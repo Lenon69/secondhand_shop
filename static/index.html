@@ -309,46 +309,20 @@
               hx-get="/htmx/products"
               hx-target="#content"
               hx-swap="innerHTML"
-              <!-- hx-indicator="#search-spinner-desktop" -->
               hx-push-url="true"
               class="w-full max-w-md flex"
             >
-              <input
-                type="search"
-                name="search"
-                placeholder="Szukaj perełek..."
-                class="w-full px-4 py-2 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-shadow text-sm"
-                aria-label="Wyszukaj produkty"
-              />
-              <button
-                type="submit"
+            <input type="search"
+               name="search"
+               placeholder="Szukaj perełek..."
+               class="w-full px-4 py-2 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-shadow text-sm"
+               aria-label="Wyszukaj produkty" />
+              <button type="submit"
                 class="px-4 py-2 bg-black text-white rounded-r-lg transition-colors duration-300 ease-in-out hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 text-sm"
-                aria-label="Szukaj"
-              >
-                <span class="search-button-text">Szukaj</span>
-                <span id="search-spinner-desktop" class="htmx-indicator ml-1"
-                  ><svg
-                    class="animate-spin h-4 w-4 text-white inline"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      class="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      stroke-width="4"
-                    ></circle>
-                    <path
-                      class="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path></svg
-                ></span>
-              </button>
-            </form>
+                aria-label="Szukaj">
+            <span class="search-button-text">Szukaj</span>
+        </button>
+        </form>
           </div>
         <div class="hidden lg:flex items-center space-x-4">
          <a  x-bind:href="isAuthenticated ? '/moje-konto' : '/logowanie'"
