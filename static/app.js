@@ -600,3 +600,27 @@ document.body.addEventListener("htmx:afterOnLoad", function (evt) {
     }
   } catch (_) {}
 });
+
+document.addEventListener("DOMContentLoaded", function () {
+  const globalSpinner = document.getElementById("global-loading-spinner");
+
+  if (globalSpinner) {
+    document.body.addEventListener("htmx:beforeRequest", function () {
+      globalSpinner.classList.add("show");
+    });
+
+    document.body.addEventListener("htmx:afterRequest", function () {
+      globalSpinner.classList.remove("show");
+    });
+
+    document.body.addEventListener("htmx:sendError", function () {
+      globalSpinner.classList.remove("show");
+    });
+
+    document.body.addEventListener("htmx:responseError", function () {
+      globalSpinner.classList.remove("show");
+    });
+  } else {
+    console.error("Global spinner element #global-loading-spinner NOT FOUND!");
+  }
+});

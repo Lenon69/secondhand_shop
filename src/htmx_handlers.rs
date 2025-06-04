@@ -544,8 +544,6 @@ pub async fn get_cart_details_htmx_handler(
                    "hx-target"="#content"                                 // Cel podmiany
                    "hx-swap"="innerHTML"
                    "hx-push-url"=(format!("/produkty/{}", item.product.id)) // Aktualizacja URL w przeglądarce
-                   // Opcjonalnie: wskaźnik ładowania, jeśli masz globalny np. .page-load-spinner
-                   // "hx-indicator"=".page-load-spinner"
                    "@click"="if(typeof cartOpen !== 'undefined') cartOpen = false" // Zamknij koszyk (Alpine.js)
                    class="h-20 w-20 flex-shrink-0 overflow-hidden rounded-md border border-gray-200 block group"
                    aria-label={"Zobacz szczegóły produktu " (item.product.name)} {
@@ -1180,7 +1178,6 @@ pub async fn gender_page_handler(
                                        "hx-get"=(format!("/htmx/products?gender={}", current_gender.to_string()))
                                        "hx-target"="#product-listing-area" "hx-swap"="innerHTML"
                                        "hx-push-url"=(format!("/dla/{}", gender_slug))
-                                       "hx-indicator"=".product-load-spinner"
                                        "@click"="if (window.innerWidth < 768) showMobileCategories = false" // Zwiń po kliknięciu na mobile
                                        class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
                                        "_"="on htmx:afterSwap remove .font-bold .text-pink-700 from #category-sidebar a add .font-bold .text-pink-700 to me" {
@@ -1193,7 +1190,6 @@ pub async fn gender_page_handler(
                                            "hx-get"=(format!("/htmx/products?gender={}&category={}", current_gender.to_string(), category_item.as_url_param()))
                                            "hx-target"="#product-listing-area" "hx-swap"="innerHTML"
                                            "hx-push-url"=(format!("/dla/{}/{}", gender_slug, category_item.to_string().to_lowercase().replace(' ', "-").replace("ł", "l").replace("ó", "o").replace("ż", "z").replace("ą", "a").replace("ę", "e").replace("ć", "c").replace("ń", "n").replace("ś", "s")))
-                                           "hx-indicator"=".product-load-spinner"
                                            "@click"="if (window.innerWidth < 768) showMobileCategories = false" // Zwiń po kliknięciu na mobile
                                            class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
                                            "_"="on htmx:afterSwap remove .font-bold .text-pink-700 from #category-sidebar a add .font-bold .text-pink-700 to me" {
@@ -2204,7 +2200,7 @@ pub async fn my_account_page_handler(claims: TokenClaims) -> Result<Markup, AppE
                                        "hx-target"="#my-account-content"
                                        "hx-swap"="innerHTML"
                                        "hx-push-url"=(push_url)
-                                       "hx-indicator"="#my-account-content-spinner"
+                                       // "hx-indicator"="#my-account-content-spinner"
                                        class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-pink-500" {
                                         (label)
                                     }
@@ -4414,7 +4410,6 @@ pub async fn admin_orders_list_htmx_handler(
                                         select name="status"
                                             hx-patch=(format!("/api/orders/{}", order.id))
                                             hx-trigger="change"
-                                            // hx-indicator=(format!("#status-spinner-{}", order.id))
                                             class="block w-full pl-3 pr-8 py-1.5 text-xs border-gray-300 focus:outline-none focus:ring-pink-500 focus:border-pink-500 rounded-md shadow-sm appearance-none"
                                             aria-label="Zmień status zamówienia" {
                                             @for status_option in OrderStatus::iter() {

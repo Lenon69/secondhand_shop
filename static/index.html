@@ -7,6 +7,7 @@
       name="description"
       content="Odkryj unikalną odzież vintage w MEG JONI. Najlepsze perełki z drugiej ręki dla niej i dla niego."
     />
+    <meta name="htmx-config" content='{"globalIndicator": "#global-loading-spinner"}'>
     <title>MEG JONI - Sklep Vintage Online</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script
@@ -94,21 +95,28 @@
       }
       
       /* Style dla globalnego spinnera */
-      #global-spinner {
-        display: none; /* Domyślnie ukryty */
-        opacity: 0;
-        transition: opacity 200ms ease-in-out, visibility 0s linear 200ms;
+      #global-loading-spinner {
+        display: none;
+        opacity: 0.5;
         visibility: hidden;
-        /* Pozycjonowanie i wygląd są już zdefiniowane przez klasy Tailwind poniżej */
+        transition: opacity 200ms ease-in-out, visibility 0s linear 200ms;
+        background-color: rgba(20, 20, 30, 0.5);
+        backdrop-filter: blur(4px);
       }
-
-      /* Pokaż globalny spinner, gdy body ma klasę 'htmx-request' */
-      body.htmx-request #global-spinner {
-        display: flex; 
+      
+      #global-loading-spinner.show {
+        display: flex;
         opacity: 1;
         visibility: visible;
         transition: opacity 200ms ease-in-out, visibility 0s;
       }
+
+      #global-loading-spinner svg {
+      color: #E91E63;
+      filter: drop-shadow(0 0 5px rgba(0,0,0,0.3));
+      }
+      
+
     </style>
 
     <style>
@@ -273,13 +281,12 @@
     class="flex flex-col min-h-screen bg-gray-50 text-gray-900 font-sans antialiased"
   >
   
-  <div id="global-spinner" class="fixed inset-0 bg-slate-700 bg-opacity-50 flex justify-center items-center z-[9999]">
-    <svg class="animate-spin h-12 w-12 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-    </svg>
-  </div>
-  
+    <div id="global-loading-spinner" class="fixed inset-0 bg-slate-700 bg-opacity-50 flex justify-center items-center z-[9999]">
+        <svg class="animate-spin h-12 w-12 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+    </div>  
   
     <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-sm shadow-md">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -302,7 +309,7 @@
               hx-get="/htmx/products"
               hx-target="#content"
               hx-swap="innerHTML"
-              hx-indicator="#search-spinner-desktop"
+              <!-- hx-indicator="#search-spinner-desktop" -->
               hx-push-url="true"
               class="w-full max-w-md flex"
             >
@@ -531,7 +538,7 @@
               hx-get="/htmx/products"
               hx-target="#content"
               hx-swap="innerHTML"
-              hx-indicator="#search-spinner-mobile"
+              <!-- hx-indicator="#search-spinner-mobile" -->
               @submit="isMobileMenuOpen = false"
               hx-push-url="true"
               class="flex space-x-2"
