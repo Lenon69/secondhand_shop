@@ -561,7 +561,7 @@ document.body.addEventListener("htmx:beforeSwap", function (event) {
 
           // 4.
           if (window.htmx) {
-            htmx.ajax("GET", "htmx/admin/products", {
+            htmx.ajax("GET", "/htmx/admin/products", {
               target: "#admin-content",
               swap: "innerHTML",
               pushUrl: true,

@@ -40,6 +40,30 @@ pub enum ProductStatus {
     Sold,
 }
 
+impl ProductStatus {
+    pub fn from_query_param(s: &str) -> Result<Self, String> {
+        match s.to_lowercase().as_str() {
+            // Używamy to_lowercase() dla case-insensitivity
+            "available" => Ok(ProductStatus::Available),
+            "reserved" => Ok(ProductStatus::Reserved),
+            "sold" => Ok(ProductStatus::Sold),
+            "dostępny" => Ok(ProductStatus::Available),
+            "zarezerwowany" => Ok(ProductStatus::Reserved),
+            "sprzedany" => Ok(ProductStatus::Sold),
+            _ => Err(format!("Nierozpoznany wariant ProductStatus: '{}'", s)),
+        }
+    }
+
+    pub fn to_form_value(&self) -> &'static str {
+        // Zwraca angielską nazwę
+        match self {
+            ProductStatus::Available => "Available",
+            ProductStatus::Reserved => "Reserved",
+            ProductStatus::Sold => "Sold",
+        }
+    }
+}
+
 #[derive(
     Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display, EnumIter, AsRefStr,
 )]

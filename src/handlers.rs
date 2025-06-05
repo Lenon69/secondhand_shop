@@ -199,7 +199,6 @@ pub async fn list_products(
         data_builder.push("price <= ").push_bind(price_max);
     }
     if let Some(on_sale_filter) = params.on_sale() {
-        // <<<< DODANY FILTR on_sale DLA DANYCH
         append_where_or_and_data(&mut data_builder);
         data_builder.push("on_sale = ").push_bind(on_sale_filter);
     }
@@ -267,8 +266,6 @@ pub async fn create_product_handler(
     // Przetwarzanie danych multipart
     let mut text_fields: HashMap<String, String> = HashMap::new();
     let mut image_uploads: Vec<(String, Vec<u8>)> = Vec::new();
-    let on_sale_str = text_fields.get("on_sale").map_or("false", |s| s.as_str());
-    let on_sale = on_sale_str.eq_ignore_ascii_case("true") || on_sale_str == "on";
 
     while let Some(field) = multipart.next_field().await? {
         let field_name = match field.name() {
@@ -355,6 +352,9 @@ pub async fn create_product_handler(
         .get("category")
         .ok_or_else(|| AppError::UnprocessableEntity("Brak pola 'category'.".to_string()))?
         .clone();
+
+    let on_sale_str = text_fields.get("on_sale").map_or("false", |s| s.as_str());
+    let on_sale = on_sale_str.eq_ignore_ascii_case("true") || on_sale_str == "on";
 
     // Sprawdzenie czy przynajmniej jeden plik został przesłany
     if image_uploads.is_empty() {
@@ -1277,8 +1277,8 @@ pub async fn create_order_handler(
     let shipping_method_key_from_payload = &payload.shipping_method_key;
     let (derived_shipping_cost, shipping_method_name_to_store): (i64, String) =
         match shipping_method_key_from_payload.as_str() {
-            "inpost" => (1600, "Paczkomat InPost 24/7".to_string()),
-            "poczta" => (2000, "Poczta Polska S.A.".to_string()),
+            "inpost" => (1199, "Paczkomat InPost 24/7".to_string()),
+            "poczta" => (1799, "Poczta Polska S.A.".to_string()),
             _ => {
                 tracing::warn!(
                     "Nieprawidłowy lub brakujący klucz metody dostawy: '{}'",
@@ -1355,7 +1355,7 @@ pub async fn create_order_handler(
     })?;
 
     // Walidacja wybranego kosztu dostawy (ważne!)
-    let allowed_shipping_costs = [1600, 2000]; // Definiujemy dozwolone koszty (w groszach)
+    let allowed_shipping_costs = [1199, 1799]; // Definiujemy dozwolone koszty (w groszach)
     if total_price_items > 0 && !allowed_shipping_costs.contains(&derived_shipping_cost) {
         // Jeśli koszyk nie jest pusty, koszt dostawy musi być jedną z dozwolonych wartości
         tracing::warn!(

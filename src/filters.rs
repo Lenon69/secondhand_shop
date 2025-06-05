@@ -42,7 +42,7 @@ pub struct ListingParams {
     pub condition: Option<ProductCondition>,
     #[serde(
         default,
-        deserialize_with = "deserialize_optional_enum_from_empty_string"
+        deserialize_with = "deserialize_optional_product_status_from_query"
     )]
     pub status: Option<ProductStatus>,
     #[serde(default)]
@@ -390,5 +390,41 @@ impl OrderListingParams {
             query_parts.push(format!("order={}", val));
         }
         query_parts.join("&")
+    }
+}
+
+// Niestandardowy deserializer dla Option<ProductStatus> używający ProductStatus::from_query_param
+pub fn deserialize_optional_product_status_from_query<'de, D>(
+    deserializer: D,
+) -> Result<Option<ProductStatus>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    tracing::info!(
+        "[deserialize_product_status_query] Próba parsowania statusu produktu: '{}'",
+        s
+    );
+    if s.is_empty() {
+        Ok(None)
+    } else {
+        match ProductStatus::from_query_param(&s) {
+            Ok(status) => {
+                tracing::info!(
+                    "[deserialize_product_status_query] Pomyślnie sparsowano '{}' do: {:?}",
+                    s,
+                    status
+                );
+                Ok(Some(status))
+            }
+            Err(e) => {
+                tracing::error!(
+                    "[deserialize_product_status_query] BŁĄD parsowania '{}': {}",
+                    s,
+                    e
+                );
+                Err(de::Error::custom(e)) // Zwróć błąd Serde
+            }
+        }
     }
 }

@@ -112,142 +112,6 @@ fn build_filter_only_query_string(params: &ListingParams) -> String {
     }
 }
 
-// Handler generujący siatkę produktów za pomocą Maud
-// pub async fn list_products_htmx_handler(
-//     State(app_state): State<AppState>,
-//     Query(params): Query<ListingParams>,
-// ) -> Result<Markup, AppError> {
-//     tracing::info!("MAUD: /htmx/products z parametrami: {:?}", params);
-
-//     // 1. Pobierz dane produktów - ta logika pozostaje taka sama
-//     //    Zakładamy, że crate::handlers::list_products zwraca Result<Json<PaginatedProductsResponse>, AppError>
-//     let paginated_response_axum_json =
-//         crate::handlers::list_products(State(app_state.clone()), Query(params.clone())).await?;
-//     let paginated_response: PaginatedProductsResponse = paginated_response_axum_json.0; // Rozpakowujemy z Json
-
-//     let products = paginated_response.data;
-//     let current_page = paginated_response.current_page;
-//     let total_pages = paginated_response.total_pages;
-//     let per_page = paginated_response.per_page;
-
-//     // 2. Wygeneruj stringi zapytań dla paginacji i linków "powrotu"
-//     let filter_query_string = build_filter_only_query_string(&params);
-//     let current_listing_params_qs = build_full_query_string_from_params(&params);
-
-//     // 3. Wygeneruj HTML za pomocą Maud
-//     Ok(html! {
-//         div #products-grid-container { // Odpowiednik głównego diva z product_grid.html
-//             div #products-container .grid.grid-cols-1.sm:grid-cols-2.lg:grid-cols-3.xl:grid-cols-4.gap-6 {
-//                 @if products.is_empty() {
-//                     p ."col-span-full text-center text-gray-500 py-8" {
-//                         "Brak produktów spełniających kryteria."
-//                     }
-//                 } @else {
-//                     @for product in &products {
-//                         // Odpowiednik product_card.html
-//                         div ."border rounded-lg p-4 shadow-lg flex flex-col" {
-//                             a
-//                                 href=(format!("/products/{}", product.id)) // Link do pełnej strony produktu (jeśli istnieje)
-//                                 hx-get=(format!("/htmx/product/{}?return_params={}", product.id, urlencoding::encode(&current_listing_params_qs)))
-//                                 hx-target="#content" // Lub inny główny target
-//                                 hx-swap="innerHTML"
-//                                 hx-push-url=(format!("/products/{}", product.id))
-//                                 class="block mb-2 group"
-//                             {
-//                                 @if product.images.len() > 0 {
-//                                     img
-//                                         src=(product.images[0])
-//                                         alt=(product.name)
-//                                         class="w-full h-48 sm:h-56 object-cover rounded-md group-hover:opacity-85 transition-opacity duration-200"
-//                                         loading="lazy";
-//                                 } @else {
-//                                     div ."w-full h-48 sm:h-56 bg-gray-200 rounded-md flex items-center justify-center group-hover:opacity-85 transition-opacity duration-200" {
-//                                         span ."text-gray-500 text-sm" { "Brak zdjęcia" }
-//                                     }
-//                                 }
-//                             }
-//                             div ."flex-grow" { // Aby opis i cena wypełniły przestrzeń
-//                                 h2 ."text-lg font-semibold mb-1 text-gray-800 group-hover:text-pink-600 transition-colors duration-200" {
-//                                     a // Ten sam link co na obrazku dla tytułu
-//                                         href=(format!("/products/{}", product.id))
-//                                         hx-get=(format!("/htmx/product/{}?return_params={}", product.id, urlencoding::encode(&current_listing_params_qs)))
-//                                         hx-target="#content"
-//                                         hx-swap="innerHTML"
-//                                         hx-push-url=(format!("/products/{}", product.id))
-//                                     {
-//                                         (product.name)
-//                                     }
-//                                 }
-//                                 p ."text-gray-700 mb-1" { (product.price / 100) " zł" } // Zakładając cenę w groszach
-//                                 p ."text-xs text-gray-500 mb-1" { "Stan: " (product.condition.to_string()) }
-//                                 p ."text-xs text-gray-500 mb-2" { "Kategoria: " (product.category.to_string()) }
-//                             }
-//                             div ."mt-auto" { // Button na dole karty
-//                                 button
-//                                     hx-post=(format!("/htmx/cart/add/{}", product.id))
-//                                     hx-swap="none" // Zakładając, że licznik koszyka aktualizuje się globalnie
-//                                     class="w-full mt-2 bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-opacity-70 transform active:scale-95"
-//                                     title=(format!("Dodaj {} do koszyka", product.name))
-//                                 {
-//                                     "Dodaj do koszyka"
-//                                 }
-//                             }
-//                         }
-//                     }
-//                 }
-//             }
-
-//             @if total_pages > 1 { // Pokaż paginację tylko jeśli jest więcej niż 1 strona
-//                 div #pagination-controls ."mt-8 flex justify-center items-center space-x-1 sm:space-x-2" {
-//                     @if current_page > 1 {
-//                         button
-//                             hx-get=(format!("/htmx/products?offset={}&limit={}{}", (current_page - 2) * per_page, per_page, filter_query_string)) // offset to (page-1)*limit
-//                             hx-target="#products-grid-container" // Celujemy w kontener siatki + paginacji
-//                             hx-swap="outerHTML" // Zastępujemy cały kontener
-//                             class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500"
-//                         {
-//                             "Poprzednia"
-//                         }
-//                     } @else {
-//                         span class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-400 bg-gray-50 cursor-not-allowed" { "Poprzednia" }
-//                     }
-
-//                     // Opcjonalnie: Numery stron
-//                     @for page_num in 1..=total_pages {
-//                         @if page_num == current_page {
-//                             span class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-white bg-pink-600 z-10" { (page_num) }
-//                         } @else if page_num == 1 || page_num == total_pages || (page_num >= current_page - 1 && page_num <= current_page + 1) {
-//                             button
-//                                 hx-get=(format!("/htmx/products?offset={}&limit={}{}", (page_num - 1) * per_page, per_page, filter_query_string))
-//                                 hx-target="#products-grid-container"
-//                                 hx-swap="outerHTML"
-//                                 class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500"
-//                             {
-//                                 (page_num)
-//                             }
-//                         } @else if page_num == current_page - 2 || page_num == current_page + 2 {
-//                              span class="px-3 sm:px-4 py-2 text-sm text-gray-500" { "..." }
-//                         }
-//                     }
-
-//                     @if current_page < total_pages {
-//                         button
-//                             hx-get=(format!("/htmx/products?offset={}&limit={}{}", current_page * per_page, per_page, filter_query_string))
-//                             hx-target="#products-grid-container"
-//                             hx-swap="outerHTML"
-//                             class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500"
-//                         {
-//                             "Następna"
-//                         }
-//                     } @else {
-//                         span class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-400 bg-gray-50 cursor-not-allowed" { "Następna" }
-//                     }
-//                 }
-//             }
-//         }
-//     })
-// }
-
 #[derive(Deserialize, Debug)]
 pub struct DetailViewParams {
     #[serde(default)]
@@ -2641,8 +2505,8 @@ pub async fn checkout_page_handler(
                             selectedShippingCost: 0,
                             selectedShippingKeyInternal: '', // Wewnętrzny stan Alpine dla klucza metody
                             shippingOptions: [
-                                {{ id: 'inpost', name: 'Paczkomat InPost 24/7', cost: 1600, displayCost: '16,00 zł' }},
-                                {{ id: 'poczta', name: 'Poczta Polska S.A.', cost: 2000, displayCost: '20,00 zł' }}
+                                {{ id: 'inpost', name: 'Paczkomat InPost 24/7', cost: 1199, displayCost: '11,99 zł' }},
+                                {{ id: 'poczta', name: 'Poczta Polska S.A.', cost: 1799, displayCost: '17,99 zł' }}
                             ],
                             initComponent() {{
                                 console.log('Alpine Checkout Summary: initComponent started.');
@@ -3832,7 +3696,7 @@ pub async fn admin_product_new_form_htmx_handler(claims: TokenClaims) -> Result<
                                        class="h-4 w-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500";
                             }
                             div class="ml-3 text-sm leading-6" {
-                                label for="on_sale_new" class="font-medium text-gray-700" { "Produkt na wyprzedaży?" }
+                                label for="on_sale_new" class="font-medium text-gray-700" { "Produkt na wyprzedaży" }
                                 p class="text-xs text-gray-500" { "Zaznacz, jeśli produkt ma być częścią wyprzedaży." }
                             }
                         }
@@ -4043,7 +3907,9 @@ pub async fn admin_product_edit_form_htmx_handler(
                                        class="h-4 w-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500";
                             }
                             div class="ml-3 text-sm leading-6" {
-                                label for="on_sale_edit" class="font-medium text-gray-700" { "Produkt na wyprzedaży?" }
+                                label for="on_sale_edit" class="font-medium text-gray-700" { "Produkt na wyprzedaży" }
+                                p class="text-xs text-gray-500" { "Zaznacz, jeśli produkt ma być częścią wyprzedaży." }
+
                             }
                         }
                     }
