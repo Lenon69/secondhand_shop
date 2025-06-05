@@ -108,6 +108,7 @@ pub struct Product {
     pub category: Category,
     pub status: ProductStatus,
     pub images: Vec<String>,
+    pub on_sale: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -355,8 +356,9 @@ pub struct CartItemWithProduct {
     pub gender: ProductGender, // p.gender
     pub condition: ProductCondition, // p.condition
     pub category: Category, // p.category
+    pub on_sale: bool,
     pub status: ProductStatus, // p.status
-    pub images: Vec<String>, // p.images
+    pub images: Vec<String>,   // p.images
 }
 
 #[derive(Deserialize, Debug, Clone, Serialize, sqlx::FromRow)]

@@ -30,6 +30,7 @@ pub async fn build_cart_details_response(
                 p.condition,
                 p.category,
                 p.status,
+                p.on_sale,
                 p.images
             FROM cart_items ci
             JOIN products p ON ci.product_id = p.id
@@ -74,6 +75,7 @@ pub async fn build_cart_details_response(
                 category: row.category,
                 status: row.status,
                 images: row.images,
+                on_sale: row.on_sale,
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
             },

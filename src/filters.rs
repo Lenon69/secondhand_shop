@@ -49,6 +49,8 @@ pub struct ListingParams {
     pub price_min: Option<i64>,
     #[serde(default)]
     pub price_max: Option<i64>,
+    #[serde(default)]
+    pub on_sale: Option<bool>,
 
     //Sortowanie
     #[serde(default)]
@@ -97,6 +99,10 @@ impl ListingParams {
 
     pub fn search(&self) -> Option<String> {
         self.search.clone()
+    }
+
+    pub fn on_sale(&self) -> Option<bool> {
+        self.on_sale.clone()
     }
 
     pub fn sort_by(&self) -> &str {
@@ -163,6 +169,11 @@ impl ListingParams {
                 query_parts.push(format!("price_max={}", val));
             }
         }
+        if !skip_params.contains(&"on-sale") {
+            if let Some(val) = self.on_sale {
+                query_parts.push(format!("on-sale={}", val));
+            }
+        }
         if !skip_params.contains(&"sort_by") {
             if let Some(val) = &self.sort_by {
                 query_parts.push(format!("sort-by={}", val));
@@ -191,6 +202,7 @@ impl ListingParams {
             status: self.status.clone(),
             price_min: self.price_min,
             price_max: self.price_max,
+            on_sale: self.on_sale.clone(),
             sort_by: self.sort_by.clone(),
             order: self.order.clone(),
             search: self.search.clone(),
@@ -219,12 +231,15 @@ impl ListingParams {
         }
         if let Some(status) = &self.status {
             query_parts.push(format!("status={}", status.as_ref()));
-        } // Ważne dla admina
+        }
         if let Some(p_min) = self.price_min {
             query_parts.push(format!("price_min={}", p_min));
         }
         if let Some(p_max) = self.price_max {
             query_parts.push(format!("price_max={}", p_max));
+        }
+        if let Some(on_sale_val) = self.on_sale {
+            query_parts.push(format!("on-sale={}", on_sale_val));
         }
 
         // Sortowanie: użyj metod, które zwracają domyślne wartości

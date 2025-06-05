@@ -39,7 +39,7 @@ pub async fn get_product_details(
     Path(product_id): Path<Uuid>,
 ) -> Result<Json<Product>, AppError> {
     let product_result = sqlx::query_as::<_, Product>(
-        r#"SELECT id, name, description, price, gender, condition, category, status, images, created_at, updated_at
+        r#"SELECT id, name, description, price, gender, condition, category, status, images, on_sale, created_at, updated_at
            FROM products
            WHERE id = $1"#,
     )
@@ -121,6 +121,10 @@ pub async fn list_products(
         append_where_or_and_count(&mut count_builder);
         count_builder.push("price <= ").push_bind(price_max);
     }
+    if let Some(on_sale_filter) = params.on_sale() {
+        append_where_or_and_count(&mut count_builder);
+        count_builder.push("on_sale = ").push_bind(on_sale_filter);
+    }
 
     if let Some(search_term) = params.search() {
         append_where_or_and_count(&mut count_builder);
@@ -153,7 +157,7 @@ pub async fn list_products(
     // --- Budowanie zapytania o DANE ---
     let mut data_builder: QueryBuilder<Postgres> = QueryBuilder::new(
         r#"
-            SELECT id, name, description, price, gender, condition, category, status, images, created_at, updated_at
+            SELECT id, name, description, price, gender, condition, category, status, images, on_sale, created_at, updated_at
             FROM products
         "#,
     );
@@ -193,6 +197,11 @@ pub async fn list_products(
     if let Some(price_max) = params.price_max() {
         append_where_or_and_data(&mut data_builder);
         data_builder.push("price <= ").push_bind(price_max);
+    }
+    if let Some(on_sale_filter) = params.on_sale() {
+        // <<<< DODANY FILTR on_sale DLA DANYCH
+        append_where_or_and_data(&mut data_builder);
+        data_builder.push("on_sale = ").push_bind(on_sale_filter);
     }
 
     if let Some(search_term) = params.search() {
@@ -258,6 +267,8 @@ pub async fn create_product_handler(
     // Przetwarzanie danych multipart
     let mut text_fields: HashMap<String, String> = HashMap::new();
     let mut image_uploads: Vec<(String, Vec<u8>)> = Vec::new();
+    let on_sale_str = text_fields.get("on_sale").map_or("false", |s| s.as_str());
+    let on_sale = on_sale_str.eq_ignore_ascii_case("true") || on_sale_str == "on";
 
     while let Some(field) = multipart.next_field().await? {
         let field_name = match field.name() {
@@ -414,9 +425,9 @@ pub async fn create_product_handler(
 
     let _new_product_db = sqlx::query_as::<_, Product>(
         r#"
-            INSERT INTO products (id, name, description, price, gender, condition, category, status, images)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            RETURNING id, name, description, price, gender, condition , category, status, images, created_at, updated_at
+            INSERT INTO products (id, name, description, price, gender, condition, category, status, images, on_sale)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            RETURNING id, name, description, price, gender, condition , category, status, images, on_sale, created_at, updated_at
         "#,
     )
     .bind(new_product_id)
@@ -428,6 +439,7 @@ pub async fn create_product_handler(
     .bind(category)
     .bind(product_status)
     .bind(&cloudinary_urls)
+    .bind(on_sale)
     .fetch_one(&app_state.db_pool)
     .await?;
 
@@ -573,6 +585,9 @@ pub async fn update_product_partial_handler(
             ))
         })?;
     }
+    existing_product.on_sale = text_fields
+        .get("on_sale")
+        .map_or(false, |s| s.eq_ignore_ascii_case("true") || s == "on");
 
     let mut final_image_urls = existing_product.images.clone();
 
@@ -672,8 +687,8 @@ pub async fn update_product_partial_handler(
     let updated_product_db = sqlx::query_as::<_, Product>(
         r#"
             UPDATE products
-            SET name = $1, description = $2, price = $3, gender = $4, condition = $5, category = $6, status = $7, images = $8, updated_at = NOW()
-            WHERE id = $9
+            SET name = $1, description = $2, price = $3, gender = $4, condition = $5, category = $6, status = $7, images = $8, on_sale = $9, updated_at = NOW()
+            WHERE id = $10
             RETURNING *
         "#,
     )
@@ -685,6 +700,7 @@ pub async fn update_product_partial_handler(
     .bind(existing_product.category)
     .bind(existing_product.status)
     .bind(&existing_product.images)
+    .bind(existing_product.on_sale)
     .bind(product_id)
     .fetch_one(&app_state.db_pool) // Jeśli używasz transakcji, zmień na &mut *tx
     .await.map_err(|e| {
@@ -715,7 +731,7 @@ pub async fn delete_product_handler(
     // Pobierz produkt, aby uzyskać listę obrazów
     let product_to_delete = sqlx::query_as::<_, Product>(
         r#"
-            SELECT id, name, description, price, gender, condition, category, status, images, created_at, updated_at
+            SELECT id, name, description, price, gender, condition, category, status, images, on_sale, created_at, updated_at
             FROM products
             WHERE id = $1
         "#,
@@ -1749,7 +1765,7 @@ pub async fn get_order_details_handler(
         // item_db jest typu OrderItem
         let product = sqlx::query_as::<_, Product>(
             r#"
-                SELECT id, name, description, price, gender, condition, category, status, images, created_at, updated_at
+                SELECT id, name, description, price, gender, condition, category, status, images, on_sale, created_at, updated_at
                 FROM products
                 WHERE id = $1
             "#,
@@ -1894,7 +1910,7 @@ pub async fn add_item_to_cart_handler(
     // Sprawdź czy produkt istnieje i jest dostępny (z blokadą FOR UPDATE)
     let product_to_add_opt = sqlx::query_as::<_, Product>(
         r#"
-            SELECT id, name, description, price, condition, category, status, images, created_at, updated_at
+            SELECT id, name, description, price, condition, category, status, images, on_sale, created_at, updated_at
             FROM products
             WHERE id = $1
             FOR UPDATE
@@ -1967,7 +1983,7 @@ pub async fn add_item_to_cart_handler(
     for item_db in items_db {
         let product = sqlx::query_as::<_, Product>(
             r#"
-                SELECT id, name, description, price, gender, condition, category, status, images, created_at, updated_at
+                SELECT id, name, description, price, gender, condition, category, status, images, on_sale, created_at, updated_at
                 FROM products
                 WHERE id = $1
             "#, // FOR UPDATE nie jest tu konieczne, bo produkt był blokowany wcześniej

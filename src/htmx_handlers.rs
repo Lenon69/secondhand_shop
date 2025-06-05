@@ -270,7 +270,7 @@ pub async fn get_product_detail_htmx_handler(
     );
 
     let product = match sqlx::query_as::<_, Product>(
-        r#"SELECT id, name, description, price, gender, condition, category, status, images, created_at, updated_at
+        r#"SELECT id, name, description, price, gender, condition, category, status, images, on_sale, created_at, updated_at
            FROM products
            WHERE id = $1"#,
     )
@@ -1103,14 +1103,15 @@ pub async fn gender_page_handler(
     let categories: Vec<Category> = Category::iter().collect();
 
     let initial_listing_params = ListingParams {
-        gender: Some(current_gender.clone()),
         limit: Some(9),
         offset: Some(0),
+        gender: Some(current_gender.clone()),
         category: None,
         condition: None,
         status: Some(ProductStatus::Available),
         price_min: None,
         price_max: None,
+        on_sale: None,
         sort_by: Some("name".to_string()),
         order: Some("asc".to_string()),
         search: None,
@@ -3227,7 +3228,7 @@ pub async fn my_order_details_htmx_handler(
 
         let products_db = sqlx::query_as::<_, Product>(
             r#"
-                SELECT id, name, description, price, gender, condition, category, status, images, created_at, updated_at
+                SELECT id, name, description, price, gender, condition, category, status, images, on_sale, created_at, updated_at
                 FROM products
                 WHERE id = ANY($1)
             "#,
@@ -3822,6 +3823,21 @@ pub async fn admin_product_new_form_htmx_handler(claims: TokenClaims) -> Result<
                         }
                     }
 
+                    // Wyprzedaż = on_sale
+                    section ."mt-6 pt-6 border-t border-gray-200" { // Dodatkowy separator dla nowej sekcji
+                        h3 ."text-xl font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-200" { "Opcje Sprzedaży" }
+                        div class="relative flex items-start" {
+                            div class="flex h-6 items-center" {
+                                input id="on_sale_new" name="on_sale" type="checkbox"
+                                       class="h-4 w-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500";
+                            }
+                            div class="ml-3 text-sm leading-6" {
+                                label for="on_sale_new" class="font-medium text-gray-700" { "Produkt na wyprzedaży?" }
+                                p class="text-xs text-gray-500" { "Zaznacz, jeśli produkt ma być częścią wyprzedaży." }
+                            }
+                        }
+                    }
+
                     // Sekcja: Zdjęcia Produktu (TA SAMA LOGIKA HTML CO W EDYCJI)
                     section {
                         // input type="hidden" name="urls_to_delete" id="urls_to_delete_hidden_input_new_form"; // Już dodane na początku formularza
@@ -4014,6 +4030,20 @@ pub async fn admin_product_edit_form_htmx_handler(
                                         option value=(status_variant.as_ref()) { (status_variant.to_string()) }
                                     }
                                 }
+                            }
+                        }
+                    }
+
+                    section ."mt-6 pt-6 border-t border-gray-200" {
+                        h3 ."text-xl font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-200" { "Opcje Sprzedaży" }
+                        div class="relative flex items-start" {
+                            div class="flex h-6 items-center" {
+                                input id="on_sale_edit" name="on_sale" type="checkbox"
+                                       checked[product_to_edit.on_sale]
+                                       class="h-4 w-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500";
+                            }
+                            div class="ml-3 text-sm leading-6" {
+                                label for="on_sale_edit" class="font-medium text-gray-700" { "Produkt na wyprzedaży?" }
                             }
                         }
                     }
