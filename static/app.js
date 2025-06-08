@@ -25,6 +25,29 @@ document.body.addEventListener("updateCartCount", (htmxEvent) => {
   }
 });
 
+function clientSideLogout() {
+  console.log("Wykonywanie clientSideLogout.");
+  localStorage.removeItem("jwtToken");
+  // Poinformuj inne komponenty Alpine o zmianie
+  window.dispatchEvent(
+    new CustomEvent("authChangedClient", {
+      detail: { isAuthenticated: false },
+    }),
+  );
+  // Wyświetl komunikat o wylogowaniu
+  window.dispatchEvent(
+    new CustomEvent("showMessage", {
+      detail: { message: "Wylogowano pomyślnie.", type: "info" },
+    }),
+  );
+
+  // Przekieruj na stronę główną po krótkiej chwili
+  setTimeout(() => {
+    // Używamy replace, aby użytkownik nie mógł wrócić przyciskiem "wstecz" na stronę chronioną
+    window.location.replace("/");
+  }, 500); // 0.5s opóźnienia, aby zobaczyć toast
+}
+
 document.body.addEventListener("htmx:afterSwap", function (event) {
   if (
     event.detail.target.id === "content" ||

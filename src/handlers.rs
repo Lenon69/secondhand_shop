@@ -7,7 +7,6 @@ use axum::{
     http::{HeaderMap, StatusCode},
 };
 use axum_extra::TypedHeader;
-use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
 use sqlx::{Postgres, QueryBuilder};
 
@@ -539,8 +538,9 @@ pub async fn update_product_partial_handler(
                                 &app_state.cloudinary_config.cloud_name,
                             ) {
                                 let config_clone = app_state.cloudinary_config.clone();
-                                delete_futures
-                                    .push(delete_image_from_cloudinary(&public_id, &config_clone));
+                                delete_futures.push(async move {
+                                    delete_image_from_cloudinary(&public_id, &config_clone).await
+                                });
                             } else {
                                 tracing::warn!(
                                     "Nie udało się wyekstrahować public_id z URL: {}",
@@ -581,7 +581,9 @@ pub async fn update_product_partial_handler(
         let mut upload_futures = Vec::new();
         for (filename, bytes) in new_image_uploads {
             let config_clone = app_state.cloudinary_config.clone();
-            upload_futures.push(upload_image_to_cloudinary(bytes, filename, &config_clone));
+            upload_futures.push(async move {
+                upload_image_to_cloudinary(bytes, filename, &config_clone).await
+            });
         }
         match try_join_all(upload_futures).await {
             Ok(new_urls) => {
