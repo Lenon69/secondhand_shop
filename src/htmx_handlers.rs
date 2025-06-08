@@ -183,9 +183,7 @@ pub async fn get_product_detail_htmx_handler(
     let return_query_params_str_rust: Option<String> = query_params.return_params;
 
     Ok(html! {
-    // Usunięto PreEscaped, pozwól Maud na standardowe HTML escaping.
-    // Alpine.js odczytując atrybut, zinterpretuje &quot; jako ".
-    div "x-data"=(x_data_attribute_value)
+    div #product-detail-view "x-data"=(x_data_attribute_value)
         class="bg-white p-4 sm:p-6 lg:p-8 rounded-lg shadow-xl" {
         div ."grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12" {
             // --- Kolumna z obrazkami ---
@@ -194,7 +192,7 @@ pub async fn get_product_detail_htmx_handler(
                     div ."aspect-w-4 aspect-h-3 sm:aspect-w-1 sm:aspect-h-1 rounded-lg overflow-hidden border border-gray-200 shadow-sm bg-gray-50 flex items-center justify-center" {
                         img
                             "x-bind:src"="currentMainImage && currentMainImage !== '' ? currentMainImage : '/static/placeholder.png'"
-                            alt={"Zdjęcie główne: " (product.name)} // Maud domyślnie escapuje product.name
+                            alt={"Zdjęcie główne: " (product.name)}
                             class="max-w-full max-h-[60vh] md:max-h-full object-contain cursor-pointer hover:opacity-90 transition-opacity duration-200"
                             loading="lazy"
                             "@click"=(main_image_click_alpine_action);
@@ -204,13 +202,15 @@ pub async fn get_product_detail_htmx_handler(
                         div .grid.grid-cols-3.sm:grid-cols-4.md:grid-cols-3.lg:grid-cols-5.gap-2.sm:gap-3 {
                             // Używamy allProductImages (camelCase) konsekwentnie
                             @for (image_url_loop_item, index) in product.images.iter().zip(0..) {
-                                @let click_action_str = format!("currentMainImage = allProductImages[{}]", index);
+                            @let click_action_str = format!(
+                                "currentMainImage = allProductImages[{}]; $nextTick(() => document.getElementById('product-detail-view').scrollIntoView({{ behavior: 'smooth', block: 'start' }}));",
+                                index);
                                 @let class_binding_str = format!("currentMainImage === allProductImages[{}] ? 'border-pink-500 ring-2 ring-pink-500' : 'border-gray-200 hover:border-pink-400'", index);
 
                                 button type="button"
                                     "@click"=(click_action_str)
                                     "x-bind:class"=(class_binding_str)
-                                    class="aspect-w-1 aspect-h-1 block border-2 rounded-md overflow-hidden focus:outline-none focus:border-pink-500 transition-all duration-150 bg-gray-50"
+                                    class="aspect-square block border-2 rounded-md overflow-hidden focus:outline-none focus:border-pink-500 transition-all duration-150 bg-gray-50"
                                     aria-label={"Zmień główne zdjęcie na miniaturkę " (index + 1)} {
                                     img src=(image_url_loop_item) alt={"Miniaturka " (index + 1) ": " (product.name)} class="w-full h-full object-cover object-center" loading="lazy";
                                 }
@@ -2204,35 +2204,54 @@ fn render_product_form_maud(product_opt: Option<&Product>) -> Result<Markup, App
             p ."text-xs text-gray-500 mb-4" { "Dodaj od 1 do 8 zdjęć. Pierwsze zdjęcie będzie zdjęciem głównym." }
             div ."grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4" {
                 @for i in 0..8 {
-                    @let slot_input_id = format!("new_form_image_file_slot_{}", i); // Unikalne ID dla inputu pliku
-                    @let input_name = format!("image_file_{}", i + 1); // Nazwa pola dla backendu
+                    @let slot_input_id = format!("product_image_file_slot_{}", i);
+                    @let input_name = format!("image_file_{}", i + 1);
 
                     div class="relative aspect-square border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-400 hover:border-pink-400 transition-colors group"
-                        "x-bind:class"=(format!("{{ \
-                            '!border-solid !border-pink-500 shadow-lg': imagePreviews[{}], \
-                            'hover:bg-pink-50/20': !imagePreviews[{}] \
-                        }}", i, i)) { // Uproszczony x-bind:class, bo nie ma 'isMarkedForDeletion'
+                        x-bind:class="{
+                            '!border-solid !border-pink-500 shadow-lg': isSlotFilled(@(i)),
+                            '!border-red-400 !border-solid bg-red-50': isMarkedForDeletion(@(i))
+                        }" {
 
-                        // --- Podgląd obrazka i przycisk "X" (tylko dla nowych podglądów) ---
-                        template "x-if"=(format!("imagePreviews[{}]", i)) { // isSlotFilled jest true, jeśli imagePreviews[i] nie jest null
-                            div ."absolute inset-0 w-full h-full" {
-                                img "x-bind:src"=(format!("imagePreviews[{}]", i)) // getSlotImageSrc zwróci imagePreviews[i]
-                                     alt=(format!("Podgląd zdjęcia {}", i + 1))
-                                     class="w-full h-full object-cover rounded-md";
-                                button type="button"
-                                       "@click.prevent"=(format!("removeImage({}, '{}')", i, slot_input_id))
-                                       class="absolute top-1 right-1 p-0.5 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-700 transition-all text-xs w-5 h-5 flex items-center justify-center shadow-md z-10"
-                                       title="Usuń ten podgląd" {
-                                    svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3" {
-                                        path "fill-rule"="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" "clip-rule"="evenodd" {}
+                        // --- 1. Widok, gdy obrazek JEST OZNACZONY DO USUNIĘCIA ---
+                        template "x-if"=(format!("isMarkedForDeletion({})", i)) {
+                            div class="absolute inset-0 w-full h-full flex flex-col items-center justify-center text-center p-2 bg-red-50/80" {
+                                img "x-bind:src"=(format!("getSlotImageSrc({})", i))
+                                     alt="Oznaczono do usunięcia"
+                                     class="w-full h-full object-cover rounded-md opacity-30";
+                                div class="absolute inset-0 w-full h-full flex flex-col items-center justify-center" {
+                                    p class="text-xs font-bold text-red-700 uppercase" { "Oznaczono" }
+                                    p class="text-xs font-semibold text-red-700 uppercase mb-2" { "do usunięcia" }
+                                    button type="button"
+                                           "@click.prevent"=(format!("cancelDeletion({})", i))
+                                           class="px-3 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-400 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-500" {
+                                        "Anuluj"
                                     }
                                 }
                             }
                         }
 
-                        // --- Labelka do dodawania pliku (widoczna, gdy nie ma podglądu) ---
-                        // Nie ma potrzeby używania isMarkedForDeletion, bo to nowy produkt
-                        template "x-if"=(format!("!imagePreviews[{}]", i)) {
+                        // --- 2. Widok, gdy obrazek JEST WYPEŁNIONY (ale nie oznaczony do usunięcia) ---
+                        template "x-if"=(format!("isSlotFilled({}) && !isMarkedForDeletion({})", i, i)) {
+                            div class="absolute inset-0 w-full h-full" {
+                                img "x-bind:src"=(format!("getSlotImageSrc({})", i))
+                                     alt=(format!("Podgląd zdjęcia {}", i + 1))
+                                     class="w-full h-full object-cover rounded-md";
+
+                                button type="button"
+                                       "@click.prevent"=(format!("removeImage({}, '{}')", i, slot_input_id))
+                                       class="absolute top-1 right-1 p-0.5 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-700 transition-all text-xs w-5 h-5 flex items-center justify-center shadow-md z-10"
+                                       title="Oznacz do usunięcia lub usuń podgląd" {
+                                    // Ikona "X"
+                                    svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3" {
+                                        path "d"="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" {}
+                                    }
+                                }
+                            }
+                        }
+
+                        // --- 3. Widok, gdy slot JEST PUSTY ---
+                        template "x-if"=(format!("!isSlotFilled({})", i)) {
                             label for=(slot_input_id) class="cursor-pointer p-2 text-center w-full h-full flex flex-col items-center justify-center hover:bg-pink-50/50 transition-colors rounded-md" {
                                 svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-8 h-8 text-gray-400 group-hover:text-pink-500 transition-colors" {
                                     path d="M9.25 13.25a.75.75 0 001.5 0V4.793l2.97 2.97a.75.75 0 001.06-1.06l-4.25-4.25a.75.75 0 00-1.06 0L5.22 6.704a.75.75 0 001.06 1.06L9.25 4.793v8.457z" {}
@@ -2243,15 +2262,17 @@ fn render_product_form_maud(product_opt: Option<&Product>) -> Result<Markup, App
                                 }
                             }
                         }
+
+                        // Input pliku jest zawsze obecny, ale niewidoczny
                         input type="file" name=(input_name) id=(slot_input_id)
                                accept="image/jpeg,image/png,image/webp"
                                "@change"=(format!("handleFileChange($event, {})", i))
                                class="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-0"
                                required[is_new && i == 0];
+                        }
                     }
                 }
             }
-        }
 
         // Przyciski Akcji
         section ."pt-8 border-t border-gray-200 mt-8" {

@@ -189,6 +189,7 @@ async fn main() {
         )
         .route("/htmx/admin/orders", get(admin_orders_list_htmx_handler))
         .nest_service("/static", ServeDir::new("static"))
+        .fallback(serve_index)
         .layer(TraceLayer::new_for_http())
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024))
         .with_state(app_state);
