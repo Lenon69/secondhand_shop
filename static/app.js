@@ -64,7 +64,7 @@ document.body.addEventListener("htmx:afterSwap", function (event) {
       );
       if (registrationMessages) registrationMessages.innerHTML = "";
     }
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: "auto" });
   }
 });
 

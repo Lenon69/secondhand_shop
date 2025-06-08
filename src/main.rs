@@ -97,7 +97,11 @@ async fn main() {
             "/api/products/{id}",
             get(get_product_details)
                 .patch(update_product_partial_handler)
-                .delete(delete_product_handler),
+                .delete(archivize_product_handler),
+        )
+        .route(
+            "/api/products/{id}/permanent",
+            delete(permanent_delete_product_handler),
         )
         .route("/api/auth/register", post(register_handler))
         .route("/api/auth/login", post(login_handler))

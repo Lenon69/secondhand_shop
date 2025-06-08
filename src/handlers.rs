@@ -74,6 +74,7 @@ pub async fn list_products(
 
     let limit = params.limit();
     let offset = params.offset();
+    let status_to_filter = params.status().unwrap_or(ProductStatus::Available);
 
     // --- Budowanie zapytania COUNT ---
     let mut count_builder: QueryBuilder<Postgres> =
@@ -101,9 +102,11 @@ pub async fn list_products(
         append_where_or_and_count(&mut count_builder);
         count_builder.push("condition = ").push_bind(condition);
     }
-    if let Some(status_val) = params.status() {
+    if let Some(_status_val) = params.status() {
         append_where_or_and_count(&mut count_builder);
-        count_builder.push("status = ").push_bind(status_val);
+        count_builder
+            .push("status = ")
+            .push_bind(status_to_filter.clone());
     }
     if let Some(price_min) = params.price_min() {
         append_where_or_and_count(&mut count_builder);
@@ -166,9 +169,9 @@ pub async fn list_products(
         append_where_or_and_data(&mut data_builder);
         data_builder.push("condition = ").push_bind(condition);
     }
-    if let Some(status_val) = params.status() {
+    if let Some(_status_val) = params.status() {
         append_where_or_and_data(&mut data_builder);
-        data_builder.push("status = ").push_bind(status_val);
+        data_builder.push("status = ").push_bind(status_to_filter);
     }
     if let Some(price_min) = params.price_min() {
         append_where_or_and_data(&mut data_builder);
@@ -636,20 +639,110 @@ pub async fn update_product_partial_handler(
     Ok(Json(updated_product_db))
 }
 
-pub async fn delete_product_handler(
+pub async fn archivize_product_handler(
     State(app_state): State<AppState>,
     Path(product_id): Path<Uuid>,
     claims: TokenClaims,
 ) -> Result<(StatusCode, HeaderMap), AppError> {
-    tracing::info!("Obsłużono zapytanie DELETE /api/products/{}", product_id);
+    tracing::info!("Obsłużono żądanie SOFT DELETE /api/products/{}", product_id);
+
     if claims.role != Role::Admin {
         return Err(AppError::UnauthorizedAccess(
             "Tylko administrator może usuwać produkty".to_string(),
         ));
     }
 
+    // ZMIANA: Zamiast usuwać, aktualizujemy status na "Archived"
+    let result = sqlx::query(
+        r#"
+            UPDATE products
+            SET status = $1, updated_at = NOW()
+            WHERE id = $2
+        "#,
+    )
+    .bind(ProductStatus::Archived) // Nowy status
+    .bind(product_id)
+    .execute(&app_state.db_pool)
+    .await;
+
+    match result {
+        Ok(query_result) => {
+            if query_result.rows_affected() == 0 {
+                tracing::warn!(
+                    "ARCHIVIZE: Nie znaleziono produktu do archiwizacji o ID {}",
+                    product_id
+                );
+                // Mimo to zwracamy sukces, aby UI się odświeżyło
+            } else {
+                tracing::info!("Zarchiwizowano produkt o ID: {}", product_id);
+            }
+
+            let mut headers = HeaderMap::new();
+            // Zawsze wysyłaj trigger do przeładowania listy
+            headers.insert(
+                "HX-Trigger",
+                HeaderValue::from_static("reloadAdminProductList"),
+            );
+
+            let toast_payload = json!({
+                "showMessage": {
+                    "message": "Produkt zostal pomyslnie zarchiwizowany.", // Zmieniony komunikat
+                    "type": "success"
+                }
+            });
+            if let Ok(val) = HeaderValue::from_str(&toast_payload.to_string()) {
+                headers.insert("HX-Trigger", val);
+            }
+            Ok((StatusCode::OK, headers))
+        }
+        Err(err) => {
+            // Ten błąd teraz jest mało prawdopodobny, chyba że ID jest złe, ale na wszelki wypadek.
+            tracing::error!(
+                "ARCHIVIZE: Błąd bazy danych podczas archiwizacji produktu {}: {:?}",
+                product_id,
+                err
+            );
+            Err(AppError::SqlxError(err))
+        }
+    }
+}
+
+// ZMIANA: Nowa funkcja do trwałego usuwania produktów
+pub async fn permanent_delete_product_handler(
+    State(app_state): State<AppState>,
+    Path(product_id): Path<Uuid>,
+    claims: TokenClaims,
+) -> Result<(StatusCode, HeaderMap), AppError> {
+    tracing::info!(
+        "Obsłużono żądanie PERMANENT DELETE /api/products/{}",
+        product_id
+    );
+
+    if claims.role != Role::Admin {
+        return Err(AppError::UnauthorizedAccess(
+            "Tylko administrator może trwale usuwać produkty".to_string(),
+        ));
+    }
+
     let mut tx = app_state.db_pool.begin().await?;
 
+    // KROK 1: Sprawdź, czy produkt nie jest powiązany z żadnym zamówieniem.
+    let is_in_order = sqlx::query("SELECT 1 FROM order_items WHERE product_id = $1 LIMIT 1")
+        .bind(product_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .is_some();
+
+    if is_in_order {
+        tx.rollback().await?; // Zakończ transakcję
+        tracing::warn!(
+            "Próba trwałego usunięcia produktu (ID: {}), który jest częścią zamówienia.",
+            product_id
+        );
+        return Err(AppError::Conflict("Nie można usunąć produktu, który jest częścią istniejących zamówień. Zamiast tego zarchiwizuj go.".to_string()));
+    }
+
+    // KROK 2: Pobierz produkt, aby uzyskać listę obrazów do usunięcia z Cloudinary
     let product_to_delete =
         sqlx::query_as::<_, Product>("SELECT * FROM products WHERE id = $1 FOR UPDATE")
             .bind(product_id)
@@ -657,6 +750,7 @@ pub async fn delete_product_handler(
             .await?
             .ok_or(AppError::NotFound)?;
 
+    // KROK 3: Usuń obrazy z Cloudinary
     if !product_to_delete.images.is_empty() {
         let mut delete_futures = Vec::new();
         for image_url in &product_to_delete.images {
@@ -664,25 +758,35 @@ pub async fn delete_product_handler(
                 extract_public_id_from_url(image_url, &app_state.cloudinary_config.cloud_name)
             {
                 let config_clone = app_state.cloudinary_config.clone();
+                let public_id_clone = public_id.to_string();
                 delete_futures.push(async move {
-                    delete_image_from_cloudinary(&public_id, &config_clone).await
+                    delete_image_from_cloudinary(&public_id_clone, &config_clone).await
                 });
             }
         }
         if let Err(e) = try_join_all(delete_futures).await {
-            tracing::error!("Błąd usuwania z Cloudinary, wycofuję transakcję: {:?}", e);
             tx.rollback().await.ok();
+            tracing::error!(
+                "Błąd usuwania obrazów z Cloudinary podczas trwałego usuwania: {:?}",
+                e
+            );
             return Err(AppError::from(e));
         }
     }
 
-    sqlx::query("DELETE FROM products WHERE id = $1")
+    // KROK 4: Trwale usuń produkt z bazy danych
+    let delete_result = sqlx::query("DELETE FROM products WHERE id = $1")
         .bind(product_id)
         .execute(&mut *tx)
         .await?;
 
     tx.commit().await?;
 
+    if delete_result.rows_affected() > 0 {
+        tracing::info!("Trwale usunięto produkt o ID: {}", product_id);
+    }
+
+    // KROK 5: Wyślij odpowiedź do HTMX
     let mut headers = HeaderMap::new();
     headers.insert(
         "HX-Trigger",
@@ -690,7 +794,7 @@ pub async fn delete_product_handler(
     );
     let toast_payload = json!({
         "showMessage": {
-            "message": "Produkt zostal pomyslnie usuniety.",
+            "message": "Produkt zostal trwale usuniety.",
             "type": "success"
         }
     });

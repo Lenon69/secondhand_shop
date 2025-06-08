@@ -2247,7 +2247,7 @@ fn render_product_form_maud(product_opt: Option<&Product>) -> Result<Markup, App
                                accept="image/jpeg,image/png,image/webp"
                                "@change"=(format!("handleFileChange($event, {})", i))
                                class="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-0"
-                               required[i == 0];
+                               required[is_new && i == 0];
                     }
                 }
             }
@@ -3666,25 +3666,46 @@ pub async fn admin_products_list_htmx_handler(
                                 }
                                 td class="admin-td text-gray-600" { (product.category.to_string()) }
                                 td class="admin-td text-gray-500 text-xs" { (product.created_at.format("%Y-%m-%d %H:%M").to_string()) }
-                                td class="admin-td text-right space-x-2" {
-                                    a href=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
-                                       hx-get=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
-                                       hx-target="#admin-content" hx-swap="innerHTML"
-                                       class="admin-action-button text-indigo-600 hover:text-indigo-800" title="Edytuj" {
-                                        svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5" {
-                                            path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" {}
+                                td class="admin-td text-right space-x-2 whitespace-nowrap" {
+                                    @if product.status != ProductStatus::Archived {
+                                        // Akcje dla produktów, które nie są zarchiwizowane
+
+                                        // Przycisk EDYTUJ (bez zmian)
+                                        a href=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
+                                           hx-get=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
+                                           hx-target="#admin-content" hx-swap="innerHTML"
+                                           class="admin-action-button text-indigo-600 hover:text-indigo-800" title="Edytuj" {
+                                            svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5" {
+                                                path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" {}
+                                            }
+                                        }
+
+                                        // Przycisk ARCHIWIZUJ
+                                        button hx-delete=(format!("/api/products/{}", product.id)) // Używa soft delete
+                                               hx-confirm="Czy na pewno chcesz zarchiwizować ten produkt? Zniknie on ze sklepu, ale pozostanie w systemie."
+                                               hx-target="closest tr" hx-swap="outerHTML" // Usunie wiersz z widoku
+                                               class="admin-action-button text-gray-500 hover:text-gray-800" title="Archiwizuj" {
+                                            // Ikona archiwizacji (pudełko)
+                                            svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5" {
+                                                path d="M3.5 3.75a.75.75 0 00-1.5 0v1.5c0 .414.336.75.75.75h13.5a.75.75 0 00.75-.75v-1.5a.75.75 0 00-1.5 0V5H4V3.75z" {}
+                                                path "fill-rule"="evenodd" d="M5.5 6.4v1.528A2.249 2.249 0 007.75 10h4.5A2.25 2.25 0 0014.5 7.928V6.4H5.5zm1.25 1.528a.75.75 0 01.75-.75h4.5a.75.75 0 01.75.75v5.322a.75.75 0 01-.75.75h-4.5a.75.75 0 01-.75-.75V7.928z" "clip-rule"="evenodd" {}
+                                            }
+                                        }
+
+                                    } @else {
+                                        // Akcje dla produktów, które SĄ zarchiwizowane
+
+                                        // Przycisk USUŃ TRWALE
+                                        button hx-delete=(format!("/api/products/{}/permanent", product.id)) // Nowy endpoint
+                                               hx-confirm="UWAGA! Czy na pewno chcesz TRWALE usunąć ten produkt? Operacji nie można cofnąć."
+                                               hx-target="closest tr" hx-swap="outerHTML"
+                                               class="admin-action-button text-red-600 hover:text-red-800" title="Usuń trwale" {
+                                            svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5" {
+                                                path "fill-rule"="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" "clip-rule"="evenodd" {}
+                                            }
                                         }
                                     }
-                                    button hx-delete=(format!("/api/products/{}", product.id))
-                                           hx-confirm="Czy na pewno chcesz nieodwracalnie usunąć ten produkt?"
-                                           hx-target="closest tr" hx-swap="outerHTML"
-                                           class="admin-action-button text-red-600 hover:text-red-800" title="Usuń" {
-                                        svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5" {
-                                            path "fill-rule"="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" "clip-rule"="evenodd" {}
-                                        }
-                                    }
-                                }
-                            }
+                                }                            }
                         }
                     }
                 }
@@ -3828,6 +3849,9 @@ fn get_status_badge_classes(status: ProductStatus) -> &'static str {
         }
         ProductStatus::Sold => {
             "px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800"
+        }
+        ProductStatus::Archived => {
+            "px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800"
         }
     }
 }
