@@ -38,6 +38,8 @@ pub enum ProductStatus {
     Reserved,
     #[strum(serialize = "Sprzedany")]
     Sold,
+    #[strum(serialize = "Zarchiwizowany")]
+    Archived,
 }
 
 impl ProductStatus {
@@ -47,9 +49,11 @@ impl ProductStatus {
             "available" => Ok(ProductStatus::Available),
             "reserved" => Ok(ProductStatus::Reserved),
             "sold" => Ok(ProductStatus::Sold),
+            "archived" => Ok(ProductStatus::Archived),
             "dostępny" => Ok(ProductStatus::Available),
             "zarezerwowany" => Ok(ProductStatus::Reserved),
             "sprzedany" => Ok(ProductStatus::Sold),
+            "zarchiwizowany" => Ok(ProductStatus::Archived),
             _ => Err(format!("Nierozpoznany wariant ProductStatus: '{}'", s)),
         }
     }
@@ -60,6 +64,7 @@ impl ProductStatus {
             ProductStatus::Available => "Available",
             ProductStatus::Reserved => "Reserved",
             ProductStatus::Sold => "Sold",
+            ProductStatus::Archived => "Archived",
         }
     }
 }

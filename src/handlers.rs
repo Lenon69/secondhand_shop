@@ -690,7 +690,7 @@ pub async fn delete_product_handler(
     );
     let toast_payload = json!({
         "showMessage": {
-            "message": "Produkt został pomyślnie usunięty.",
+            "message": "Produkt zostal pomyslnie usuniety.",
             "type": "success"
         }
     });
