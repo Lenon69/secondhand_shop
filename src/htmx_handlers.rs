@@ -2215,7 +2215,7 @@ fn render_product_form_maud(product_opt: Option<&Product>) -> Result<Markup, App
 
                         // --- 1. Widok, gdy obrazek JEST OZNACZONY DO USUNIĘCIA ---
                         template "x-if"=(format!("isMarkedForDeletion({})", i)) {
-                            div class="absolute inset-0 w-full h-full flex flex-col items-center justify-center text-center p-2 bg-red-50/80" {
+                            div class="absolute inset-0 w-full h-full flex flex-col items-center justify-center text-center p-2 bg-red-50/80 z-10" {
                                 img "x-bind:src"=(format!("getSlotImageSrc({})", i))
                                      alt="Oznaczono do usunięcia"
                                      class="w-full h-full object-cover rounded-md opacity-30";
@@ -2233,7 +2233,7 @@ fn render_product_form_maud(product_opt: Option<&Product>) -> Result<Markup, App
 
                         // --- 2. Widok, gdy obrazek JEST WYPEŁNIONY (ale nie oznaczony do usunięcia) ---
                         template "x-if"=(format!("isSlotFilled({}) && !isMarkedForDeletion({})", i, i)) {
-                            div class="absolute inset-0 w-full h-full" {
+                            div class="absolute inset-0 w-full h-full z-10" {
                                 img "x-bind:src"=(format!("getSlotImageSrc({})", i))
                                      alt=(format!("Podgląd zdjęcia {}", i + 1))
                                      class="w-full h-full object-cover rounded-md";
@@ -2251,8 +2251,7 @@ fn render_product_form_maud(product_opt: Option<&Product>) -> Result<Markup, App
                         }
 
                         // --- 3. Widok, gdy slot JEST PUSTY ---
-                        template "x-if"=(format!("!isSlotFilled({})", i)) {
-                            label for=(slot_input_id) class="cursor-pointer p-2 text-center w-full h-full flex flex-col items-center justify-center hover:bg-pink-50/50 transition-colors rounded-md" {
+                                template "x-if"=(format!("!isSlotFilled({}) && !isMarkedForDeletion({})", i, i)) {                            label for=(slot_input_id) class="cursor-pointer p-2 text-center w-full h-full flex flex-col items-center justify-center hover:bg-pink-50/50 transition-colors rounded-md" {
                                 svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-8 h-8 text-gray-400 group-hover:text-pink-500 transition-colors" {
                                     path d="M9.25 13.25a.75.75 0 001.5 0V4.793l2.97 2.97a.75.75 0 001.06-1.06l-4.25-4.25a.75.75 0 00-1.06 0L5.22 6.704a.75.75 0 001.06 1.06L9.25 4.793v8.457z" {}
                                     path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" {}
