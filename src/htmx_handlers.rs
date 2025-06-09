@@ -1939,97 +1939,107 @@ pub async fn shipping_returns_page_handler() -> Result<Markup, AppError> {
     let non_returnable_text = "Ze względu na charakter naszych produktów (odzież używana/vintage), większość z nich podlega standardowej procedurze zwrotu. Wyjątki mogą dotyczyć np. bielizny ze względów higienicznych, jeśli została rozpakowana z zapieczętowanego opakowania – o takich sytuacjach zawsze informujemy w opisie produktu.".to_string();
 
     let complaints_section_title = "Reklamacje";
-    let complaints_text = format!(
-        "W MEG JONI przykładamy ogromną wagę do jakości i dokładności opisów naszych unikatowych produktów. \
+    let complaints_text_part1 = "W MEG JONI przykładamy ogromną wagę do jakości i dokładności opisów naszych unikatowych produktów. \
         Jeśli jednak zdarzy się, że otrzymany towar posiada wadę, która nie została ujawniona w opisie, lub jest \
         niezgodny z zamówieniem, masz pełne prawo do złożenia reklamacji. Szczegółowe informacje dotyczące procedury \
-        reklamacyjnej, Twoich praw oraz naszych obowiązków znajdziesz w §6 naszego Regulaminu Sklepu, dostępnego tutaj: \
-        <a href='{0}' class='text-pink-600 hover:text-pink-700 hover:underline' \"hx-get"\"='{0}' \"hx-target\"='#content' \"hx-swap\"='innerHTML' \"hx-push-url\"='{0}'>Regulamin Sklepu</a>.",
-        link_to_terms
-    );
+        reklamacyjnej, Twoich praw oraz naszych obowiązków znajdziesz w §6 naszego Regulaminu Sklepu, dostępnego tutaj: ";
+    let complaints_text_part2 = ".";
 
     Ok(html! {
-        div ."max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16" {
-            div ."text-center mb-12" {
-                h1 ."text-4xl sm:text-5xl font-bold tracking-tight text-gray-900" { (page_title) }
-                p ."mt-3 text-lg text-gray-600" { (page_subtitle) }
-            }
-
-            div ."space-y-8" {
-                // Sekcja Wysyłka
-                div "x-data"="{ open: true }" ."bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden" {
-                    button type="button" "@click"="open = !open" class="w-full flex justify-between items-center p-5 sm:p-6 text-left hover:bg-gray-50 focus:outline-none" {
-                        h2 ."text-2xl sm:text-3xl font-semibold text-pink-600" { (shipping_section_title) }
-                        svg ."w-6 h-6 text-pink-500 transform transition-transform duration-200" "x-bind:class"="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
-                            path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
-                        }
-                    }
-                    div ."px-5 sm:px-6 pb-6 pt-3 prose prose-lg max-w-none text-gray-700 leading-relaxed"
-                        "x-show"="open" "x-cloak"
-                        "x-transition:enter"="transition ease-out duration-300" "x-transition:enter-start"="opacity-0 max-h-0" "x-transition:enter-end"="opacity-100 max-h-[1000px]"
-                        "x-transition:leave"="transition ease-in duration-200" "x-transition:leave-start"="opacity-100 max-h-[1000px]" "x-transition:leave-end"="opacity-0 max-h-0"
-                        style="overflow: hidden;" {
-
-                        h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { "Obszar dostawy" }
-                        p { (shipping_area) }
-                        h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { "Dostępni przewoźnicy" }
-                        p { (shipping_carriers_intro) }
-                        ul ."list-disc pl-5 space-y-1" {
-                            @for carrier in &shipping_carriers_list {
-                                li { (carrier) }
-                            }
-                        }
-                        h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { "Koszty wysyłki" }
-                        p { (shipping_costs_text) }
-                        h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { "Czas realizacji i dostawy" }
-                        p { (processing_time_text) }
-                        p { (delivery_time_text) }
-                        h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { "Śledzenie przesyłki" }
-                        p { (tracking_text) }
-                        h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { "Pakowanie" }
-                        p { (packaging_text) }
-                    }
+            div ."max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16" {
+                div ."text-center mb-12" {
+                    h1 ."text-4xl sm:text-5xl font-bold tracking-tight text-gray-900" { (page_title) }
+                    p ."mt-3 text-lg text-gray-600" { (page_subtitle) }
                 }
 
-                // Sekcja Zwroty
-                div "x-data"="{ open: false }" ."bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden" {
-                    button type="button" "@click"="open = !open" class="w-full flex justify-between items-center p-5 sm:p-6 text-left hover:bg-gray-50 focus:outline-none" {
-                        h2 ."text-2xl sm:text-3xl font-semibold text-pink-600" { (returns_section_title) }
-                        svg ."w-6 h-6 text-pink-500 transform transition-transform duration-200" "x-bind:class"="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
-                            path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
-                        }
-                    }
-                    div ."px-5 sm:px-6 pb-6 pt-3 prose prose-lg max-w-none text-gray-700 leading-relaxed"
-                        "x-show"="open" "x-cloak"
-                        "x-transition:enter"="transition ease-out duration-300" "x-transition:enter-start"="opacity-0 max-h-0" "x-transition:enter-end"="opacity-100 max-h-[1500px]"
-                        "x-transition:leave"="transition ease-in duration-200" "x-transition:leave-start"="opacity-100 max-h-[1500px]" "x-transition:leave-end"="opacity-0 max-h-0"
-                        style="overflow: hidden;" {
-
-                        p { (right_to_return_text) }
-                        h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { (return_conditions_heading) }
-                        ul ."list-disc pl-5 space-y-1" {
-                            @for condition in &return_conditions_list {
-                                li { (condition) }
+                div ."space-y-8" {
+                    // Sekcja Wysyłka
+                    div "x-data"="{ open: true }" ."bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden" {
+                        button type="button" "@click"="open = !open" class="w-full flex justify-between items-center p-5 sm:p-6 text-left hover:bg-gray-50 focus:outline-none" {
+                            h2 ."text-2xl sm:text-3xl font-semibold text-pink-600" { (shipping_section_title) }
+                            svg ."w-6 h-6 text-pink-500 transform transition-transform duration-200" "x-bind:class"="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
+                                path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
                             }
                         }
-                        h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { (return_procedure_heading) }
-                        ol ."list-decimal pl-5 space-y-2" {
-                            @for step in &return_procedure_steps {
-                                li { (step) }
+                        div ."px-5 sm:px-6 pb-6 pt-3 prose prose-lg max-w-none text-gray-700 leading-relaxed"
+                            "x-show"="open" "x-cloak"
+                            "x-transition:enter"="transition ease-out duration-300" "x-transition:enter-start"="opacity-0 max-h-0" "x-transition:enter-end"="opacity-100 max-h-[1000px]"
+                            "x-transition:leave"="transition ease-in duration-200" "x-transition:leave-start"="opacity-100 max-h-[1000px]" "x-transition:leave-end"="opacity-0 max-h-0"
+                            style="overflow: hidden;" {
+
+                            h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { "Obszar dostawy" }
+                            p { (shipping_area) }
+                            h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { "Dostępni przewoźnicy" }
+                            p { (shipping_carriers_intro) }
+                            ul ."list-disc pl-5 space-y-1" {
+                                @for carrier in &shipping_carriers_list {
+                                    li { (carrier) }
+                                }
+                            }
+                            h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { "Koszty wysyłki" }
+                            p { (shipping_costs_text) }
+                            h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { "Czas realizacji i dostawy" }
+                            p { (processing_time_text) }
+                            p { (delivery_time_text) }
+                            h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { "Śledzenie przesyłki" }
+                            p { (tracking_text) }
+                            h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { "Pakowanie" }
+                            p { (packaging_text) }
+                        }
+                    }
+
+                    // Sekcja Zwroty
+                    div "x-data"="{ open: false }" ."bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden" {
+                        button type="button" "@click"="open = !open" class="w-full flex justify-between items-center p-5 sm:p-6 text-left hover:bg-gray-50 focus:outline-none" {
+                            h2 ."text-2xl sm:text-3xl font-semibold text-pink-600" { (returns_section_title) }
+                            svg ."w-6 h-6 text-pink-500 transform transition-transform duration-200" "x-bind:class"="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
+                                path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
                             }
                         }
-                        h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { (non_returnable_heading) }
-                        p { (non_returnable_text) }
+                        div ."px-5 sm:px-6 pb-6 pt-3 prose prose-lg max-w-none text-gray-700 leading-relaxed"
+                            "x-show"="open" "x-cloak"
+                            "x-transition:enter"="transition ease-out duration-300" "x-transition:enter-start"="opacity-0 max-h-0" "x-transition:enter-end"="opacity-100 max-h-[1500px]"
+                            "x-transition:leave"="transition ease-in duration-200" "x-transition:leave-start"="opacity-100 max-h-[1500px]" "x-transition:leave-end"="opacity-0 max-h-0"
+                            style="overflow: hidden;" {
+
+                            p { (right_to_return_text) }
+                            h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { (return_conditions_heading) }
+                            ul ."list-disc pl-5 space-y-1" {
+                                @for condition in &return_conditions_list {
+                                    li { (condition) }
+                                }
+                            }
+                            h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { (return_procedure_heading) }
+                            ol ."list-decimal pl-5 space-y-2" {
+                                @for step in &return_procedure_steps {
+                                    li { (step) }
+                                }
+                            }
+                            h3 ."text-xl font-semibold text-gray-800 mt-4 mb-2" { (non_returnable_heading) }
+                            p { (non_returnable_text) }
+                        }
+                    }
+
+                    // Sekcja Reklamacje
+                    div ."p-6 bg-white rounded-lg shadow-lg border border-gray-200" {
+                        h2 ."text-2xl sm:text-3xl font-semibold text-pink-600 mb-3" { (complaints_section_title) }
+
+                        // ZMIANA: Budujemy paragraf i link bezpośrednio w maud
+                        p ."text-gray-700 leading-relaxed" {
+                            (complaints_text_part1)
+                            a href=(link_to_terms)
+                               class="text-pink-600 hover:text-pink-700 hover:underline"
+                               hx-get=(link_to_terms)
+                               hx-target="#content"
+                               hx-swap="innerHTML"
+                               hx-push-url=(link_to_terms) {
+                                "Regulamin Sklepu"
+                            }
+                            (complaints_text_part2)
                     }
                 }
-
-                // Sekcja Reklamacje
-                div ."p-6 bg-white rounded-lg shadow-lg border border-gray-200" {
-                    h2 ."text-2xl sm:text-3xl font-semibold text-pink-600 mb-3" { (complaints_section_title) }
-                    p ."text-gray-700 leading-relaxed" { (PreEscaped(&complaints_text)) }
-                }
-            }
-        }
+           }
+       }
     })
 }
 
@@ -2124,11 +2134,6 @@ fn render_product_form_maud(product_opt: Option<&Product>) -> Result<Markup, App
     } else {
         format!("/api/products/{}", product.id)
     };
-    // let button_text = if is_new {
-    //     "Dodaj Produkt"
-    // } else {
-    //     "Zapisz Zmiany"
-    // };
 
     let initial_images_json =
         serde_json::to_string(&product.images).unwrap_or_else(|_| "[]".to_string());
@@ -2372,7 +2377,7 @@ pub async fn admin_product_edit_form_htmx_handler(
             _ => AppError::SqlxError(err),
         })?;
 
-    render_product_form_maud(Some(&product_to_edit)) // ZMIANA: Wywołanie nowej, reużywalnej funkcji
+    render_product_form_maud(Some(&product_to_edit))
 }
 
 pub async fn login_page_htmx_handler() -> Result<Markup, AppError> {
