@@ -275,24 +275,24 @@ pub async fn get_product_detail_htmx_handler(
                              @if let Some(qs_val) = &return_query_params_str_rust {
                                 @if !qs_val.is_empty() {
                                     a href=(format!("/kategoria?{}", qs_val))
-                                       "hx-get"=(format!("/htmx/products?{}", qs_val))
-                                       "hx-target"="#content" "hx-swap"="innerHTML"
-                                       "hx-push-url"=(format!("/kategoria?{}", qs_val))
+                                       hx-get=(format!("/htmx/products?{}", qs_val))
+                                       hx-target="#content" "hx-swap"="innerHTML"
+                                       hx-push-url=(format!("/kategoria?{}", qs_val))
                                        class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
                                         "← Wróć do poprzedniego widoku"
                                     }
                                 } @else {
                                     // Fallback dla Some("")
                                     @if product.gender == crate::models::ProductGender::Damskie { // Bezpośrednie porównanie enumów
-                                        a href="/dla-niej" "hx-get"="/htmx/dla/niej" "hx-target"="#content" "hx-swap"="innerHTML" "hx-push-url"="/dla-niej" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
+                                        a href="/dla-niej" hx-get="/htmx/dla/niej" hx-target="#content" hx-swap="innerHTML" hx-push-url="/dla-niej" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
                                             "← Wróć do " (product.gender.to_string())
                                         }
                                     } @else if product.gender == crate::models::ProductGender::Meskie {
-                                        a href="/dla-niego" "hx-get"="/htmx/dla/niego" "hx-target"="#content" "hx-swap"="innerHTML" "hx-push-url"="/dla-niego" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
+                                        a href="/dla-niego" hx-get="/htmx/dla/niego" hx-target="#content" hx-swap="innerHTML" hx-push-url="/dla-niego" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
                                             "← Wróć do " (product.gender.to_string())
                                         }
                                     } @else {
-                                        a href="/" "hx-get"="/htmx/products?limit=9" "hx-target"="#content" "hx-swap"="innerHTML" "hx-push-url"="/" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
+                                        a href="/" hx-get="/htmx/products?limit=8" hx-target="#content" hx-swap="innerHTML" hx-push-url="/" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
                                             "← Wróć na stronę główną"
                                         }
                                     }
@@ -300,15 +300,15 @@ pub async fn get_product_detail_htmx_handler(
                             } @else {
                                 // Fallback dla None
                                 @if product.gender == crate::models::ProductGender::Damskie {
-                                    a href="/dla-niej" "hx-get"="/htmx/dla/niej" "hx-target"="#content" "hx-swap"="innerHTML" "hx-push-url"="/dla-niej" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
+                                    a href="/dla-niej" hx-get="/htmx/dla/niej" hx-target="#content" hx-swap="innerHTML" hx-push-url="/dla-niej" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
                                         "← Wróć do " (product.gender.to_string())
                                     }
                                 } @else if product.gender == crate::models::ProductGender::Meskie {
-                                    a href="/dla-niego" "hx-get"="/htmx/dla/niego" "hx-target"="#content" "hx-swap"="innerHTML" "hx-push-url"="/dla-niego" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
+                                    a href="/dla-niego" hx-get="/htmx/dla/niego" hx-target="#content" hx-swap="innerHTML" hx-push-url="/dla-niego" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
                                         "← Wróć do " (product.gender.to_string())
                                     }
                                 } @else {
-                                    a href="/" "hx-get"="/htmx/products?limit=9" "hx-target"="#content" "hx-swap"="innerHTML" "hx-push-url"="/" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
+                                    a href="/" hx-get="/htmx/products?limit=8" hx-target="#content" hx-swap="innerHTML" hx-push-url="/" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
                                         "← Wróć na stronę główną"
                                     }
                                 }
@@ -402,10 +402,10 @@ pub async fn get_cart_details_htmx_handler(
             li ."flex py-4 px-4 sm:px-0" {
                 // --- Obrazek jako link ---
                 a href=(format!("/produkty/{}", item.product.id)) // Fallback URL
-                   "hx-get"=(format!("/htmx/produkt/{}", item.product.id)) // Endpoint HTMX
-                   "hx-target"="#content"                                 // Cel podmiany
-                   "hx-swap"="innerHTML"
-                   "hx-push-url"=(format!("/produkty/{}", item.product.id)) // Aktualizacja URL w przeglądarce
+                   hx-get=(format!("/htmx/produkt/{}", item.product.id)) // Endpoint HTMX
+                   hx-target="#content"                                 // Cel podmiany
+                   hx-swap="innerHTML"
+                   hx-push-url=(format!("/produkty/{}", item.product.id)) // Aktualizacja URL w przeglądarce
                    "@click"="if(typeof cartOpen !== 'undefined') cartOpen = false" // Zamknij koszyk (Alpine.js)
                    class="h-20 w-20 flex-shrink-0 overflow-hidden rounded-md border border-gray-200 block group"
                    aria-label={"Zobacz szczegóły produktu " (item.product.name)} {
@@ -421,10 +421,10 @@ pub async fn get_cart_details_htmx_handler(
                         div ."flex justify-between text-sm font-medium text-gray-800" {
                             h3 ."group" {
                                 a href=(format!("/produkty/{}", item.product.id)) // Fallback URL
-                                   "hx-get"=(format!("/htmx/produkt/{}", item.product.id))
-                                   "hx-target"="#content"
-                                   "hx-swap"="innerHTML"
-                                   "hx-push-url"=(format!("/produkty/{}", item.product.id))
+                                   hx-get=(format!("/htmx/produkt/{}", item.product.id))
+                                   hx-target="#content"
+                                   hx-swap="innerHTML"
+                                   hx-push-url=(format!("/produkty/{}", item.product.id))
                                    "@click"="if(typeof cartOpen !== 'undefined') cartOpen = false" // Zamknij koszyk (Alpine.js)
                                   class="hover:text-pink-600 transition-colors group-hover:underline" {
                                     (item.product.name)
@@ -771,10 +771,10 @@ pub async fn remove_item_from_cart_htmx_handler(
             li ."flex py-4 px-4 sm:px-0" {
                 // --- Obrazek jako link ---
                 a href=(format!("/produkty/{}", item.product.id)) // Fallback URL
-                   "hx-get"=(format!("/htmx/produkt/{}", item.product.id)) // Endpoint HTMX
-                   "hx-target"="#content"                                 // Cel podmiany
-                   "hx-swap"="innerHTML"
-                   "hx-push-url"=(format!("/produkty/{}", item.product.id)) // Aktualizacja URL w przeglądarce
+                   hx-get=(format!("/htmx/produkt/{}", item.product.id)) // Endpoint HTMX
+                   hx-target="#content"                                 // Cel podmiany
+                   hx-swap="innerHTML"
+                   hx-push-url=(format!("/produkty/{}", item.product.id)) // Aktualizacja URL w przeglądarce
                    // Opcjonalnie: wskaźnik ładowania, jeśli masz globalny np. .page-load-spinner
                    // "hx-indicator"=".page-load-spinner"
                    "@click"="if(typeof cartOpen !== 'undefined') cartOpen = false" // Zamknij koszyk (Alpine.js)
@@ -793,10 +793,10 @@ pub async fn remove_item_from_cart_htmx_handler(
                             h3 ."group" { // Dodajemy 'group' dla efektu hover na linku wewnątrz
                                 // --- Nazwa produktu jako link ---
                                 a href=(format!("/produkty/{}", item.product.id)) // Fallback URL
-                                   "hx-get"=(format!("/htmx/produkt/{}", item.product.id))
-                                   "hx-target"="#content"
-                                   "hx-swap"="innerHTML"
-                                   "hx-push-url"=(format!("/produkty/{}", item.product.id))
+                                   hx-get=(format!("/htmx/produkt/{}", item.product.id))
+                                   hx-target="#content"
+                                   hx-swap="innerHTML"
+                                   hx-push-url=(format!("/produkty/{}", item.product.id))
                                    // "hx-indicator"=".page-load-spinner"
                                    "@click"="if(typeof cartOpen !== 'undefined') cartOpen = false" // Zamknij koszyk (Alpine.js)
                                    class="hover:text-pink-600 transition-colors group-hover:underline" {
@@ -848,10 +848,10 @@ fn render_product_grid_maud(
                     @for product in products { // Iterujemy po plasterku
                         div ."border rounded-lg p-4 shadow-lg flex flex-col bg-white" {
                             a  href=(format!("/produkty/{}", product.id)) // Link do "pełnej" strony produktu
-                                "hx-get"=(format!("/htmx/produkt/{}?return_params={}", product.id, urlencoding::encode(current_listing_params_qs)))
-                                "hx-target"="#content" // Główny cel dla szczegółów produktu
-                                "hx-swap"="innerHTML"
-                                "hx-push-url"=(format!("/produkty/{}", product.id)) // Aktualizuj URL na stronie produktu
+                                hx-get=(format!("/htmx/produkt/{}?return_params={}", product.id, urlencoding::encode(current_listing_params_qs)))
+                                hx-target="#content" // Główny cel dla szczegółów produktu
+                                hx-swap="innerHTML"
+                                hx-push-url=(format!("/produkty/{}", product.id)) // Aktualizuj URL na stronie produktu
                                 class="block mb-2 group" {
                                 @if !product.images.is_empty() {
                                     img src=(product.images[0]) alt=(product.name) class="w-full h-48 sm:h-56 object-cover rounded-md group-hover:opacity-85 transition-opacity duration-200" loading="lazy";
@@ -864,9 +864,9 @@ fn render_product_grid_maud(
                             div ."flex-grow" {
                                 h2 ."text-lg font-semibold mb-1 text-gray-800 group-hover:text-pink-600 transition-colors duration-200" {
                                     a href=(format!("/produkty/{}", product.id))
-                                       "hx-get"=(format!("/htmx/produkt/{}?return_params={}", product.id, urlencoding::encode(current_listing_params_qs)))
-                                       "hx-target"="#content" "hx-swap"="innerHTML"
-                                       "hx-push-url"=(format!("/produkty/{}", product.id)) {
+                                       hx-get=(format!("/htmx/produkt/{}?return_params={}", product.id, urlencoding::encode(current_listing_params_qs)))
+                                       hx-target="#content" "hx-swap"="innerHTML"
+                                       hx-push-url=(format!("/produkty/{}", product.id)) {
                                         (product.name)
                                     }
                                 }
@@ -889,8 +889,8 @@ fn render_product_grid_maud(
             @if total_pages > 1 {
                 div #pagination-controls ."mt-8 flex justify-center items-center space-x-1 sm:space-x-2" {
                     @if current_page > 1 {
-                        button "hx-get"=(format!("/htmx/products?offset={}&limit={}{}", (current_page - 2) * per_page, per_page, filter_query_string))
-                               "hx-target"="#products-grid-container" "hx-swap"="outerHTML" // Celujemy w kontener siatki + paginacji
+                        button hx-get=(format!("/htmx/products?offset={}&limit={}{}", (current_page - 2) * per_page, per_page, filter_query_string))
+                               hx-target="#products-grid-container" hx-swap="outerHTML" hx-push-url="true" // Celujemy w kontener siatki + paginacji
                                class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500" {
                             "Poprzednia"
                         }
@@ -901,8 +901,8 @@ fn render_product_grid_maud(
                         @if page_num == current_page {
                             span class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-white bg-pink-600 z-10" { (page_num) }
                         } @else if page_num == 1 || page_num == total_pages || (page_num >= current_page - 2 && page_num <= current_page + 2) { // Prostsza logika wyświetlania numerów
-                            button "hx-get"=(format!("/htmx/products?offset={}&limit={}{}", (page_num - 1) * per_page, per_page, filter_query_string))
-                                   "hx-target"="#products-grid-container" "hx-swap"="outerHTML"
+                            button hx-get=(format!("/htmx/products?offset={}&limit={}{}", (page_num - 1) * per_page, per_page, filter_query_string))
+                                   hx-target="#products-grid-container" hx-swap="outerHTML" hx-push-url="true"
                                    class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500" {
                                 (page_num)
                             }
@@ -911,8 +911,8 @@ fn render_product_grid_maud(
                         }
                     }
                     @if current_page < total_pages {
-                        button "hx-get"=(format!("/htmx/products?offset={}&limit={}{}", current_page * per_page, per_page, filter_query_string))
-                               "hx-target"="#products-grid-container" "hx-swap"="outerHTML"
+                        button hx-get=(format!("/htmx/products?offset={}&limit={}{}", current_page * per_page, per_page, filter_query_string))
+                               hx-target="#products-grid-container" hx-swap="outerHTML" hx-push-url="true"
                                class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500" {
                             "Następna"
                         }
@@ -1038,9 +1038,9 @@ pub async fn gender_page_handler(
                             ul ."space-y-1" {
                                 li {
                                     a href="#"
-                                       "hx-get"=(format!("/htmx/products?gender={}", current_gender.to_string()))
-                                       "hx-target"="#product-listing-area" "hx-swap"="innerHTML"
-                                       "hx-push-url"=(format!("/dla/{}", gender_slug))
+                                       hx-get=(format!("/htmx/products?gender={}", current_gender.to_string()))
+                                       hx-target="#product-listing-area" "hx-swap"="innerHTML"
+                                       hx-push-url=(format!("/dla/{}", gender_slug))
                                        "@click"="if (window.innerWidth < 768) showMobileCategories = false" // Zwiń po kliknięciu na mobile
                                        class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
                                        "_"="on htmx:afterSwap remove .font-bold .text-pink-700 from #category-sidebar a add .font-bold .text-pink-700 to me" {
@@ -1050,9 +1050,9 @@ pub async fn gender_page_handler(
                                 @for category_item in &categories {
                                     li {
                                         a href="#"
-                                           "hx-get"=(format!("/htmx/products?gender={}&category={}", current_gender.to_string(), category_item.as_url_param()))
-                                           "hx-target"="#product-listing-area" "hx-swap"="innerHTML"
-                                           "hx-push-url"=(format!("/dla/{}/{}", gender_slug, category_item.to_string().to_lowercase().replace(' ', "-").replace("ł", "l").replace("ó", "o").replace("ż", "z").replace("ą", "a").replace("ę", "e").replace("ć", "c").replace("ń", "n").replace("ś", "s")))
+                                           hx-get=(format!("/htmx/products?gender={}&category={}", current_gender.to_string(), category_item.as_url_param()))
+                                           hx-target="#product-listing-area" "hx-swap"="innerHTML"
+                                           hx-push-url=(format!("/dla/{}/{}", gender_slug, category_item.to_string().to_lowercase().replace(' ', "-").replace("ł", "l").replace("ó", "o").replace("ż", "z").replace("ą", "a").replace("ę", "e").replace("ć", "c").replace("ń", "n").replace("ś", "s")))
                                            "@click"="if (window.innerWidth < 768) showMobileCategories = false" // Zwiń po kliknięciu na mobile
                                            class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
                                            "_"="on htmx:afterSwap remove .font-bold .text-pink-700 from #category-sidebar a add .font-bold .text-pink-700 to me" {
@@ -1142,7 +1142,7 @@ pub async fn about_us_page_handler() -> Result<Markup, AppError> {
                     p ."text-xl text-gray-700 mb-4" {
                         "Dziękujemy, że jesteś z nami! Rozejrzyj się, zainspiruj i znajdź coś, co idealnie odda Twój styl."
                     }
-                    a href="/" "hx-get"="/htmx/products?limit=9" "hx-target"="#content" "hx-swap"="innerHTML" "hx-push-url"="/"
+                    a href="/" hx-get="/htmx/products?limit=8" hx-target="#content" hx-swap="innerHTML" hx-push-url="/"
                        class="inline-block bg-pink-600 text-white font-semibold py-3 px-8 rounded-lg shadow-md hover:bg-pink-700 transition-all duration-200 ease-in-out text-lg" {
                         "Odkrywaj nasze kolekcje"
                     }
@@ -1944,7 +1944,7 @@ pub async fn shipping_returns_page_handler() -> Result<Markup, AppError> {
         Jeśli jednak zdarzy się, że otrzymany towar posiada wadę, która nie została ujawniona w opisie, lub jest \
         niezgodny z zamówieniem, masz pełne prawo do złożenia reklamacji. Szczegółowe informacje dotyczące procedury \
         reklamacyjnej, Twoich praw oraz naszych obowiązków znajdziesz w §6 naszego Regulaminu Sklepu, dostępnego tutaj: \
-        <a href='{0}' class='text-pink-600 hover:text-pink-700 hover:underline' \"hx-get\"='{0}' \"hx-target\"='#content' \"hx-swap\"='innerHTML' \"hx-push-url\"='{0}'>Regulamin Sklepu</a>.",
+        <a href='{0}' class='text-pink-600 hover:text-pink-700 hover:underline' \"hx-get"\"='{0}' \"hx-target\"='#content' \"hx-swap\"='innerHTML' \"hx-push-url\"='{0}'>Regulamin Sklepu</a>.",
         link_to_terms
     );
 
@@ -2059,10 +2059,10 @@ pub async fn my_account_page_handler(claims: TokenClaims) -> Result<Markup, AppE
                             @for (label, hx_get_url, push_url) in sidebar_links {
                                 li {
                                     a href=(push_url)
-                                       "hx-get"=(hx_get_url)
-                                       "hx-target"="#my-account-content"
-                                       "hx-swap"="innerHTML"
-                                       "hx-push-url"=(push_url)
+                                       hx-get=(hx_get_url)
+                                       hx-target="#my-account-content"
+                                       hx-swap="innerHTML"
+                                       hx-push-url=(push_url)
                                        class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-pink-500" {
                                         (label)
                                     }
@@ -2079,9 +2079,10 @@ pub async fn my_account_page_handler(claims: TokenClaims) -> Result<Markup, AppE
                     }
                 }
                 main #my-account-content ."w-full md:w-3/4 lg:w-4/5 bg-white p-4 sm:p-6 rounded-lg shadow-md min-h-[300px]"
-                     "hx-get"=(default_section_url)
-                     "hx-trigger"="load"
-                     "hx-swap"="innerHTML" {
+                     hx-get=(default_section_url)
+                     hx-trigger="load"
+                     hx-swap="innerHTML"
+                     hx-push-url="true" {
                     div #my-account-content-spinner .flex.justify-center.items-center.h-40 {
                         svg class="animate-spin h-8 w-8 text-pink-600" xmlns="http://www.w3.org/2000/svg" fill="none" "viewBox"="0 0 24 24" {
                             circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" "stroke-width"="4";
@@ -2277,7 +2278,7 @@ fn render_product_form_maud(product_opt: Option<&Product>) -> Result<Markup, App
         section ."pt-8 border-t border-gray-200 mt-8" {
             div ."flex flex-col sm:flex-row justify-end items-center gap-3" {
                 a href="/htmx/admin/products"
-                   hx-get="/htmx/admin/products" hx-target="#admin-content" hx-swap="innerHTML"
+                   hx-get="/htmx/admin/products" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
                    class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 transition-all w-full sm:w-auto text-center" {
                     "Anuluj"
                 }
@@ -2296,7 +2297,7 @@ fn render_product_form_maud(product_opt: Option<&Product>) -> Result<Markup, App
                     h2 ."text-2xl sm:text-3xl font-semibold text-gray-800" { (form_title)
                         @if !is_new { ": " span."text-pink-600"{(product.name)} }
                     }
-                    a href="/htmx/admin/products" hx-get="/htmx/admin/products" hx-target="#admin-content" hx-swap="innerHTML"
+                    a href="/htmx/admin/products" hx-get="/htmx/admin/products" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
                        class="text-sm text-pink-600 hover:text-pink-700 hover:underline font-medium transition-colors" {
                         "← Wróć do listy"
                     }
@@ -2524,10 +2525,10 @@ pub async fn registration_page_htmx_handler() -> Result<Markup, AppError> {
                             p ."text-sm text-gray-600" {
                                 "Masz już konto? "
                                 a href=(login_url)
-                                   "hx-get"=(login_htmx_endpoint)
-                                   "hx-target"="#content"
-                                   "hx-swap"="innerHTML"
-                                   "hx-push-url"=(login_url)
+                                   hx-get=(login_htmx_endpoint)
+                                   hx-target="#content"
+                                   hx-swap="innerHTML"
+                                   hx-push-url=(login_url)
                                    class="font-medium text-teal-600 hover:text-teal-500 hover:underline" {
                                     "Zaloguj się"
                                 }
@@ -2629,10 +2630,10 @@ pub async fn my_orders_htmx_handler(
                                     // /htmx/moje-konto/zamowienie-szczegoly/{order_id}
                                     // będzie musiał być świadomy pełnej struktury Order.
                                     a href=(format!("/moje-konto/zamowienia/{}", order_item.id))
-                                       "hx-get"=(format!("/htmx/moje-konto/zamowienie-szczegoly/{}", order_item.id))
-                                       "hx-target"="#my-account-content" // Celuje w główny obszar treści "Moje Konto"
-                                       "hx-swap"="innerHTML"
-                                       "hx-push-url"=(format!("/moje-konto/zamowienia/{}", order_item.id))
+                                       hx-get=(format!("/htmx/moje-konto/zamowienie-szczegoly/{}", order_item.id))
+                                       hx-target="#my-account-content" // Celuje w główny obszar treści "Moje Konto"
+                                       hx-swap="innerHTML"
+                                       hx-push-url=(format!("/moje-konto/zamowienia/{}", order_item.id))
                                        class="text-sm text-pink-600 hover:text-pink-700 hover:underline font-medium py-2 px-3 rounded-md hover:bg-pink-50 transition-colors" {
                                         "Zobacz szczegóły"
                                     }
@@ -2735,7 +2736,7 @@ pub async fn checkout_page_handler(
                     h2 ."text-2xl font-bold text-gray-800 mb-4" { "Twój koszyk jest pusty" }
                     p ."text-gray-600 mb-6" { "Nie możesz przejść do kasy z pustym koszykiem." }
                     a href="/"
-                       hx-get="/htmx/products?limit=9" // Upewnij się, że ten link jest aktualny
+                       hx-get="/htmx/products?limit=8" // Upewnij się, że ten link jest aktualny
                        hx-target="#content"
                        hx-swap="innerHTML"
                        hx-push-url="/"
@@ -3110,7 +3111,7 @@ pub async fn checkout_page_handler(
                                class="w-full sm:w-auto px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-all duration-200 transform hover:scale-105" {
                             "Złóż zamówienie i zapłać"
                         }
-                        a href="/" hx-get="/htmx/products?limit=9" hx-target="#content" hx-swap="innerHTML" hx-push-url="/"
+                        a href="/" hx-get="/htmx/products?limit=8" hx-target="#content" hx-swap="innerHTML" hx-push-url="/"
                            class="w-full sm:w-auto px-6 py-3 border border-gray-300 rounded-md shadow-sm text-base font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 text-center" {
                             "Wróć do sklepu"
                         }
@@ -3516,9 +3517,9 @@ pub async fn admin_dashboard_htmx_handler(claims: TokenClaims) -> Result<Markup,
             // Sidebar nawigacyjny admina
             nav ."w-full md:w-64 bg-gray-800 text-white p-4 space-y-2" {
                 h2 ."text-xl font-semibold mb-4" { "Panel Admina" }
-                a href="/htmx/admin/products" hx-get="/htmx/admin/products" hx-target="#admin-content" hx-swap="innerHTML"
+                a href="/htmx/admin/products" hx-get="/htmx/admin/products" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
                    class="block py-2 px-3 rounded hover:bg-gray-700" { "Zarządzaj produktami" }
-                a href="/htmx/admin/orders" hx-get="/htmx/admin/orders" hx-target="#admin-content" hx-swap="innerHTML"
+                a href="/htmx/admin/orders" hx-get="/htmx/admin/orders" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
                    class="block py-2 px-3 rounded hover:bg-gray-700" { "Zarządzaj zamówieniami" }
 
                 hr ."my-4 border-gray-700";
@@ -3583,6 +3584,7 @@ pub async fn admin_products_list_htmx_handler(
             hx-get=(format!("/htmx/admin/products?{}", current_query_string))
             hx-trigger="reloadAdminProductList from:body"  // Nasłuchuje na zdarzenie z elementu body
             hx-swap="outerHTML"                             // Podmienia cały ten kontener
+            hx-push-url="true"
 
         {
             // Nagłówek i przycisk dodawania (bez zmian)
@@ -3592,6 +3594,7 @@ pub async fn admin_products_list_htmx_handler(
                    hx-get="/htmx/admin/products/new-form"
                    hx-target="#admin-content"
                    hx-swap="innerHTML"
+                   hx-push-url="true"
                    class="bg-pink-600 hover:bg-pink-700 text-white font-semibold py-2 px-5 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out text-sm inline-flex items-center" {
                     svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 mr-2"{
                         path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" {}
@@ -3604,6 +3607,7 @@ pub async fn admin_products_list_htmx_handler(
             form hx-get="/htmx/admin/products"
                  hx-target="#admin-product-list-container"
                  hx-swap="outerHTML"
+                 hx-push-url="true"
                  class="mb-6 p-4 bg-white rounded-lg shadow-sm border border-gray-200" {
                 div ."grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end" {
                     div {
@@ -3631,7 +3635,7 @@ pub async fn admin_products_list_htmx_handler(
                     }
                     div ."flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 items-end lg:col-start-4" {
                         button type="submit" class="admin-filter-button bg-gray-700 hover:bg-gray-800 text-white w-full sm:w-auto" { "Filtruj" }
-                        a href="/htmx/admin/products" hx-get="/htmx/admin/products" hx-target="#admin-product-list-container" hx-swap="outerHTML"
+                        a href="/htmx/admin/products" hx-get="/htmx/admin/products" hx-target="#admin-product-list-container" hx-swap="outerHTML" hx-push-url="true"
                            class="admin-filter-button bg-gray-200 hover:bg-gray-300 text-gray-700 w-full sm:w-auto text-center" { "Resetuj" }
                     }
                 }
@@ -3663,7 +3667,7 @@ pub async fn admin_products_list_htmx_handler(
                                 td class="admin-td-image" {
                                      a href=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
                                        hx-get=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
-                                       hx-target="#admin-content" hx-swap="innerHTML"
+                                       hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
                                        title="Edytuj produkt" class="block w-12 h-12" {
                                         @if let Some(image_url) = product.images.get(0) {
                                             img src=(image_url) alt=(product.name) class="h-full w-full rounded-md object-cover shadow-sm hover:shadow-md transition-shadow";
@@ -3675,7 +3679,7 @@ pub async fn admin_products_list_htmx_handler(
                                 td class="admin-td font-medium text-gray-900" {
                                     a href=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
                                        hx-get=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
-                                       hx-target="#admin-content" hx-swap="innerHTML"
+                                       hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
                                        class="hover:text-pink-700 hover:underline" {
                                         (product.name)
                                     }
@@ -3693,7 +3697,7 @@ pub async fn admin_products_list_htmx_handler(
                                         // Przycisk EDYTUJ (bez zmian)
                                         a href=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
                                            hx-get=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
-                                           hx-target="#admin-content" hx-swap="innerHTML"
+                                           hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
                                            class="admin-action-button text-indigo-600 hover:text-indigo-800" title="Edytuj" {
                                             svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5" {
                                                 path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" {}
@@ -3748,7 +3752,7 @@ pub async fn admin_products_list_htmx_handler(
                         // Przycisk "Pierwsza"
                         @if current_p > 1 {
                             { a href=(format!("{}&offset=0", base_pagination_url)) hx-get=(format!("{}&offset=0", base_pagination_url))
-                               hx-target="#admin-product-list-container" hx-swap="outerHTML" class="admin-pagination-button" { "«" } }
+                               hx-target="#admin-product-list-container" hx-swap="outerHTML" hx-push-url="true" class="admin-pagination-button" { "«" } }
                         } @else {
                             { span class="admin-pagination-button-disabled" { "«" } }
                         }
@@ -3756,7 +3760,7 @@ pub async fn admin_products_list_htmx_handler(
                         @if current_p > 1 {
                             { a href=(format!("{}&offset={}", base_pagination_url, (current_p - 2) * current_limit))
                                hx-get=(format!("{}&offset={}", base_pagination_url, (current_p - 2) * current_limit))
-                               hx-target="#admin-product-list-container" hx-swap="outerHTML" class="admin-pagination-button" { "‹" } }
+                               hx-target="#admin-product-list-container" hx-swap="outerHTML" hx-push-url="true" class="admin-pagination-button" { "‹" } }
                         } @else {
                             { span class="admin-pagination-button-disabled" { "‹" } }
                         }
@@ -3771,7 +3775,7 @@ pub async fn admin_products_list_htmx_handler(
                                     } @else {
                                         { a href=(format!("{}&offset={}", base_pagination_url, (page_num_val - 1) * current_limit))
                                            hx-get=(format!("{}&offset={}", base_pagination_url, (page_num_val - 1) * current_limit))
-                                           hx-target="#admin-product-list-container" hx-swap="outerHTML" class="admin-pagination-button" { (page_num_val) } }
+                                           hx-target="#admin-product-list-container" hx-swap="outerHTML" hx-push-url="true" class="admin-pagination-button" { (page_num_val) } }
                                     }
                                 }
                                 PaginationItem::Dots => {
@@ -3784,7 +3788,7 @@ pub async fn admin_products_list_htmx_handler(
                         @if current_p < total_p {
                             { a href=(format!("{}&offset={}", base_pagination_url, current_p * current_limit))
                                hx-get=(format!("{}&offset={}", base_pagination_url, current_p * current_limit))
-                               hx-target="#admin-product-list-container" hx-swap="outerHTML" class="admin-pagination-button" { "›" } }
+                               hx-target="#admin-product-list-container" hx-swap="outerHTML" hx-push-url="true" class="admin-pagination-button" { "›" } }
                         } @else {
                             { span class="admin-pagination-button-disabled" { "›" } }
                         }
@@ -3792,7 +3796,7 @@ pub async fn admin_products_list_htmx_handler(
                         @if current_p < total_p {
                             { a href=(format!("{}&offset={}", base_pagination_url, (total_p - 1) * current_limit))
                                hx-get=(format!("{}&offset={}", base_pagination_url, (total_p - 1) * current_limit))
-                               hx-target="#admin-product-list-container" hx-swap="outerHTML" class="admin-pagination-button" { "»" } }
+                               hx-target="#admin-product-list-container" hx-swap="outerHTML" hx-push-url="true" class="admin-pagination-button" { "»" } }
                         } @else {
                             { span class="admin-pagination-button-disabled" { "»" } }
                         }
@@ -4020,6 +4024,7 @@ fn order_sort_link(
            hx-get=(hx_get_url)
            hx-target="#admin-orders-list-container" // Celuje w kontener listy zamówień
            hx-swap="outerHTML"
+           hx-push-url="true"
            class="flex items-center space-x-1 hover:text-pink-600" {
             span { (display_name) }
             span class="text-xs" { (PreEscaped(icon)) }
@@ -4074,6 +4079,7 @@ pub async fn admin_orders_list_htmx_handler(
             hx-get=(format!("/htmx/admin/orders?{}", params.to_query_string()))
             hx-trigger="reloadAdminOrderList from:body"
             hx-swap="outerHTML"
+            hx-push-url="true"
         {
             div ."flex justify-between items-center mb-6" {
                 h3 ."text-2xl sm:text-3xl font-semibold text-gray-800" { "Zarządzanie zamówieniami" }
@@ -4083,6 +4089,7 @@ pub async fn admin_orders_list_htmx_handler(
             form hx-get="/htmx/admin/orders"
                  hx-target="#admin-orders-list-container" // Odświeża ten sam kontener
                  hx-swap="outerHTML" // Zastępuje cały kontener nową, przefiltrowaną listą
+                 hx-push-url="true"
                  class="mb-6 p-4 bg-white rounded-lg shadow-sm border border-gray-200" {
 
                 // Ukryte pola do zachowania sortowania i limitu przy filtrowaniu
@@ -4117,7 +4124,7 @@ pub async fn admin_orders_list_htmx_handler(
                         button type="submit" class="admin-filter-button bg-pink-600 hover:bg-pink-700 text-white w-full sm:w-auto" { "Filtruj" }
                         a href="/htmx/admin/orders" // Link do resetowania filtrów (ładuje stronę z domyślnymi parametrami)
                            hx-get="/htmx/admin/orders" // Upewnij się, że ten GET nie przekazuje starych params, jeśli to reset
-                           hx-target="#admin-orders-list-container" hx-swap="outerHTML"
+                           hx-target="#admin-orders-list-container" hx-swap="outerHTML" hx-push-url="true"
                            class="admin-filter-button bg-gray-200 hover:bg-gray-300 text-gray-700 w-full sm:w-auto text-center" {
                             "Resetuj"
                         }
@@ -4164,7 +4171,7 @@ pub async fn admin_orders_list_htmx_handler(
                                                         format!("/htmx/admin/order-details/{}?{}", order.id, list_query_string)
                                                     }
                                                 })
-                                               hx-target="#admin-content" hx-swap="innerHTML"
+                                               hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
                                                class="hover:text-pink-600 hover:underline" {                                            (order.id.to_string().chars().take(8).collect::<String>()) "..."
                                         }
                                     }
@@ -4219,7 +4226,7 @@ pub async fn admin_orders_list_htmx_handler(
                                                     format!("/htmx/admin/order-details/{}?{}", order.id, list_query_string)
                                                 }
                                             })
-                                           hx-target="#admin-content" hx-swap="innerHTML" {                                        svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 inline-block" {
+                                           hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true" {                                        svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 inline-block" {
                                             path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" {}
                                             path "fill-rule"="evenodd" d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41zM14 10a4 4 0 11-8 0 4 4 0 018 0z" "clip-rule"="evenodd" {}
                                         }
@@ -4250,13 +4257,13 @@ pub async fn admin_orders_list_htmx_handler(
                         @if current_p_orders > 1 {
                             { a href=(format!("/htmx/admin/orders?{}&offset=0", base_pagination_query_string_for_links))
                                hx-get=(format!("/htmx/admin/orders?{}&offset=0", base_pagination_query_string_for_links))
-                               hx-target="#admin-orders-list-container" hx-swap="outerHTML" class="admin-pagination-button" { "«" } }
+                               hx-target="#admin-orders-list-container" hx-swap="outerHTML" hx-push-url="true" class="admin-pagination-button" { "«" } }
                         } @else { { span class="admin-pagination-button-disabled" { "«" } } }
                         // Przycisk "Poprzednia"
                         @if current_p_orders > 1 {
                             { a href=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, (current_p_orders - 2) * current_limit))
                                hx-get=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, (current_p_orders - 2) * current_limit))
-                               hx-target="#admin-orders-list-container" hx-swap="outerHTML" class="admin-pagination-button" { "‹" } }
+                               hx-target="#admin-orders-list-container" hx-swap="outerHTML" hx-push-url="true" class="admin-pagination-button" { "‹" } }
                         } @else { { span class="admin-pagination-button-disabled" { "‹" } } }
 
                         @let pagination_items_vec_orders = generate_pagination_items(current_p_orders, total_p_orders, side_window_orders);
@@ -4268,7 +4275,7 @@ pub async fn admin_orders_list_htmx_handler(
                                     } @else {
                                         { a href=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, (page_num_val_order - 1) * current_limit))
                                            hx-get=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, (page_num_val_order - 1) * current_limit))
-                                           hx-target="#admin-orders-list-container" hx-swap="outerHTML" class="admin-pagination-button" { (page_num_val_order) } }
+                                           hx-target="#admin-orders-list-container" hx-swap="outerHTML" hx-push-url="true" class="admin-pagination-button" { (page_num_val_order) } }
                                     }
                                 }
                                 PaginationItem::Dots => { { span class="admin-pagination-dots" { "..." } } }
@@ -4279,13 +4286,13 @@ pub async fn admin_orders_list_htmx_handler(
                         @if current_p_orders < total_p_orders {
                             { a href=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, current_p_orders * current_limit))
                                hx-get=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, current_p_orders * current_limit))
-                               hx-target="#admin-orders-list-container" hx-swap="outerHTML" class="admin-pagination-button" { "›" } }
+                               hx-target="#admin-orders-list-container" hx-swap="outerHTML" hx-push-url="true" class="admin-pagination-button" { "›" } }
                         } @else { { span class="admin-pagination-button-disabled" { "›" } } }
                         // Przycisk "Ostatnia"
                         @if current_p_orders < total_p_orders {
                             { a href=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, (total_p_orders - 1) * current_limit))
                                hx-get=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, (total_p_orders - 1) * current_limit))
-                               hx-target="#admin-orders-list-container" hx-swap="outerHTML" class="admin-pagination-button" { "»" } }
+                               hx-target="#admin-orders-list-container" hx-swap="outerHTML" hx-push-url="true" class="admin-pagination-button" { "»" } }
                         } @else { { span class="admin-pagination-button-disabled" { "»" } } }
                     }
                 }
@@ -4341,6 +4348,7 @@ pub async fn admin_order_details_htmx_handler(
                                                         // jeśli zmiana statusu pochodzi z tej strony (np. przez dodatkowy parametr w PATCH).
                                                         // Na razie użyjemy globalnego.
             hx-swap="innerHTML" // Podmienia zawartość tego diva
+            hx-push-url="true"
         {
             div ."flex justify-between items-center mb-6 pb-4 border-b border-gray-200" {
                 h1 ."text-2xl sm:text-3xl font-semibold text-gray-800" {
@@ -4350,6 +4358,7 @@ pub async fn admin_order_details_htmx_handler(
                    hx-get=(format!("/htmx/admin/orders?{}", back_to_list_query_string))
                    hx-target="#admin-content" // Celuje w główny kontener panelu admina
                    hx-swap="innerHTML"
+                   hx-push-url="true"
                    // hx-push-url=(format!("/admin/zamowienia?{}", back_to_list_query_string)) // Opcjonalnie
                    class="text-sm text-pink-600 hover:text-pink-700 hover:underline" {
                     "← Wróć do listy zamówień"

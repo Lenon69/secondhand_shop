@@ -487,7 +487,10 @@ document.addEventListener("DOMContentLoaded", function () {
   const globalSpinner = document.getElementById("global-loading-spinner");
 
   if (globalSpinner) {
-    document.body.addEventListener("htmx:beforeRequest", function () {
+    document.body.addEventListener("htmx:beforeRequest", function (event) {
+      if (event.detail.requestConfig.headers["HX-History-Restore-Request"]) {
+        return; // Zakończ i nie pokazuj spinnera
+      }
       globalSpinner.classList.add("show");
     });
 
@@ -495,10 +498,10 @@ document.addEventListener("DOMContentLoaded", function () {
       globalSpinner.classList.remove("show");
     });
 
+    // Zostawiamy na wszelki wypadek, gdyby wystąpił błąd sieciowy
     document.body.addEventListener("htmx:sendError", function () {
       globalSpinner.classList.remove("show");
     });
-
     document.body.addEventListener("htmx:responseError", function () {
       globalSpinner.classList.remove("show");
     });

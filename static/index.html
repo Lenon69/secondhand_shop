@@ -7,7 +7,7 @@
       name="description"
       content="Odkryj unikalną odzież vintage w MEG JONI. Najlepsze perełki z drugiej ręki dla niej i dla niego."
     />
-    <meta name="htmx-config" content='{"globalIndicator": "#global-loading-spinner"}'>
+    <!-- <meta name="htmx-config" content='{"globalIndicator": "#global-loading-spinner"}'> -->
     <title>MEG JONI - Sklep Vintage Online</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script
@@ -172,7 +172,7 @@
                        setTimeout(() => {
                           const path = window.location.pathname;
                           if (!this.isAuthenticated && (path.startsWith('/moje-konto') || path.startsWith('/checkout'))) {
-                              this.navigateToHtmx('/', '/htmx/products?limit=9&sort_by=name&order=asc');
+                              this.navigateToHtmx('/', '/htmx/products?limit=8&sort_by=name&order=asc');
                               this.currentMobilePage = '';
                           } else if (this.isAuthenticated && (path.startsWith('/logowanie') || path.startsWith('/rejestracja'))) {
                                this.navigateToHtmx('/moje-konto', '/htmx/my-account');
@@ -294,7 +294,7 @@
           <h1>
             <a
               href="/"
-              hx-get="/htmx/products?limit=9&amp;sort_by=name&amp;order=asc"
+              hx-get="/htmx/products?limit=8&amp;sort_by=name&amp;order=asc"
               hx-target="#content"
               hx-push-url="/"
               hx-swap="innerHTML"
@@ -624,7 +624,7 @@
     >
       <div
         id="content"
-        hx-get="/htmx/products?limit=9&amp;sort_by=name&amp;order=asc"
+        hx-get="/htmx/products?limit=8&amp;sort_by=name&amp;order=asc"
         hx-trigger="load"
         hx-swap="innerHTML"
         class="min-h-[60vh]"
@@ -887,6 +887,7 @@
             hx-get="/htmx/cart/details"
             hx-trigger="load, updateCartDisplay from:body, cartOpened from:body"
             hx-swap="innerHTML"
+            hx-push-url="true"
           >
             <div class="flex justify-center items-center h-full py-10">
               <svg
