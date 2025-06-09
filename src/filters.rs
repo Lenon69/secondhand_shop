@@ -15,7 +15,7 @@ const DEFAULT_ORDER_SORT_BY: &str = "order_date";
 const DEFAULT_ORDER_SORT_ORDER: &str = "desc";
 
 #[allow(dead_code)]
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct ListingParams {
     // Paginacja

@@ -4492,3 +4492,28 @@ fn get_order_status_badge_classes(status: OrderStatus) -> &'static str {
         OrderStatus::Cancelled => "bg-red-100 text-red-800",
     }
 }
+
+// NOWA FUNKCJA
+pub async fn news_page_htmx_handler(State(app_state): State<AppState>) -> Result<Markup, AppError> {
+    tracing::info!("MAUD: Obsługa publicznego URL /nowosci");
+    let params = ListingParams {
+        sort_by: Some("created_at".to_string()),
+        order: Some("desc".to_string()),
+        limit: Some(8),
+        status: Some(ProductStatus::Available),
+        ..Default::default()
+    };
+    list_products_htmx_handler(State(app_state), Query(params)).await
+}
+
+// NOWA FUNKCJA
+pub async fn sale_page_htmx_handler(State(app_state): State<AppState>) -> Result<Markup, AppError> {
+    tracing::info!("MAUD: Obsługa publicznego URL /wyprzedaz");
+    let params = ListingParams {
+        on_sale: Some(true),
+        status: Some(ProductStatus::Available),
+        limit: Some(9),
+        ..Default::default()
+    };
+    list_products_htmx_handler(State(app_state), Query(params)).await
+}
