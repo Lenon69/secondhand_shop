@@ -42,6 +42,7 @@ pub enum ProductStatus {
     Archived,
 }
 
+#[allow(dead_code)]
 impl ProductStatus {
     pub fn from_query_param(s: &str) -> Result<Self, String> {
         match s.to_lowercase().as_str() {

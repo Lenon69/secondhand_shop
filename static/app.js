@@ -276,14 +276,13 @@ document.body.addEventListener("clearCartDisplay", function (evt) {
 
 function adminProductEditForm() {
   return {
-    existingImagesOnInit: [], // Tablica URLi istniejących obrazków (stringi)
-    imagePreviews: Array(8).fill(null), // Podglądy (URL dla istniejących, base64 dla nowych)
-    imageFiles: Array(8).fill(null), // Obiekty File dla nowo dodanych obrazków
-    imagesToDelete: [], // Tablica URLi istniejących obrazków do usunięcia
-    productStatus: "", // Aktualny status produktu
+    existingImagesOnInit: [],
+    imagePreviews: Array(8).fill(null),
+    imageFiles: Array(8).fill(null),
+    imagesToDelete: [],
+    productStatus: "",
 
     initAlpineComponent(initialImagesJson, currentStatusStr) {
-      console.log("Inicjalizacja adminProductEditForm...");
       try {
         this.existingImagesOnInit = JSON.parse(initialImagesJson || "[]");
       } catch (e) {
@@ -296,7 +295,6 @@ function adminProductEditForm() {
       }
       this.productStatus = currentStatusStr || "Available";
 
-      // Inicjalizacja podglądów i plików
       this.imagePreviews = Array(8).fill(null);
       this.imageFiles = Array(8).fill(null);
       this.existingImagesOnInit.forEach((url, i) => {
@@ -305,26 +303,12 @@ function adminProductEditForm() {
         }
       });
 
-      console.log(
-        "Zainicjowane imagePreviews:",
-        JSON.parse(JSON.stringify(this.imagePreviews)),
-      );
-
-      // Użyj $watch do aktualizacji ukrytego pola input, gdy imagesToDelete się zmienia
       this.$watch("imagesToDelete", (newValue) => {
         const hiddenInput = document.getElementById(
           "urls_to_delete_hidden_input",
         );
         if (hiddenInput) {
           hiddenInput.value = JSON.stringify(newValue);
-          console.log(
-            'Ukryte pole "urls_to_delete" zaktualizowane:',
-            hiddenInput.value,
-          );
-        } else {
-          console.warn(
-            "Nie znaleziono ukrytego pola #urls_to_delete_hidden_input",
-          );
         }
       });
 
@@ -337,12 +321,14 @@ function adminProductEditForm() {
     },
 
     getOriginalUrlForSlot(index) {
-      return this.existingImagesOnInit[index] || null;
+      // Zwraca oryginalny URL dla danego slotu, jeśli istniał przy inicjalizacji
+      if (index < this.existingImagesOnInit.length) {
+        return this.existingImagesOnInit[index];
+      }
+      return null;
     },
 
     handleFileChange(event, index) {
-      // Ta funkcja wydaje się być poprawna, pozostawiamy ją bez zmian.
-      // Poniżej wklejam jej treść dla kompletności.
       const selectedFile = event.target.files[0];
       if (selectedFile) {
         const originalUrl = this.getOriginalUrlForSlot(index);
@@ -366,34 +352,24 @@ function adminProductEditForm() {
     },
 
     removeImage(index, inputId) {
-      console.log("[removeImage] Wywołano dla index:", index);
       const originalUrl = this.getOriginalUrlForSlot(index);
 
-      // Sprawdzamy, czy to istniejący obrazek, który jeszcze nie jest oznaczony do usunięcia
       if (originalUrl && !this.imagesToDelete.includes(originalUrl)) {
-        // OZNACZAMY ISTNIEJĄCY OBRAZEK DO USUNIĘCIA
         this.imagesToDelete.push(originalUrl);
-        console.log("[removeImage] Dodano do imagesToDelete:", originalUrl);
-        // Podgląd pozostaje ten sam, ale UI się zmieni dzięki `isMarkedForDeletion`
       } else {
-        // USUWAMY NOWO DODANY PLIK (który nie jest na serwerze)
         this.imageFiles[index] = null;
-        this.imagePreviews[index] = null; // Usuwamy podgląd base64
+        this.imagePreviews[index] = null;
         const fileInput = document.getElementById(inputId);
         if (fileInput) fileInput.value = null;
-        console.log("[removeImage] Usunięto nowo dodany plik ze slotu:", index);
       }
     },
 
-    // --- NOWA FUNKCJA DO ANULOWANIA USUNIĘCIA ---
     cancelDeletion(index) {
-      console.log("[cancelDeletion] Wywołano dla index:", index);
       const originalUrl = this.getOriginalUrlForSlot(index);
       if (originalUrl) {
         const deleteIdx = this.imagesToDelete.indexOf(originalUrl);
         if (deleteIdx > -1) {
-          this.imagesToDelete.splice(deleteIdx, 1); // Usuwamy URL z listy do usunięcia
-          console.log("[cancelDeletion] Anulowano usunięcie dla:", originalUrl);
+          this.imagesToDelete.splice(deleteIdx, 1);
         }
       }
     },
@@ -406,11 +382,8 @@ function adminProductEditForm() {
       return this.imagePreviews[index];
     },
 
-    // --- KLUCZOWA FUNKCJA POMOCNICZA DLA UI ---
-    // Sprawdza, czy istniejący obrazek został oznaczony do usunięcia
     isMarkedForDeletion(index) {
       const originalUrl = this.getOriginalUrlForSlot(index);
-      // Warunek jest prawdziwy, jeśli URL istnieje ORAZ znajduje się na liście `imagesToDelete`
       return originalUrl && this.imagesToDelete.includes(originalUrl);
     },
   };
