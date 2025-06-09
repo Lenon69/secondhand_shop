@@ -1669,8 +1669,8 @@ pub async fn contact_page_handler() -> Result<Markup, AppError> {
     // Dane kontaktowe - UZUPEŁNIJ WŁASNYMI DANYMI!
     let shop_name = "MEG JONI";
     let contact_email = "kontakt@megjoni.com";
-    let contact_phone = Some("+48 123 456 789");
-    let company_full_name = "MEG JONI Jan Kowalski";
+    let contact_phone = Some("+48 603 117 793");
+    let company_full_name = "MEG JONI Piotrek Owczarzak";
     let company_address_line1 = "ul. Modna 1";
     let company_address_line2 = "00-001 Warszawa";
     // Możesz dodać linki do mediów społecznościowych
@@ -1696,7 +1696,7 @@ pub async fn contact_page_handler() -> Result<Markup, AppError> {
     } else {
         "" // Pusty, jeśli nie ma telefonu
     };
-    let phone_hours_text = "Pn. - Pt. w godzinach 9:00 - 17:00"; // Przykładowe godziny
+    let phone_hours_text = "Poniedziałek - Sobota w godzinach 10:00 - 23:00"; // Przykładowe godziny
 
     let address_heading_text = "Adres korespondencyjny";
     // let address_note_text = "(Uwaga: nie prowadzimy sprzedaży stacjonarnej pod tym adresem)"; // Jeśli dotyczy
@@ -3757,7 +3757,7 @@ pub async fn admin_products_list_htmx_handler(
                         // Przycisk "Pierwsza"
                         @if current_p > 1 {
                             { a href=(format!("{}&offset=0", base_pagination_url)) hx-get=(format!("{}&offset=0", base_pagination_url))
-                               hx-target="#admin-product-list-container" hx-swap="outerHTML" hx-push-url="true" class="admin-pagination-button" { "«" } }
+                               hx-target="#admin-product-list-container" hx-swap="outerHTML" hx-push-url="true" hx-scroll="window:top" class="admin-pagination-button" { "«" } }
                         } @else {
                             { span class="admin-pagination-button-disabled" { "«" } }
                         }
@@ -3765,7 +3765,7 @@ pub async fn admin_products_list_htmx_handler(
                         @if current_p > 1 {
                             { a href=(format!("{}&offset={}", base_pagination_url, (current_p - 2) * current_limit))
                                hx-get=(format!("{}&offset={}", base_pagination_url, (current_p - 2) * current_limit))
-                               hx-target="#admin-product-list-container" hx-swap="outerHTML" hx-push-url="true" class="admin-pagination-button" { "‹" } }
+                               hx-target="#admin-product-list-container" hx-swap="outerHTML" hx-push-url="true" hx-scroll="window:top" class="admin-pagination-button" { "‹" } }
                         } @else {
                             { span class="admin-pagination-button-disabled" { "‹" } }
                         }
@@ -3780,7 +3780,7 @@ pub async fn admin_products_list_htmx_handler(
                                     } @else {
                                         { a href=(format!("{}&offset={}", base_pagination_url, (page_num_val - 1) * current_limit))
                                            hx-get=(format!("{}&offset={}", base_pagination_url, (page_num_val - 1) * current_limit))
-                                           hx-target="#admin-product-list-container" hx-swap="outerHTML" hx-push-url="true" class="admin-pagination-button" { (page_num_val) } }
+                                           hx-target="#admin-product-list-container" hx-swap="outerHTML" hx-push-url="true" hx-scroll="window:top" class="admin-pagination-button" { (page_num_val) } }
                                     }
                                 }
                                 PaginationItem::Dots => {
@@ -3793,7 +3793,7 @@ pub async fn admin_products_list_htmx_handler(
                         @if current_p < total_p {
                             { a href=(format!("{}&offset={}", base_pagination_url, current_p * current_limit))
                                hx-get=(format!("{}&offset={}", base_pagination_url, current_p * current_limit))
-                               hx-target="#admin-product-list-container" hx-swap="outerHTML" hx-push-url="true" class="admin-pagination-button" { "›" } }
+                               hx-target="#admin-product-list-container" hx-swap="outerHTML" hx-push-url="true" hx-scroll="window:top" class="admin-pagination-button" { "›" } }
                         } @else {
                             { span class="admin-pagination-button-disabled" { "›" } }
                         }
@@ -3801,7 +3801,7 @@ pub async fn admin_products_list_htmx_handler(
                         @if current_p < total_p {
                             { a href=(format!("{}&offset={}", base_pagination_url, (total_p - 1) * current_limit))
                                hx-get=(format!("{}&offset={}", base_pagination_url, (total_p - 1) * current_limit))
-                               hx-target="#admin-product-list-container" hx-swap="outerHTML" hx-push-url="true" class="admin-pagination-button" { "»" } }
+                               hx-target="#admin-product-list-container" hx-swap="outerHTML" hx-push-url="true" hx-scroll="window:top" class="admin-pagination-button" { "»" } }
                         } @else {
                             { span class="admin-pagination-button-disabled" { "»" } }
                         }
@@ -4262,13 +4262,13 @@ pub async fn admin_orders_list_htmx_handler(
                         @if current_p_orders > 1 {
                             { a href=(format!("/htmx/admin/orders?{}&offset=0", base_pagination_query_string_for_links))
                                hx-get=(format!("/htmx/admin/orders?{}&offset=0", base_pagination_query_string_for_links))
-                               hx-target="#admin-orders-list-container" hx-swap="outerHTML" hx-push-url="true" class="admin-pagination-button" { "«" } }
+                               hx-target="#admin-orders-list-container" hx-swap="outerHTML" hx-push-url="true" hx-scroll="window:top" class="admin-pagination-button" { "«" } }
                         } @else { { span class="admin-pagination-button-disabled" { "«" } } }
                         // Przycisk "Poprzednia"
                         @if current_p_orders > 1 {
                             { a href=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, (current_p_orders - 2) * current_limit))
                                hx-get=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, (current_p_orders - 2) * current_limit))
-                               hx-target="#admin-orders-list-container" hx-swap="outerHTML" hx-push-url="true" class="admin-pagination-button" { "‹" } }
+                               hx-target="#admin-orders-list-container" hx-swap="outerHTML" hx-push-url="true"  hx-scroll="window:top" class="admin-pagination-button" { "‹" } }
                         } @else { { span class="admin-pagination-button-disabled" { "‹" } } }
 
                         @let pagination_items_vec_orders = generate_pagination_items(current_p_orders, total_p_orders, side_window_orders);
@@ -4280,7 +4280,7 @@ pub async fn admin_orders_list_htmx_handler(
                                     } @else {
                                         { a href=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, (page_num_val_order - 1) * current_limit))
                                            hx-get=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, (page_num_val_order - 1) * current_limit))
-                                           hx-target="#admin-orders-list-container" hx-swap="outerHTML" hx-push-url="true" class="admin-pagination-button" { (page_num_val_order) } }
+                                           hx-target="#admin-orders-list-container" hx-swap="outerHTML" hx-push-url="true" hx-scroll="window:top" class="admin-pagination-button" { (page_num_val_order) } }
                                     }
                                 }
                                 PaginationItem::Dots => { { span class="admin-pagination-dots" { "..." } } }
@@ -4291,13 +4291,13 @@ pub async fn admin_orders_list_htmx_handler(
                         @if current_p_orders < total_p_orders {
                             { a href=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, current_p_orders * current_limit))
                                hx-get=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, current_p_orders * current_limit))
-                               hx-target="#admin-orders-list-container" hx-swap="outerHTML" hx-push-url="true" class="admin-pagination-button" { "›" } }
+                               hx-target="#admin-orders-list-container" hx-swap="outerHTML" hx-push-url="true" hx-scroll="window:top"  class="admin-pagination-button" { "›" } }
                         } @else { { span class="admin-pagination-button-disabled" { "›" } } }
                         // Przycisk "Ostatnia"
                         @if current_p_orders < total_p_orders {
                             { a href=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, (total_p_orders - 1) * current_limit))
                                hx-get=(format!("/htmx/admin/orders?{}&offset={}", base_pagination_query_string_for_links, (total_p_orders - 1) * current_limit))
-                               hx-target="#admin-orders-list-container" hx-swap="outerHTML" hx-push-url="true" class="admin-pagination-button" { "»" } }
+                               hx-target="#admin-orders-list-container" hx-swap="outerHTML" hx-push-url="true" hx-scroll="window:top"  class="admin-pagination-button" { "»" } }
                         } @else { { span class="admin-pagination-button-disabled" { "»" } } }
                     }
                 }

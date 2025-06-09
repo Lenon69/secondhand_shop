@@ -25,30 +25,14 @@ document.body.addEventListener("updateCartCount", (htmxEvent) => {
   }
 });
 
-function clientSideLogout() {
-  console.log("Wykonywanie clientSideLogout.");
-  localStorage.removeItem("jwtToken");
-  // Poinformuj inne komponenty Alpine o zmianie
-  window.dispatchEvent(
-    new CustomEvent("authChangedClient", {
-      detail: { isAuthenticated: false },
-    }),
-  );
-  // Wyświetl komunikat o wylogowaniu
-  window.dispatchEvent(
-    new CustomEvent("showMessage", {
-      detail: { message: "Wylogowano pomyślnie.", type: "info" },
-    }),
-  );
-
-  // Przekieruj na stronę główną po krótkiej chwili
-  setTimeout(() => {
-    // Używamy replace, aby użytkownik nie mógł wrócić przyciskiem "wstecz" na stronę chronioną
-    window.location.replace("/");
-  }, 500); // 0.5s opóźnienia, aby zobaczyć toast
-}
-
 document.body.addEventListener("htmx:afterSwap", function (event) {
+  if (event.detail.requestConfig.headers["HX-History-Restore-Request"]) {
+    return;
+  }
+
+  window.scrollTo({ top: 0, behavior: "auto" });
+
+  // Pozostała logika czyszczenia komunikatów
   if (
     event.detail.target.id === "content" ||
     event.detail.target.closest("#content")
@@ -64,9 +48,37 @@ document.body.addEventListener("htmx:afterSwap", function (event) {
       );
       if (registrationMessages) registrationMessages.innerHTML = "";
     }
-    window.scrollTo({ top: 0, behavior: "auto" });
   }
 });
+
+document.body.addEventListener(
+  "htmx:afterSwap",
+  document.body.addEventListener("htmx:afterSwap", function (event) {
+    const target = event.detail.target;
+
+    // Sprawdzamy, czy żądanie NIE było przywróceniem historii (ten kod już masz)
+    if (!event.detail.requestConfig.headers["HX-History-Restore-Request"]) {
+      if (target) {
+        target.scrollIntoView({ behavior: "auto", block: "start" });
+      }
+    }
+
+    // Obecna logika czyszczenia komunikatów - pozostaje bez zmian
+    if (target.id === "content" || target.closest("#content")) {
+      if (
+        !window.location.pathname.endsWith("/logowanie") &&
+        !window.location.pathname.endsWith("/rejestracja")
+      ) {
+        const loginMessages = document.getElementById("login-messages");
+        if (loginMessages) loginMessages.innerHTML = "";
+        const registrationMessages = document.getElementById(
+          "registration-messages",
+        );
+        if (registrationMessages) registrationMessages.innerHTML = "";
+      }
+    }
+  }),
+);
 
 // --- Centralny listener authChangedClient ---
 // Teraz głównie odpowiedzialny za pełne przeładowanie strony na "/"
