@@ -131,7 +131,6 @@ async fn main() {
             "/api/user/shipping-details",
             post(upsert_user_shipping_details_handler),
         )
-        .route("/", get(serve_index))
         // Trasa główna i jej aliasy
         .route("/", get(serve_index))
         .route("/kategoria", get(list_products_htmx_handler))
@@ -153,7 +152,7 @@ async fn main() {
         .route("/moje-konto", get(my_account_page_handler))
         .route("/moje-konto/zamowienia", get(my_orders_htmx_handler))
         .route(
-            "/moje-konto/zamowienia/:order_id",
+            "/moje-konto/zamowienia/{order_id}",
             get(my_order_details_htmx_handler),
         )
         .route("/moje-konto/dane", get(my_account_data_htmx_handler))

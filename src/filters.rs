@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, de};
 use std::str::FromStr;
 
-const DEFAULT_PAGE_LIMIT: i64 = 10;
+const DEFAULT_PAGE_LIMIT: i64 = 8;
 const MAX_PAGE_LIMIT: i64 = 50;
 const DEFAULT_SORT_BY: &str = "name";
 const DEFAULT_SORT_ORDER: &str = "asc";

@@ -4512,7 +4512,7 @@ pub async fn sale_page_htmx_handler(State(app_state): State<AppState>) -> Result
     let params = ListingParams {
         on_sale: Some(true),
         status: Some(ProductStatus::Available),
-        limit: Some(9),
+        limit: Some(8),
         ..Default::default()
     };
     list_products_htmx_handler(State(app_state), Query(params)).await
