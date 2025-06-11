@@ -1,4 +1,5 @@
 // Plik app.js
+// --- Globalna konfiguracja zapytań HTMX ---
 document.body.addEventListener("htmx:configRequest", (event) => {
   if (!event.detail || !event.detail.headers) return;
   const guestCartId = localStorage.getItem("guestCartId");
@@ -7,6 +8,9 @@ document.body.addEventListener("htmx:configRequest", (event) => {
   if (jwtToken) event.detail.headers["Authorization"] = "Bearer " + jwtToken;
 });
 
+// --- Obsługa zdarzeń z serwera (wysyłanych przez HX-Trigger) ---
+
+// Zdarzenie do aktualizacji licznika koszyka i ceny w Alpine
 document.body.addEventListener("updateCartCount", (htmxEvent) => {
   if (!htmxEvent.detail) return;
   document.body.dispatchEvent(
@@ -25,59 +29,44 @@ document.body.addEventListener("updateCartCount", (htmxEvent) => {
   }
 });
 
-document.body.addEventListener("htmx:afterSwap", function (event) {
-  if (event.detail.requestConfig.headers["HX-History-Restore-Request"]) {
-    return;
-  }
-
-  window.scrollTo({ top: 0, behavior: "auto" });
-
-  // Pozostała logika czyszczenia komunikatów
-  if (
-    event.detail.target.id === "content" ||
-    event.detail.target.closest("#content")
-  ) {
-    if (
-      !window.location.pathname.endsWith("/logowanie") &&
-      !window.location.pathname.endsWith("/rejestracja")
-    ) {
-      const loginMessages = document.getElementById("login-messages");
-      if (loginMessages) loginMessages.innerHTML = "";
-      const registrationMessages = document.getElementById(
-        "registration-messages",
-      );
-      if (registrationMessages) registrationMessages.innerHTML = "";
-    }
-  }
-});
-
 document.body.addEventListener(
   "htmx:afterSwap",
-  document.body.addEventListener("htmx:afterSwap", function (event) {
-    const target = event.detail.target;
-
-    // Sprawdzamy, czy żądanie NIE było przywróceniem historii (ten kod już masz)
-    if (!event.detail.requestConfig.headers["HX-History-Restore-Request"]) {
-      if (target) {
-        target.scrollIntoView({ behavior: "auto", block: "start" });
+  document.body.addEventListener(
+    "htmx:afterSwap",
+    document.body.addEventListener("htmx:afterSwap", function (event) {
+      if (event.detail.requestConfig.headers["HX-History-Restore-Request"]) {
+        return;
       }
-    }
 
-    // Obecna logika czyszczenia komunikatów - pozostaje bez zmian
-    if (target.id === "content" || target.closest("#content")) {
+      // Używamy setTimeout z opóźnieniem 0. Jest to standardowa technika,
+      // aby dać przeglądarce chwilę na zakończenie operacji podmiany DOM,
+      // zanim wykonamy przewinięcie. To znacznie zwiększa niezawodność operacji.
+      setTimeout(() => {
+        window.scrollTo({
+          top: 0,
+          left: 0,
+          behavior: "auto",
+        });
+      }, 0);
+
       if (
-        !window.location.pathname.endsWith("/logowanie") &&
-        !window.location.pathname.endsWith("/rejestracja")
+        event.detail.target.id === "content" ||
+        event.detail.target.closest("#content")
       ) {
-        const loginMessages = document.getElementById("login-messages");
-        if (loginMessages) loginMessages.innerHTML = "";
-        const registrationMessages = document.getElementById(
-          "registration-messages",
-        );
-        if (registrationMessages) registrationMessages.innerHTML = "";
+        if (
+          !window.location.pathname.endsWith("/logowanie") &&
+          !window.location.pathname.endsWith("/rejestracja")
+        ) {
+          const loginMessages = document.getElementById("login-messages");
+          if (loginMessages) loginMessages.innerHTML = "";
+          const registrationMessages = document.getElementById(
+            "registration-messages",
+          );
+          if (registrationMessages) registrationMessages.innerHTML = "";
+        }
       }
-    }
-  }),
+    }),
+  ),
 );
 
 // --- Centralny listener authChangedClient ---
@@ -269,13 +258,6 @@ document.body.addEventListener("orderPlaced", function (evt) {
 
 document.body.addEventListener("clearCartDisplay", function (evt) {
   console.log("Clearing cart display due to order placement.");
-  // Wyemituj zdarzenie, które zaktualizuje licznik koszyka w Alpine.js na 0
-  // i wyczyści wizualnie koszyk, jeśli jest otwarty.
-  // To jest bardziej złożone, bo `updateCartCount` oczekuje pełnych danych koszyka.
-  // Prostsze może być wywołanie przeładowania, które już się dzieje.
-  // Alternatywnie, Alpine.js może nasłuchiwać na 'orderPlaced' i zresetować swój stan koszyka.
-  // Na razie, pełne przeładowanie strony po 'orderPlaced' załatwi sprawę czyszczenia.
-  // Można też wysłać specyficzne zdarzenie do Alpine:
   window.dispatchEvent(
     new CustomEvent("js-update-cart", {
       detail: { newCount: 0, newCartTotalPrice: 0 },
@@ -404,9 +386,6 @@ function adminProductEditForm() {
 document.body.addEventListener("htmx:beforeSwap", function (event) {
   const xhr = event.detail.xhr;
   const requestConfig = event.detail.requestConfig;
-
-  // Sprawdź, czy to odpowiedź z naszego formularza edycji produktu
-  // (metoda PATCH na ścieżkę /api/products/{uuid})
   const productApiPatchRegex =
     /^\/api\/products\/[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$/;
 
