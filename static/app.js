@@ -1,273 +1,314 @@
-// Plik app.js
-// --- Globalna konfiguracja zapytań HTMX ---
-document.body.addEventListener("htmx:configRequest", (event) => {
-  if (!event.detail || !event.detail.headers) return;
-  const guestCartId = localStorage.getItem("guestCartId");
-  if (guestCartId) event.detail.headers["X-Guest-Cart-Id"] = guestCartId;
-  const jwtToken = localStorage.getItem("jwtToken");
-  if (jwtToken) event.detail.headers["Authorization"] = "Bearer " + jwtToken;
-});
+/**
+ * Główny plik JavaScript aplikacji MEG JONI
+ * Wersja zrefaktoryzowana, zoptymalizowana i poprawiona.
+ *
 
-// --- Obsługa zdarzeń z serwera (wysyłanych przez HX-Trigger) ---
+// ========================================================================
+// I. GŁÓWNA INICJALIZACJA I LISTENERY
+// ========================================================================
 
-// Zdarzenie do aktualizacji licznika koszyka i ceny w Alpine
-document.body.addEventListener("updateCartCount", (htmxEvent) => {
-  if (!htmxEvent.detail) return;
-  document.body.dispatchEvent(
-    new CustomEvent("js-update-cart", {
-      detail: htmxEvent.detail,
-      bubbles: true,
-    }),
-  );
-  if (typeof htmxEvent.detail.newCartTotalPrice !== "undefined") {
-    const el = document.getElementById("cart-subtotal-price");
-    if (el)
-      el.innerHTML =
-        (parseInt(htmxEvent.detail.newCartTotalPrice) / 100)
-          .toFixed(2)
-          .replace(".", ",") + " zł";
-  }
-});
+// Wszystkie listenery inicjujemy po załadowaniu struktury strony (DOM).
+document.addEventListener("DOMContentLoaded", () => {
+  const globalSpinner = document.getElementById("global-loading-spinner");
 
-document.body.addEventListener(
-  "htmx:afterSwap",
-  document.body.addEventListener(
-    "htmx:afterSwap",
-    document.body.addEventListener("htmx:afterSwap", function (event) {
-      if (event.detail.requestConfig.headers["HX-History-Restore-Request"]) {
-        return;
+  // --- Obsługa globalnego wskaźnika ładowania (spinnera) ---
+  if (globalSpinner) {
+    document.body.addEventListener("htmx:beforeRequest", (event) => {
+      // Nie pokazuj spinnera przy przywracaniu strony z historii przeglądarki
+      if (!event.detail.requestConfig.headers["HX-History-Restore-Request"]) {
+        globalSpinner.classList.add("show");
       }
+    });
 
-      // Używamy setTimeout z opóźnieniem 0. Jest to standardowa technika,
-      // aby dać przeglądarce chwilę na zakończenie operacji podmiany DOM,
-      // zanim wykonamy przewinięcie. To znacznie zwiększa niezawodność operacji.
-      setTimeout(() => {
-        window.scrollTo({
-          top: 0,
-          left: 0,
-          behavior: "auto",
-        });
-      }, 0);
-
-      if (
-        event.detail.target.id === "content" ||
-        event.detail.target.closest("#content")
-      ) {
-        if (
-          !window.location.pathname.endsWith("/logowanie") &&
-          !window.location.pathname.endsWith("/rejestracja")
-        ) {
-          const loginMessages = document.getElementById("login-messages");
-          if (loginMessages) loginMessages.innerHTML = "";
-          const registrationMessages = document.getElementById(
-            "registration-messages",
-          );
-          if (registrationMessages) registrationMessages.innerHTML = "";
-        }
-      }
-    }),
-  ),
-);
-
-// --- Centralny listener authChangedClient ---
-// Teraz głównie odpowiedzialny za pełne przeładowanie strony na "/"
-document.addEventListener("authChangedClient", function (event) {
-  console.log(
-    "app.js: authChangedClient RECEIVED. isAuthenticated:",
-    event.detail.isAuthenticated,
-    "Source:",
-    event.detail.source,
-  );
-
-  const isAuthenticated = event.detail.isAuthenticated;
-  const source = event.detail.source;
-
-  // Sprawdzamy, czy URL to już "/" aby uniknąć niepotrzebnego przeładowania,
-  // chyba że jest to wymuszone (np. po jawnym logowaniu/wylogowaniu).
-  const isAlreadyHome = window.location.pathname === "/";
-
-  if (source === "login" && isAuthenticated) {
-    // Komunikat o sukcesie logowania powinien być już wyświetlony przez HX-Trigger z serwera
-    // lub przez listener 'loginSuccessDetails'.
-    console.log(
-      "app.js: authChangedClient - User logged in. Reloading to homepage.",
-    );
-    // Użyj replace, aby użytkownik nie mógł wrócić przyciskiem "wstecz" do strony logowania/konta
-    if (!isAlreadyHome || event.detail.forceReload) window.location.href("/");
-  } else if ((source === "logout" || source === "401") && !isAuthenticated) {
-    // Komunikat o wylogowaniu lub wygaśnięciu sesji jest emitowany przez inne listenery.
-    // Tutaj dodajemy opóźnienie, aby użytkownik zdążył zobaczyć komunikat przed przeładowaniem.
-    console.log(
-      "app.js: authChangedClient - User logged out or session expired. Reloading to homepage after delay.",
-    );
-    setTimeout(
-      () => {
-        if (!isAlreadyHome || event.detail.forceReload)
-          window.location.href("/");
-      },
-      source === "401" ? 1 : 1,
-    ); // Dłuższe opóźnienie dla komunikatu o błędzie 401
-  }
-  // Inne przypadki 'authChangedClient' (jeśli takie są i nie mają 'source') nie spowodują przeładowania.
-});
-
-// --- Listener authChangedFromBackend (jeśli jest używany i ma powodować pełny reload) ---
-document.body.addEventListener("authChangedFromBackend", function (evt) {
-  if (evt.detail && typeof evt.detail.isAuthenticated !== "undefined") {
-    let needsReload = false;
-    if (evt.detail.token) {
-      localStorage.setItem("jwtToken", evt.detail.token);
-      if (evt.detail.isAuthenticated) needsReload = true; // np. po odświeżeniu tokenu
-    } else if (!evt.detail.isAuthenticated) {
-      localStorage.removeItem("jwtToken");
-      needsReload = true; // np. po wylogowaniu przez serwer
-    }
-
-    // Poinformuj Alpine o zmianie stanu
-    window.dispatchEvent(
-      new CustomEvent("authChangedClient", {
-        detail: { isAuthenticated: evt.detail.isAuthenticated },
-      }),
-    );
-
-    if (needsReload) {
-      console.log("authChangedFromBackend: Triggering homepage reload.");
-      setTimeout(() => {
-        // Daj czas na wyświetlenie ewentualnych komunikatów
-        window.location.replace("/");
-      }, 500);
-    }
-  }
-});
-
-// --- Listener dla "loginSuccessDetails" (z HX-Trigger od serwera) ---
-document.body.addEventListener("loginSuccessDetails", function (evt) {
-  console.log("loginSuccessDetails: Detail:", evt.detail);
-  if (evt.detail && evt.detail.token) {
-    localStorage.setItem("jwtToken", evt.detail.token);
-    // Komunikat o sukcesie logowania jest już wysyłany przez serwer (HX-Trigger showMessage)
-    // i powinien zostać wyświetlony przez komponent Toast w Alpine.js.
-    // Czekamy chwilę, aby użytkownik mógł zobaczyć komunikat, a następnie przeładowujemy.
-    console.log("Login successful. Reloading to homepage.");
-    window.location.replace("/");
+    const hideSpinner = () => globalSpinner.classList.remove("show");
+    document.body.addEventListener("htmx:afterRequest", hideSpinner);
+    document.body.addEventListener("htmx:sendError", hideSpinner);
+    document.body.addEventListener("htmx:responseError", hideSpinner);
   } else {
-    console.error(
-      "[App.js] loginSuccessDetails event, but NO TOKEN:",
-      evt.detail,
-    );
-    // Wyświetl błąd, jeśli token nie dotarł
-    window.dispatchEvent(
-      new CustomEvent("showMessage", {
-        detail: {
-          message: "Blad logowania: brak tokenu (klient).",
-          type: "error",
-        },
-      }),
-    );
+    console.error("Nie znaleziono elementu #global-loading-spinner!");
   }
+
+  // --- Inicjalizacja pozostałych listenerów ---
+  initEventListeners();
 });
 
-document.body.addEventListener("registrationComplete", function (evt) {
-  console.log(
-    '<<<<< [App.js] "registrationComplete" EVENT RECEIVED >>>>>. Detail:',
-    JSON.stringify(evt.detail),
-  );
-  const form = document.getElementById("registration-form");
-  if (form && form.reset) {
-    form.reset();
-  }
-  setTimeout(() => {
-    if (window.htmx) {
-      htmx.ajax("GET", "/htmx/logowanie", {
-        // Przekierowanie na logowanie po rejestracji
-        target: "#content",
-        swap: "innerHTML",
-        pushUrl: "/logowanie",
-      });
+/**
+ * Rejestruje wszystkie główne listenery zdarzeń aplikacji.
+ */
+function initEventListeners() {
+  // ========================================================================
+  // A. Konfiguracja i cykl życia HTMX
+  // ========================================================================
+
+  /**
+   * Dodaje nagłówki autoryzacji (JWT) i koszyka gościa do każdego żądania HTMX.
+   */
+  document.body.addEventListener("htmx:configRequest", (event) => {
+    if (!event.detail?.headers) return;
+
+    const guestCartId = localStorage.getItem("guestCartId");
+    if (guestCartId) {
+      event.detail.headers["X-Guest-Cart-Id"] = guestCartId;
     }
-  }, 1);
-});
 
-// --- Listener htmx:responseError ---
-document.body.addEventListener("htmx:responseError", function (evt) {
-  const xhr = evt.detail.xhr;
-  const requestPath = evt.detail.requestConfig.path; // Ścieżka żądania, które zwróciło błąd
+    const jwtToken = localStorage.getItem("jwtToken");
+    if (jwtToken) {
+      event.detail.headers["Authorization"] = `Bearer ${jwtToken}`;
+    }
+  });
 
-  if (xhr.status === 401) {
-    if (requestPath === "/api/auth/login") {
-      // Błąd 401 podczas próby logowania (np. złe hasło)
-      // Serwer powinien wysłać HX-Trigger z komunikatem "Błędny email lub hasło"
-      // Ten komunikat zostanie obsłużony przez Alpine Toast.
-      // NIE przeładowujemy strony, użytkownik pozostaje na formularzu logowania.
-      console.warn(
-        "🔥 Błąd 401 (Nieautoryzowany) podczas próby logowania na:",
-        requestPath,
+  /**
+   * Główna logika po podmianie treści przez HTMX.
+   * Odpowiada za przewijanie strony do góry i czyszczenie komunikatów.
+   */
+  document.body.addEventListener("htmx:afterSwap", (event) => {
+    // 1. Niezawodne przewijanie do góry (top: 0)
+    if (!event.detail.requestConfig.headers["HX-History-Restore-Request"]) {
+      // setTimeout z opóźnieniem 0 daje przeglądarce czas na dokończenie
+      // renderowania, co gwarantuje, że przewinięcie zadziała poprawnie.
+      setTimeout(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      }, 0);
+    }
+
+    // 2. Czyszczenie starych komunikatów z formularzy logowania/rejestracji
+    const isContentSwap =
+      event.detail.target.id === "content" ||
+      event.detail.target.closest("#content");
+    const isAuthPage =
+      window.location.pathname.endsWith("/logowanie") ||
+      window.location.pathname.endsWith("/rejestracja");
+
+    if (isContentSwap && !isAuthPage) {
+      const loginMessages = document.getElementById("login-messages");
+      if (loginMessages) loginMessages.innerHTML = "";
+
+      const registrationMessages = document.getElementById(
+        "registration-messages",
       );
-      // Nie usuwamy tokenu, bo użytkownik może go nie mieć lub próbuje się zalogować ponownie.
-      // Nie emitujemy tutaj 'authChangedClient' ani nie robimy pełnego przeładowania.
-      // Komunikat o błędzie logowania jest wysyłany z serwera przez HX-Trigger.
-    } else {
-      // Błąd 401 na innej ścieżce (prawdopodobnie wygasła sesja)
+      if (registrationMessages) registrationMessages.innerHTML = "";
+    }
+  });
+
+  /**
+   * Przechwytuje błędy odpowiedzi z serwera, głównie dla obsługi sesji (401).
+   */
+  document.body.addEventListener("htmx:responseError", (event) => {
+    const xhr = event.detail.xhr;
+    const requestPath = event.detail.requestConfig.path;
+
+    if (xhr.status === 401 && requestPath !== "/api/auth/login") {
+      // Błąd 401 na dowolnej ścieżce innej niż logowanie = wygasła sesja
       console.warn(
-        "🔥 Otrzymano 401 Unauthorized (prawdopodobnie wygasła sesja) dla ścieżki:",
-        requestPath,
-        ". Usuwam token.",
+        `Wygasła sesja (401) dla ścieżki: ${requestPath}. Usuwam token i przeładowuję stronę.`,
       );
       localStorage.removeItem("jwtToken");
-      console.log("Token JWT usunięty z localStorage.");
 
-      // Poinformuj Alpine.js o zmianie stanu (aby np. zaktualizował tekst linku)
+      // Poinformuj Alpine.js o zmianie stanu (np. żeby zaktualizował UI)
       window.dispatchEvent(
         new CustomEvent("authChangedClient", {
-          detail: { isAuthenticated: false },
+          detail: { isAuthenticated: false, source: "401" },
         }),
       );
 
-      // Wyświetl komunikat dla użytkownika.
+      // Wyświetl komunikat dla użytkownika
       window.dispatchEvent(
         new CustomEvent("showMessage", {
           detail: {
             message:
-              "Twoja sesja wygasla lub nie masz uprawnien. Zaloguj sie ponownie.",
+              "Twoja sesja wygasła lub nie masz uprawnień. Zaloguj się ponownie.",
             type: "warning",
           },
         }),
       );
 
-      // Przeładuj stronę na stronę główną po chwili, aby użytkownik zobaczył komunikat.
-      console.log(
-        "Sesja wygasła (401) dla innej ścieżki. Przeładowuję stronę główną po opóźnieniu...",
-      );
-      setTimeout(() => {
-        window.location.replace("/");
-      }, 700);
+      // Przeładuj na stronę główną po chwili
+      setTimeout(() => window.location.replace("/"), 800);
     }
-  }
-});
+  });
 
-document.body.addEventListener("orderPlaced", function (evt) {
-  console.log("Order placed successfully:", evt.detail);
-  // Przekieruj na stronę główną (lub inną stronę podsumowania)
-  if (evt.detail.redirectTo) {
-    // Daj czas na wyświetlenie komunikatu o sukcesie
+  /**
+   * Przechwytuje odpowiedź z udanej aktualizacji produktu (PATCH)
+   * aby wyświetlić komunikat i przeładować listę, zamiast wstawiać JSON na stronę.
+   */
+  document.body.addEventListener("htmx:beforeSwap", (event) => {
+    const { xhr, requestConfig, target } = event.detail;
+    const isProductPatch =
+      requestConfig.verb?.toLowerCase() === "patch" &&
+      /^\/api\/products\//.test(requestConfig.path);
+
+    if (isProductPatch && xhr?.status === 200) {
+      try {
+        const responseJson = JSON.parse(xhr.responseText);
+        if (responseJson?.id && responseJson?.name) {
+          console.log(
+            "Pomyślna aktualizacja produktu, przechwycono odpowiedź.",
+          );
+
+          // Anuluj domyślną podmianę (aby nie wstawiać JSON-a do HTML)
+          event.detail.shouldSwap = false;
+          if (target) target.innerHTML = ""; // Wyczyść kontener na komunikaty
+
+          // Pokaż toast o sukcesie
+          window.dispatchEvent(
+            new CustomEvent("showMessage", {
+              detail: { message: "Pomyślnie zapisano zmiany", type: "success" },
+            }),
+          );
+
+          // Przeładuj widok listy produktów w panelu admina
+          htmx.ajax("GET", "/htmx/admin/products", {
+            target: "#admin-content",
+            swap: "innerHTML",
+            pushUrl: true,
+          });
+        }
+      } catch (e) {
+        console.warn(
+          "Odpowiedź z aktualizacji produktu nie była oczekiwanym JSONem.",
+          e,
+        );
+      }
+    }
+  });
+
+  /**
+   * Ogólny listener, który szuka w odpowiedziach JSON klucza 'showMessage'
+   * i wyzwala toast, jeśli go znajdzie.
+   */
+  document.body.addEventListener("htmx:afterOnLoad", (event) => {
+    try {
+      const json = JSON.parse(event.detail.xhr.responseText);
+      if (json.showMessage) {
+        window.dispatchEvent(
+          new CustomEvent("showMessage", { detail: json.showMessage }),
+        );
+      }
+    } catch (_) {
+      // Ignoruj błędy parsowania, odpowiedź mogła nie być JSON-em.
+    }
+  });
+
+  // ========================================================================
+  // B. Obsługa niestandardowych zdarzeń aplikacji (z HX-Trigger)
+  // ========================================================================
+
+  /**
+   * Aktualizuje licznik koszyka i sumę częściową na podstawie danych z serwera.
+   */
+  document.body.addEventListener("updateCartCount", (event) => {
+    if (!event.detail) return;
+
+    // Przekaż zdarzenie dalej do Alpine.js
+    document.body.dispatchEvent(
+      new CustomEvent("js-update-cart", {
+        detail: event.detail,
+        bubbles: true,
+      }),
+    );
+
+    // Zaktualizuj sumę w panelu bocznym koszyka
+    if (typeof event.detail.newCartTotalPrice !== "undefined") {
+      const el = document.getElementById("cart-subtotal-price");
+      if (el) {
+        const price = (
+          parseInt(event.detail.newCartTotalPrice, 10) / 100
+        ).toFixed(2);
+        el.innerHTML = `${price.replace(".", ",")} zł`;
+      }
+    }
+  });
+
+  /**
+   * Obsługuje pomyślne zalogowanie. Zapisuje token i przeładowuje stronę.
+   */
+  document.body.addEventListener("loginSuccessDetails", (event) => {
+    if (event.detail?.token) {
+      localStorage.setItem("jwtToken", event.detail.token);
+      console.log("Logowanie pomyślne. Przeładowuję stronę...");
+      window.location.replace("/"); // Użyj replace, by użytkownik nie wrócił do strony logowania
+    } else {
+      console.error(
+        "Otrzymano zdarzenie loginSuccessDetails, ale bez tokenu JWT!",
+        event.detail,
+      );
+      window.dispatchEvent(
+        new CustomEvent("showMessage", {
+          detail: {
+            message: "Błąd logowania: brak tokenu (klient).",
+            type: "error",
+          },
+        }),
+      );
+    }
+  });
+
+  /**
+   * Obsługuje pomyślną rejestrację. Resetuje formularz i przekierowuje na logowanie.
+   */
+  document.body.addEventListener("registrationComplete", () => {
+    console.log("Rejestracja zakończona. Przekierowuję na logowanie.");
+    const form = document.getElementById("registration-form");
+    if (form) form.reset();
+
+    // Daj interfejsowi chwilę na odświeżenie i przekieruj na logowanie
     setTimeout(() => {
-      window.location.replace(evt.detail.redirectTo);
-    }, 1500); // 1.5 sekundy
-  }
-});
+      htmx.ajax("GET", "/htmx/logowanie", {
+        target: "#content",
+        swap: "innerHTML",
+        pushUrl: "/logowanie",
+      });
+    }, 100); // Małe opóźnienie dla pewności
+  });
 
-document.body.addEventListener("clearCartDisplay", function (evt) {
-  console.log("Clearing cart display due to order placement.");
-  window.dispatchEvent(
-    new CustomEvent("js-update-cart", {
-      detail: { newCount: 0, newCartTotalPrice: 0 },
-      bubbles: true,
-    }),
-  );
-  // I zamknąć panel koszyka, jeśli jest otwarty (w Alpine)
-  // window.dispatchEvent(new CustomEvent('closeCartPanel'));
-});
+  /**
+   * Obsługuje pomyślne złożenie zamówienia. Przekierowuje na stronę główną.
+   */
+  document.body.addEventListener("orderPlaced", (event) => {
+    console.log("Zamówienie złożone pomyślnie:", event.detail);
+    if (event.detail.redirectTo) {
+      setTimeout(() => {
+        window.location.replace(event.detail.redirectTo);
+      }, 1500); // Opóźnienie, aby użytkownik zdążył zobaczyć komunikat o sukcesie
+    }
+  });
 
+  /**
+   * Czyści wizualnie stan koszyka (używane po złożeniu zamówienia).
+   */
+  document.body.addEventListener("clearCartDisplay", () => {
+    console.log("Czyszczenie wyświetlania koszyka po zamówieniu.");
+    window.dispatchEvent(
+      new CustomEvent("js-update-cart", {
+        detail: { newCount: 0, newCartTotalPrice: 0 },
+        bubbles: true,
+      }),
+    );
+  });
+
+  /**
+   * Nasłuchuje na zdarzenie zmiany stanu autoryzacji, ale GŁÓWNIE
+   * do informowania innych części aplikacji (jak Alpine.js).
+   * Logika przeładowania strony została przeniesiona do bardziej
+   * specyficznych handlerów (loginSuccessDetails, htmx:responseError).
+   */
+  document.addEventListener("authChangedClient", (event) => {
+    console.log(
+      `Zdarzenie authChangedClient, źródło: ${event.detail?.source || "nieznane"}`,
+    );
+    // Ten listener głównie informuje Alpine.js.
+    // Specyficzne akcje (jak przeładowanie) są obsługiwane przez zdarzenia, które go wywołały.
+  });
+}
+
+// ========================================================================
+// III. KOMPONENTY ALPINE.JS (udostępnione globalnie)
+// ========================================================================
+
+/**
+ * Zwraca obiekt dla komponentu Alpine.js do zarządzania
+ * formularzem edycji/dodawania produktu w panelu admina.
+ */
 function adminProductEditForm() {
   return {
     existingImagesOnInit: [],
@@ -289,12 +330,10 @@ function adminProductEditForm() {
       }
       this.productStatus = currentStatusStr || "Available";
 
-      this.imagePreviews = Array(8).fill(null);
-      this.imageFiles = Array(8).fill(null);
+      this.imagePreviews.fill(null);
+      this.imageFiles.fill(null);
       this.existingImagesOnInit.forEach((url, i) => {
-        if (i < 8) {
-          this.imagePreviews[i] = url;
-        }
+        if (i < 8) this.imagePreviews[i] = url;
       });
 
       this.$watch("imagesToDelete", (newValue) => {
@@ -315,42 +354,43 @@ function adminProductEditForm() {
     },
 
     getOriginalUrlForSlot(index) {
-      // Zwraca oryginalny URL dla danego slotu, jeśli istniał przy inicjalizacji
-      if (index < this.existingImagesOnInit.length) {
-        return this.existingImagesOnInit[index];
-      }
-      return null;
+      return this.existingImagesOnInit[index] || null;
     },
 
     handleFileChange(event, index) {
       const selectedFile = event.target.files[0];
-      if (selectedFile) {
-        const originalUrl = this.getOriginalUrlForSlot(index);
-        if (originalUrl) {
-          const deleteIdx = this.imagesToDelete.indexOf(originalUrl);
-          if (deleteIdx > -1) {
-            this.imagesToDelete.splice(deleteIdx, 1);
-          }
-        }
-        this.imageFiles[index] = selectedFile;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          this.$nextTick(() => {
-            this.imagePreviews[index] = e.target.result;
-          });
-        };
-        reader.readAsDataURL(selectedFile);
-      } else {
+      if (!selectedFile) {
         event.target.value = null;
+        return;
       }
+
+      const originalUrl = this.getOriginalUrlForSlot(index);
+      if (originalUrl) {
+        // Jeśli podmieniamy istniejący obraz, upewniamy się, że nie jest on oznaczony do usunięcia
+        const deleteIdx = this.imagesToDelete.indexOf(originalUrl);
+        if (deleteIdx > -1) {
+          this.imagesToDelete.splice(deleteIdx, 1);
+        }
+      }
+
+      this.imageFiles[index] = selectedFile;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        this.$nextTick(() => {
+          this.imagePreviews[index] = e.target.result;
+        });
+      };
+      reader.readAsDataURL(selectedFile);
     },
 
     removeImage(index, inputId) {
       const originalUrl = this.getOriginalUrlForSlot(index);
 
       if (originalUrl && !this.imagesToDelete.includes(originalUrl)) {
+        // Jeśli to jest istniejący obraz z serwera, oznacz go do usunięcia
         this.imagesToDelete.push(originalUrl);
       } else {
+        // Jeśli to jest nowo dodany podgląd, po prostu go usuń
         this.imageFiles[index] = null;
         this.imagePreviews[index] = null;
         const fileInput = document.getElementById(inputId);
@@ -382,121 +422,3 @@ function adminProductEditForm() {
     },
   };
 }
-
-document.body.addEventListener("htmx:beforeSwap", function (event) {
-  const xhr = event.detail.xhr;
-  const requestConfig = event.detail.requestConfig;
-  const productApiPatchRegex =
-    /^\/api\/products\/[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$/;
-
-  if (
-    requestConfig &&
-    requestConfig.verb &&
-    requestConfig.verb.toLowerCase() === "patch" &&
-    requestConfig.path &&
-    productApiPatchRegex.test(requestConfig.path)
-  ) {
-    if (xhr && xhr.status === 200) {
-      try {
-        const responseJson = JSON.parse(xhr.responseText);
-        // Proste sprawdzenie, czy odpowiedź wygląda jak obiekt produktu (posiada np. 'id' i 'name')
-        // Możesz to dostosować, jeśli potrzebujesz bardziej szczegółowej weryfikacji.
-        if (
-          responseJson &&
-          typeof responseJson.id !== "undefined" &&
-          typeof responseJson.name !== "undefined"
-        ) {
-          console.log(
-            "Pomyślna aktualizacja produktu, odpowiedź JSON przechwycona.",
-          );
-
-          // 1. Wywołaj zdarzenie, aby wyświetlić Twój toast/bąbelek
-          window.dispatchEvent(
-            new CustomEvent("showMessage", {
-              detail: {
-                message: "Pomyślnie zapisano zmiany",
-                type: "success", // lub inny typ, którego używa Twój system toastów
-              },
-            }),
-          );
-
-          // 2. Anuluj standardową operację podmiany treści przez HTMX
-          //    (aby nie wstawiać JSONa do `#edit-product-messages`)
-          event.detail.shouldSwap = false;
-
-          // 3. Opcjonalnie: Wyczyść div #edit-product-messages lub wstaw tam statyczny komunikat,
-          //    jeśli chcesz, aby coś tam się pojawiło zamiast JSONa.
-          //    Jeśli toast jest wystarczający, możesz zostawić to pole puste.
-          const targetElement = event.detail.target; // To powinien być #edit-product-messages
-          if (targetElement) {
-            targetElement.innerHTML = ""; // Czyści zawartość
-          }
-
-          // 4.
-          if (window.htmx) {
-            htmx.ajax("GET", "/htmx/admin/products", {
-              target: "#admin-content",
-              swap: "innerHTML",
-              pushUrl: true,
-            });
-          }
-        }
-        return;
-        // Jeśli JSON nie jest oczekiwanym obiektem produktu, pozwól HTMX działać domyślnie
-        // (może to być np. odpowiedź błędu walidacji w formacie HTML/JSON od serwera)
-      } catch (e) {
-        // Jeśli odpowiedź nie jest JSONem, pozwól HTMX działać domyślnie
-        console.warn(
-          "Odpowiedź z aktualizacji produktu nie była oczekiwanym JSONem lub wystąpił błąd parsowania:",
-          e,
-        );
-      }
-    }
-    // Jeśli status nie jest 200 (np. błąd walidacji 422), pozwól HTMX działać domyślnie,
-    // aby wyświetlić ewentualne komunikaty błędów w #edit-product-messages.
-  }
-});
-
-document.body.addEventListener("htmx:afterOnLoad", function (evt) {
-  const response = evt.detail.xhr.responseText;
-  try {
-    const json = JSON.parse(response);
-    if (json.showMessage) {
-      window.dispatchEvent(
-        new CustomEvent("showMessage", {
-          detail: {
-            message: json.showMessage.message,
-            type: json.showMessage.type || "info",
-          },
-        }),
-      );
-    }
-  } catch (_) {}
-});
-
-document.addEventListener("DOMContentLoaded", function () {
-  const globalSpinner = document.getElementById("global-loading-spinner");
-
-  if (globalSpinner) {
-    document.body.addEventListener("htmx:beforeRequest", function (event) {
-      if (event.detail.requestConfig.headers["HX-History-Restore-Request"]) {
-        return; // Zakończ i nie pokazuj spinnera
-      }
-      globalSpinner.classList.add("show");
-    });
-
-    document.body.addEventListener("htmx:afterRequest", function () {
-      globalSpinner.classList.remove("show");
-    });
-
-    // Zostawiamy na wszelki wypadek, gdyby wystąpił błąd sieciowy
-    document.body.addEventListener("htmx:sendError", function () {
-      globalSpinner.classList.remove("show");
-    });
-    document.body.addEventListener("htmx:responseError", function () {
-      globalSpinner.classList.remove("show");
-    });
-  } else {
-    console.error("Global spinner element #global-loading-spinner NOT FOUND!");
-  }
-});
