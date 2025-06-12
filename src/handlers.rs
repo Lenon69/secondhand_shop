@@ -2309,3 +2309,95 @@ pub async fn upsert_user_shipping_details_handler(
         }
     }
 }
+
+/// Ta operacja jest nieodwracalna.
+pub async fn permanent_delete_order_handler(
+    State(app_state): State<AppState>,
+    claims: TokenClaims,
+    Path(order_id): Path<Uuid>,
+) -> Result<(StatusCode, HeaderMap), AppError> {
+    // Krok 1: Sprawdzenie uprawnień. Tylko admin może usuwać zamówienia.
+    if claims.role != Role::Admin {
+        return Err(AppError::UnauthorizedAccess(
+            "Brak uprawnień administratora.".to_string(),
+        ));
+    }
+
+    tracing::info!(
+        "Admin ID: {} zażądał trwałego usunięcia zamówienia ID: {}",
+        claims.sub,
+        order_id
+    );
+
+    // Krok 2: Rozpoczęcie transakcji bazodanowej. To kluczowe dla bezpieczeństwa!
+    let mut tx = app_state.db_pool.begin().await?;
+    tracing::debug!(
+        "Rozpoczęto transakcję dla usunięcia zamówienia {}",
+        order_id
+    );
+
+    // Krok 3: Znajdź wszystkie ID produktów w tym zamówieniu.
+    let product_ids: Vec<Uuid> =
+        sqlx::query_scalar("SELECT product_id FROM order_items WHERE order_id = $1")
+            .bind(order_id)
+            .fetch_all(&mut *tx)
+            .await?;
+
+    // Krok 4: Jeśli znaleziono produkty, zmień ich status z powrotem na "Available".
+    if !product_ids.is_empty() {
+        tracing::debug!(
+            "Znaleziono produkty {:?} do przywrócenia statusu na 'Available'.",
+            product_ids
+        );
+        sqlx::query("UPDATE products SET status = $1 WHERE id = ANY($2)")
+            .bind(ProductStatus::Available) // Używamy enuma dla bezpieczeństwa
+            .bind(&product_ids)
+            .execute(&mut *tx)
+            .await?;
+    }
+
+    // Krok 5: Usuń pozycje z tabeli pośredniczącej `order_items`.
+    // To zerwie powiązania i pozwoli bezpiecznie usunąć zamówienie.
+    sqlx::query("DELETE FROM order_items WHERE order_id = $1")
+        .bind(order_id)
+        .execute(&mut *tx)
+        .await?;
+    tracing::debug!("Usunięto pozycje z order_items dla zamówienia {}", order_id);
+
+    // Krok 6: Usuń właściwe zamówienie z tabeli `orders`.
+    let delete_result = sqlx::query("DELETE FROM orders WHERE id = $1")
+        .bind(order_id)
+        .execute(&mut *tx)
+        .await?;
+
+    // Krok 7: Zatwierdź transakcję. Dopiero teraz wszystkie zmiany zostaną trwale zapisane w bazie.
+    tx.commit().await?;
+    tracing::info!(
+        "Transakcja zakończona pomyślnie. Zamówienie {} zostało usunięte.",
+        order_id
+    );
+
+    // Krok 8: Przygotuj odpowiedź dla HTMX.
+    let mut headers = HeaderMap::new();
+
+    if delete_result.rows_affected() == 0 {
+        tracing::warn!(
+            "Próbowano usunąć zamówienie {}, ale nie znaleziono go w bazie.",
+            order_id
+        );
+    }
+
+    // Wyślij komunikat toast o sukcesie.
+    let toast_payload = serde_json::json!({
+        "showMessage": {
+            "message": "Zamowienie zostalo trwale usuniete.",
+            "type": "success"
+        }
+    });
+    if let Ok(val) = HeaderValue::from_str(&toast_payload.to_string()) {
+        headers.insert("HX-Trigger", val);
+    }
+
+    // Zwróć pustą odpowiedź z kodem 200 OK. HTMX usunie wiersz z tabeli.
+    Ok((StatusCode::OK, headers))
+}

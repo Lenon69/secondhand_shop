@@ -193,7 +193,7 @@ pub async fn get_product_detail_htmx_handler(
                         img
                             "x-bind:src"="currentMainImage && currentMainImage !== '' ? currentMainImage : '/static/placeholder.png'"
                             alt={"Zdjęcie główne: " (product.name)}
-                            class="max-w-full max-h-[60vh] md:max-h-full object-contain cursor-pointer hover:opacity-90 transition-opacity duration-200"
+                            class="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity duration-200"
                             loading="lazy"
                             "@click"=(main_image_click_alpine_action);
                     }
@@ -4127,7 +4127,7 @@ pub async fn admin_orders_list_htmx_handler(
                         label for="search_order" ."block text-sm font-medium text-gray-700 mb-1" { "Szukaj:" }
                         input type="search" name="search" id="search_order" value=[params.search.as_deref()] placeholder="ID, Nazwisko, Email..." class="admin-filter-input";
                     }
-                    div ."flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 items-end pt-2 sm:pt-0" { // Dodano pt-2 dla mobile
+                    div ."flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 items-end pt-2 sm:pt-0" {
                         button type="submit" class="admin-filter-button bg-pink-600 hover:bg-pink-700 text-white w-full sm:w-auto" { "Filtruj" }
                         a href="/htmx/admin/orders" // Link do resetowania filtrów (ładuje stronę z domyślnymi parametrami)
                            hx-get="/htmx/admin/orders" // Upewnij się, że ten GET nie przekazuje starych params, jeśli to reset
@@ -4218,15 +4218,15 @@ pub async fn admin_orders_list_htmx_handler(
                                     }
                                 }
 
-                                td class="admin-td text-center" {
-                                    a href=({ // Ta sama logika dla href
+                                td class="admin-td text-center whitespace-nowrap" {
+                                    a href=({
                                                 if list_query_string.is_empty() {
                                                     format!("/htmx/admin/order-details/{}", order.id)
                                                 } else {
                                                     format!("/htmx/admin/order-details/{}?{}", order.id, list_query_string)
                                                 }
                                             })
-                                           hx-get=({ // Ta sama logika dla hx-get
+                                           hx-get=({
                                                 if list_query_string.is_empty() {
                                                     format!("/htmx/admin/order-details/{}", order.id)
                                                 } else {
@@ -4238,8 +4238,21 @@ pub async fn admin_orders_list_htmx_handler(
                                             path "fill-rule"="evenodd" d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41zM14 10a4 4 0 11-8 0 4 4 0 018 0z" "clip-rule"="evenodd" {}
                                         }
                                     }
-                                    // Przycisk usuwania zamówienia (jeśli potrzebny - ostrożnie!)
-                                    // button hx-delete=(format!("/api/orders/{}", order.id)) ...
+                                    // POCZĄTEK NOWEGO KODU - Przycisk usuwania
+                                    button
+                                        class="admin-action-button text-red-600 hover:text-red-800 ml-2" // ml-2 dla odstępu
+                                        title="Usuń zamówienie trwale"
+                                        hx-delete=(format!("/api/orders/{}/permanent", order.id))
+                                        hx-confirm="UWAGA! Czy na pewno chcesz TRWALE usunąć to zamówienie? Produkty z tego zamówienia wrócą do sprzedaży. Tej operacji nie można cofnąć!"
+                                        hx-target="closest tr"
+                                        hx-swap="outerHTML"
+                                    {
+                                        // Ikona kosza na śmieci
+                                        svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5" {
+                                            path "fill-rule"="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" "clip-rule"="evenodd" {}
+                                        }
+                                    }
+                                    // KONIEC NOWEGO KODU
                                 }
                             }
                         }
