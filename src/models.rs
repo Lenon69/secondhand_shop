@@ -84,47 +84,36 @@ pub enum ProductGender {
     Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display, EnumIter, AsRefStr,
 )]
 #[sqlx(type_name = "category_type")]
-#[strum(ascii_case_insensitive)]
+#[strum(ascii_case_insensitive, serialize_all = "kebab-case")]
 pub enum Category {
+    #[strum(to_string = "Koszule")] // 'to_string' to alias dla 'serialize'
     Koszule,
+    #[strum(to_string = "Spodnie")]
     Spodnie,
+    #[strum(to_string = "Sukienki")]
     Sukienki,
-    #[strum(serialize = "Spódnice")]
+    #[strum(to_string = "Spódnice")]
     Spodnice,
+    #[strum(to_string = "Swetry")]
     Swetry,
+    #[strum(to_string = "Bluzy")]
     Bluzy,
-    #[strum(serialize = "Kurtki i Płaszcze")]
+    #[strum(to_string = "Kurtki i Płaszcze")]
     KurtkiPlaszcze,
-    #[strum(serialize = "Marynarki i Żakiety")]
+    #[strum(to_string = "Marynarki i Żakiety")]
     MarynarkiZakiety,
+    #[strum(to_string = "Obuwie")]
     Obuwie,
+    #[strum(to_string = "Torebki")]
     Torebki,
+    #[strum(to_string = "Akcesoria")]
     Akcesoria,
+    #[strum(to_string = "Bielizna")]
     Bielizna,
-    #[strum(serialize = "Stroje kąpielowe")]
+    #[strum(to_string = "Stroje kąpielowe")]
     StrojeKapielowe,
+    #[strum(to_string = "Inne")]
     Inne,
-}
-
-impl Category {
-    pub fn as_url_param(&self) -> String {
-        match self {
-            Category::Koszule => "Koszule".to_string(),
-            Category::Spodnie => "Spodnie".to_string(),
-            Category::Sukienki => "Sukienki".to_string(),
-            Category::Spodnice => "Spodnice".to_string(),
-            Category::Swetry => "Swetry".to_string(),
-            Category::Bluzy => "Bluzy".to_string(),
-            Category::KurtkiPlaszcze => "KurtkiPlaszcze".to_string(),
-            Category::MarynarkiZakiety => "MarynarkiZakiety".to_string(),
-            Category::Obuwie => "Obuwie".to_string(),
-            Category::Torebki => "Torebki".to_string(),
-            Category::Akcesoria => "Akcesoria".to_string(),
-            Category::Bielizna => "Bielizna".to_string(),
-            Category::StrojeKapielowe => "StrojeKapielowe".to_string(),
-            Category::Inne => "Inne".to_string(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

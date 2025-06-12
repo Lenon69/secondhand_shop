@@ -51,7 +51,7 @@ fn build_full_query_string_from_params(params: &ListingParams) -> String {
         query_parts.push(format!("gender={}", g.to_string()));
     }
     if let Some(c) = params.category() {
-        query_parts.push(format!("category={}", c.as_url_param()));
+        query_parts.push(format!("category={}", c.as_ref()));
     }
     if let Some(cond) = params.condition() {
         query_parts.push(format!("condition={}", cond.to_string()));
@@ -1049,14 +1049,16 @@ pub async fn gender_page_handler(
                                 }
                                 @for category_item in &categories {
                                     li {
+                                        @let category_param = category_item.as_ref();
+                                        @let category_display_name = category_item.to_string();
                                         a href="#"
-                                           hx-get=(format!("/htmx/products?gender={}&category={}", current_gender.to_string(), category_item.as_url_param()))
+                                           hx-get=(format!("/htmx/products?gender={}&category={}", current_gender.to_string(), category_item.as_ref()))
                                            hx-target="#product-listing-area" "hx-swap"="innerHTML"
-                                           hx-push-url=(format!("/dla/{}/{}", gender_slug, category_item.to_string().to_lowercase().replace(' ', "-").replace("ł", "l").replace("ó", "o").replace("ż", "z").replace("ą", "a").replace("ę", "e").replace("ć", "c").replace("ń", "n").replace("ś", "s")))
+                                           hx-push-url=(format!("/dla/{}/{}", gender_slug, category_param))
                                            "@click"="if (window.innerWidth < 768) showMobileCategories = false" // Zwiń po kliknięciu na mobile
                                            class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
                                            "_"="on htmx:afterSwap remove .font-bold .text-pink-700 from #category-sidebar a add .font-bold .text-pink-700 to me" {
-                                            (category_item.to_string())
+                                            (category_display_name)
                                         }
                                     }
                                 }
