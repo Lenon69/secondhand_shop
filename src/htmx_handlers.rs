@@ -965,7 +965,7 @@ pub async fn gender_page_handler(
     let categories: Vec<Category> = Category::iter().collect();
 
     let initial_listing_params = ListingParams {
-        limit: Some(9),
+        limit: Some(8),
         offset: Some(0),
         gender: Some(current_gender.clone()),
         category: None,
