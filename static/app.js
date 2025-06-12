@@ -6,6 +6,7 @@
 // ========================================================================
 // I. GŁÓWNA INICJALIZACJA I LISTENERY
 // ========================================================================
+*/
 
 // Wszystkie listenery inicjujemy po załadowaniu struktury strony (DOM).
 document.addEventListener("DOMContentLoaded", () => {
@@ -32,9 +33,6 @@ document.addEventListener("DOMContentLoaded", () => {
   initEventListeners();
 });
 
-/**
- * Rejestruje wszystkie główne listenery zdarzeń aplikacji.
- */
 function initEventListeners() {
   // ========================================================================
   // A. Konfiguracja i cykl życia HTMX
