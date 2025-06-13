@@ -27,6 +27,7 @@ mod htmx_handlers;
 mod middleware;
 mod models;
 mod pagination;
+mod response;
 mod state;
 
 // Importy z własnych modułów
