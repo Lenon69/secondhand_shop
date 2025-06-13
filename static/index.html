@@ -139,7 +139,8 @@
 
               // 📱 Menu mobilne
               isMobileMenuOpen: false,
-              currentMobilePage: '', // Można by to spróbować powiązać z aktualnym URL przez HTMX
+              currentMobilePage: '', 
+              isCategorySidebarOpen: false,
 
               // 🖼️ Modal obrazka
               activeImageModal: {
@@ -436,7 +437,7 @@
               hx-target="#content"
               hx-push-url="/dla-niej"
               hx-swap="innerHTML"
-              @click="currentMobilePage='damska'"
+              @click="currentMobilePage='damska'; isCategorySidebarOpen = false"
               class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
               >Dla niej</a
             >
@@ -446,7 +447,7 @@
               hx-target="#content"
               hx-push-url="/dla-niego"
               hx-swap="innerHTML"
-              @click="currentMobilePage='meska'"
+              @click="currentMobilePage='meska'; isCategorySidebarOpen = false"
               class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
               >Dla niego</a
             >
@@ -533,7 +534,7 @@
             hx-target="#content"
             hx-swap="innerHTML"
             hx-push-url="/dla-niej"
-            @click="isMobileMenuOpen = false; currentMobilePage='damska'"
+            @click="isMobileMenuOpen = false; currentMobilePage='damska'; isCategorySidebarOpen = false"
             :class="{'mobile-nav-active': currentMobilePage === 'damska'}"
             class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-700"
             >Dla niej</a
@@ -544,7 +545,7 @@
             hx-target="#content"
             hx-swap="innerHTML"
             hx-push-url="/dla-niego"
-            @click="isMobileMenuOpen = false; currentMobilePage='meska'"
+            @click="isMobileMenuOpen = false; currentMobilePage='meska'; isCategorySidebarOpen = false"
             :class="{'mobile-nav-active': currentMobilePage === 'meska'}"
             class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-700"
             >Dla niego</a

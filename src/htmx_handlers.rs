@@ -206,10 +206,10 @@ pub async fn get_product_detail_htmx_handler(
                         div .grid.grid-cols-3.sm:grid-cols-4.md:grid-cols-3.lg:grid-cols-5.gap-2.sm:gap-3 {
                             // Używamy allProductImages (camelCase) konsekwentnie
                             @for (image_url_loop_item, index) in product.images.iter().zip(0..) {
-                            @let click_action_str = format!(
-                                "currentMainImage = allProductImages[{}]; $nextTick(() => document.getElementById('product-detail-view').scrollIntoView({{ behavior: 'smooth', block: 'start' }}));",
-                                index);
-                                @let class_binding_str = format!("currentMainImage === allProductImages[{}] ? 'border-pink-500 ring-2 ring-pink-500' : 'border-gray-200 hover:border-pink-400'", index);
+                                @let click_action_str = format!(
+                                    "currentMainImage = allProductImages[{}]; $nextTick(() => window.scrollTo({{ top: 0, behavior: 'smooth' }}));",
+                                    index
+                                );                                @let class_binding_str = format!("currentMainImage === allProductImages[{}] ? 'border-pink-500 ring-2 ring-pink-500' : 'border-gray-200 hover:border-pink-400'", index);
 
                                 button type="button"
                                     "@click"=(click_action_str)
@@ -998,20 +998,20 @@ pub async fn gender_page_handler(
     Ok(html! {
             // Dodajemy x-data. Domyślnie kategorie na mobile są zwinięte (false), na desktopie logika x-show nie zadziała dzięki md:block
             div ."flex flex-col md:flex-row gap-6"
-                "x-data"="{ showMobileCategories: false }"
-                "x-init"="if (window.innerWidth >= 768) { showMobileCategories = true }" // Pokaż na desktop przy inicjalizacji
+                // "x-data"="{ showMobileCategories: false }"
+                // "x-init"="if (window.innerWidth >= 768) { showMobileCategories = true }"
                 {
 
                 // --- Przycisk do rozwijania/zwijania kategorii na mobile ---
                 div ."md:hidden p-4 border-b border-gray-200 bg-gray-50" { // Widoczny tylko na mobile
                     button type="button"
-                           "@click"="showMobileCategories = !showMobileCategories"
+                           "@click"="isCategorySidebarOpen = !isCategorySidebarOpen"
                            class="w-full flex justify-between items-center px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 focus:outline-none font-semibold" {
                         span { (current_gender_display_name) ": Kategorie" } // Lub po prostu "Kategorie / Filtry"
-    svg "x-show"="!showMobileCategories" class="w-5 h-5 transform transition-transform duration-200" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
+    svg "x-show"="!isCategorySidebarOpen" class="w-5 h-5 transform transition-transform duration-200" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
                         path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
                     }
-                    svg "x-show"="showMobileCategories" "x-cloak" class="w-5 h-5 transform transition-transform duration-200 rotate-180" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
+                    svg "x-show"="isCategorySidebarOpen" "x-cloak" class="w-5 h-5 transform transition-transform duration-200 rotate-180" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
                         path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7"; // Ta sama ścieżka, SVG jest obracane przez klasę CSS
                     }                }
                 }
@@ -1022,15 +1022,9 @@ pub async fn gender_page_handler(
                 aside #category-sidebar
                       // Ukryty domyślnie na mobile, chyba że showMobileCategories jest true
                       // Zawsze widoczny i stylowany na desktopie
-                      class="w-full md:w-1/4 lg:w-1/5 bg-gray-50 md:p-4 md:border md:border-gray-200 md:rounded-lg md:shadow-sm md:sticky md:top-20 md:self-start transition-all duration-300 ease-in-out"
+                      class="w-full md:w-1/4 lg:w-1/5 bg-gray-50 md:p-4 md:border md:border-gray-200 md:rounded-lg md:shadow-sm md:sticky md:top-20 md:self-start transition-all duration-300 ease-in-out hidden md:block"
                       style="max-height: calc(100vh - 100px); overflow-y: auto;"
-                      x-show="showMobileCategories || window.innerWidth >= 768" // Pokaż jeśli stan LUB desktop
-                      x-transition:enter="transition ease-out duration-200"
-                      x-transition:enter-start="opacity-0 max-h-0" // Zaczynamy od zerowej wysokości i opacity
-                      x-transition:enter-end="opacity-100 max-h-[500px]" // Rozwijamy do pewnej max wysokości (dostosuj)
-                      x-transition:leave="transition ease-in duration-150"
-                      x-transition:leave-start="opacity-100 max-h-[500px]"
-                      x-transition:leave-end="opacity-0 max-h-0"
+                      x-bind:class="{ '!block': isCategorySidebarOpen }"
                       x-cloak { // Zapobiega mignięciu przed inicjalizacją Alpine
 
                     // Ten div zapewnia padding wewnątrz aside, który może być schowany przy zwijaniu
@@ -1043,7 +1037,7 @@ pub async fn gender_page_handler(
                                        hx-get=(format!("/htmx/products?gender={}", current_gender.to_string()))
                                        hx-target="#product-listing-area" "hx-swap"="innerHTML"
                                        hx-push-url=(format!("/dla/{}", gender_slug))
-                                       "@click"="if (window.innerWidth < 768) showMobileCategories = false" // Zwiń po kliknięciu na mobile
+                                       "@click"="if (window.innerWidth < 768) isCategorySidebarOpen = false"
                                        class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
                                        "_"="on htmx:afterSwap remove .font-bold .text-pink-700 from #category-sidebar a add .font-bold .text-pink-700 to me" {
                                         "Wszystkie"
@@ -1057,7 +1051,7 @@ pub async fn gender_page_handler(
                                            hx-get=(format!("/htmx/products?gender={}&category={}", current_gender.to_string(), category_item.as_ref()))
                                            hx-target="#product-listing-area" "hx-swap"="innerHTML"
                                            hx-push-url=(format!("/dla/{}/{}", gender_slug, category_param))
-                                           "@click"="if (window.innerWidth < 768) showMobileCategories = false" // Zwiń po kliknięciu na mobile
+                                           "@click"="if (window.innerWidth < 768) { isCategorySidebarOpen = false; }"
                                            class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
                                            "_"="on htmx:afterSwap remove .font-bold .text-pink-700 from #category-sidebar a add .font-bold .text-pink-700 to me" {
                                             (category_display_name)
