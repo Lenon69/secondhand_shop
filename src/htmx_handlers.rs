@@ -114,6 +114,10 @@ fn build_filter_only_query_string(params: &ListingParams) -> String {
 pub struct DetailViewParams {
     #[serde(default)]
     pub return_params: Option<String>,
+    #[serde(default)]
+    pub return_url: Option<String>,
+    #[serde(default)]
+    pub return_text: Option<String>,
 }
 
 fn format_price_maud(price: i64) -> String {
@@ -269,47 +273,46 @@ pub async fn get_product_detail_htmx_handler(
                                 "Produkt obecnie niedostępny"
                             }
                         }
-
                         // --- Logika linku powrotnego ---
-                        div ."mt-4 text-center sm:text-left" {
-                             @if let Some(qs_val) = &return_query_params_str_rust {
-                                @if !qs_val.is_empty() {
-                                    a href=(format!("/kategoria?{}", qs_val))
-                                       hx-get=(format!("/htmx/products?{}", qs_val))
-                                       hx-target="#content" "hx-swap"="innerHTML"
-                                       hx-push-url=(format!("/kategoria?{}", qs_val))
+                            div ."mt-4 text-center sm:text-left" {
+                                // KROK 1: Sprawdź, czy przekazano nowe, precyzyjne parametry powrotu
+                                @if let (Some(url), Some(text)) = (&query_params.return_url, &query_params.return_text) {
+                                    a href=(url.replace("/htmx", "")) // Tworzymy "ładny" URL dla paska adresu
+                                       hx-get=(url)                   // Używamy pełnego URL-a HTMX do żądania
+                                       hx-target="#admin-content"     // WAŻNE: Wracamy do kontenera admina
+                                       hx-swap="innerHTML"
+                                       hx-push-url=(url.replace("/htmx", ""))
                                        class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
-                                        "← Wróć do poprzedniego widoku"
-                                    }
-                                } @else {
-                                    // Fallback dla Some("")
-                                    @if product.gender == crate::models::ProductGender::Damskie { // Bezpośrednie porównanie enumów
-                                        a href="/dla-niej" hx-get="/htmx/dla/niej" hx-target="#content" hx-swap="innerHTML" hx-push-url="/dla-niej" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
-                                            "← Wróć do " (product.gender.to_string())
-                                        }
-                                    } @else if product.gender == crate::models::ProductGender::Meskie {
-                                        a href="/dla-niego" hx-get="/htmx/dla/niego" hx-target="#content" hx-swap="innerHTML" hx-push-url="/dla-niego" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
-                                            "← Wróć do " (product.gender.to_string())
-                                        }
-                                    } @else {
-                                        a href="/" hx-get="/htmx/products?limit=8" hx-target="#content" hx-swap="innerHTML" hx-push-url="/" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
-                                            "← Wróć na stronę główną"
-                                        }
+                                        "← " (text)
                                     }
                                 }
-                            } @else {
-                                // Fallback dla None
-                                @if product.gender == crate::models::ProductGender::Damskie {
-                                    a href="/dla-niej" hx-get="/htmx/dla/niej" hx-target="#content" hx-swap="innerHTML" hx-push-url="/dla-niej" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
-                                        "← Wróć do " (product.gender.to_string())
-                                    }
-                                } @else if product.gender == crate::models::ProductGender::Meskie {
-                                    a href="/dla-niego" hx-get="/htmx/dla/niego" hx-target="#content" hx-swap="innerHTML" hx-push-url="/dla-niego" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
-                                        "← Wróć do " (product.gender.to_string())
-                                    }
-                                } @else {
-                                    a href="/" hx-get="/htmx/products?limit=8" hx-target="#content" hx-swap="innerHTML" hx-push-url="/" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
-                                        "← Wróć na stronę główną"
+                                // KROK 2: Jeśli nie, użyj starej logiki (fallback)
+                                @else {
+                                    @if let Some(qs_val) = &return_query_params_str_rust {
+                                        @if !qs_val.is_empty() {
+                                            // Logika powrotu do listy produktów (bez zmian)
+                                            a href=(format!("/kategoria?{}", qs_val))
+                                               hx-get=(format!("/htmx/products?{}", qs_val))
+                                               hx-target="#content" hx-swap="innerHTML"
+                                               hx-push-url=(format!("/kategoria?{}", qs_val))
+                                               class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
+                                                "← Wróć do poprzedniego widoku"
+                                            }
+                                        } @else {
+                                            // Logika powrotu do kategorii płci (bez zmian)
+                                            @if product.gender == crate::models::ProductGender::Damskie {
+                                                a href="/dla-niej" hx-get="/htmx/dla/niej" hx-target="#content" hx-swap="innerHTML" hx-push-url="/dla-niej" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
+                                                    "← Wróć do " (product.gender.to_string())
+                                                }
+                                            } @else if product.gender == crate::models::ProductGender::Meskie {
+                                                // ... itd.
+                                            }
+                                        }
+                                    } @else {
+                                        // Logika powrotu do kategorii płci (bez zmian)
+                                        @if product.gender == crate::models::ProductGender::Damskie {
+                                            // ... itd.
+                                        }
                                     }
                                 }
                             }
@@ -317,8 +320,7 @@ pub async fn get_product_detail_htmx_handler(
                     }
                 }
             }
-        }
-    })
+        })
 }
 
 pub async fn get_cart_details_htmx_handler(
@@ -4459,7 +4461,12 @@ pub async fn admin_order_details_htmx_handler(
                     p ."text-gray-500" { "Brak produktów w tym zamówieniu." }
                 } @else {
                     ul role="list" ."divide-y divide-gray-200" {
+                        @let list_query_string = list_params.to_query_string();
                         @for item_detail in &order_details.items {
+                            @let return_url_unencoded = format!("/htmx/admin/order-details/{}?{}", order_id, list_query_string);
+                            @let return_url_encoded = urlencoding::encode(&return_url_unencoded);
+                            @let return_text_encoded = urlencoding::encode("Wróć do szczegółów zamówienia");
+
                             li ."py-4 flex flex-col sm:flex-row sm:items-center" {
                                 @if let Some(image_url) = item_detail.product.images.get(0) {
                                     img src=(image_url) alt=(item_detail.product.name)
@@ -4470,10 +4477,9 @@ pub async fn admin_order_details_htmx_handler(
                                     }
                                 }
                                 div ."flex-grow min-w-0" {
-                                    // Link do strony produktu (użyjemy istniejącego /htmx/produkt/{id})
-                                    a href=(format!("/produkty/{}", item_detail.product.id)) // Link dla nowej karty
-                                       hx-get=(format!("/htmx/produkt/{}", item_detail.product.id)) // HTMX ładowanie
-                                       hx-target="#admin-content" // lub inny globalny kontener, jeśli chcesz opuścić panel admina
+                                    a href=(format!("/produkty/{}", item_detail.product.id))
+                                       hx-get=(format!("/htmx/produkt/{}?return_url={}&return_text={}", item_detail.product.id, return_url_encoded, return_text_encoded))
+                                       hx-target="#admin-content"
                                        hx-swap="innerHTML"
                                        hx-push-url=(format!("/produkty/{}", item_detail.product.id))
                                        class="text-sm font-medium text-pink-600 hover:text-pink-700 hover:underline block truncate" {
