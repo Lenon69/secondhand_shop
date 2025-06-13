@@ -9,26 +9,49 @@
 */
 
 // Wszystkie listenery inicjujemy po załadowaniu struktury strony (DOM).
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", function () {
   const globalSpinner = document.getElementById("global-loading-spinner");
 
-  // --- Obsługa globalnego wskaźnika ładowania (spinnera) ---
   if (globalSpinner) {
-    document.body.addEventListener("htmx:beforeRequest", (event) => {
-      // Nie pokazuj spinnera przy przywracaniu strony z historii przeglądarki
-      if (!event.detail.requestConfig.headers["HX-History-Restore-Request"]) {
+    document.body.addEventListener("htmx:beforeRequest", function (event) {
+      const path = event.detail.requestConfig.path;
+
+      if (path === "/" || path === "") {
+        if (globalSpinner) {
+          globalSpinner.classList.remove("show");
+        }
+
+        event.preventDefault();
+
+        window.location.href = "/";
+
+        return;
+      }
+
+      if (globalSpinner) {
         globalSpinner.classList.add("show");
       }
     });
 
-    const hideSpinner = () => globalSpinner.classList.remove("show");
-    document.body.addEventListener("htmx:afterRequest", hideSpinner);
-    document.body.addEventListener("htmx:sendError", hideSpinner);
-    document.body.addEventListener("htmx:responseError", hideSpinner);
-  } else {
-    console.error("Nie znaleziono elementu #global-loading-spinner!");
-  }
+    document.body.addEventListener("htmx:afterRequest", function (event) {
+      if (event.detail.requestConfig.headers["HX-History-Restore-Request"]) {
+        setTimeout(() => {
+          globalSpinner.classList.remove("show");
+        }, 200);
+      } else {
+        globalSpinner.classList.remove("show");
+      }
+    });
 
+    document.body.addEventListener("htmx:sendError", function () {
+      globalSpinner.classList.remove("show");
+    });
+    document.body.addEventListener("htmx:responseError", function () {
+      globalSpinner.classList.remove("show");
+    });
+  } else {
+    console.error("Global spinner element #global-loading-spinner NOT FOUND!");
+  }
   // --- Inicjalizacja pozostałych listenerów ---
   initEventListeners();
 });
