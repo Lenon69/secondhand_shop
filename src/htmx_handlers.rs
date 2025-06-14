@@ -931,25 +931,12 @@ fn render_product_grid_maud(
 }
 
 pub async fn list_products_htmx_handler(
+    headers: HeaderMap,
     State(app_state): State<AppState>,
     Query(params): Query<ListingParams>,
-) -> Result<Markup, AppError> {
-    tracing::info!("MAUD: /htmx/products z parametrami: {:?}", params);
-    let paginated_response_axum_json =
-        crate::handlers::list_products(State(app_state.clone()), Query(params.clone())).await?;
-    let paginated_response: PaginatedProductsResponse = paginated_response_axum_json.0;
-
-    let filter_query_string = build_filter_only_query_string(&params);
-    let current_listing_params_qs = build_full_query_string_from_params(&params);
-
-    Ok(render_product_grid_maud(
-        &paginated_response.data,
-        paginated_response.current_page,
-        paginated_response.total_pages,
-        paginated_response.per_page,
-        &filter_query_string,
-        &current_listing_params_qs,
-    ))
+) -> Result<AppResponse, AppError> {
+    let page_content = render_product_listing_view(app_state, params).await?;
+    build_response(headers, page_content).await
 }
 
 pub async fn gender_page_handler(
@@ -2060,8 +2047,8 @@ pub async fn shipping_returns_page_handler(headers: HeaderMap) -> Result<AppResp
 }
 
 pub async fn my_account_page_handler(
-    claims: TokenClaims,
     headers: HeaderMap,
+    claims: TokenClaims,
 ) -> Result<AppResponse, AppError> {
     tracing::info!(
         "MAUD: Użytkownik ID {} wszedł na stronę Moje Konto",
@@ -2361,8 +2348,8 @@ fn render_product_form_maud(product_opt: Option<&Product>) -> Result<Markup, App
 }
 
 pub async fn admin_product_new_form_htmx_handler(
-    claims: TokenClaims,
     headers: HeaderMap,
+    claims: TokenClaims,
 ) -> Result<AppResponse, AppError> {
     if claims.role != Role::Admin {
         return Err(AppError::UnauthorizedAccess(
@@ -4571,7 +4558,8 @@ pub async fn news_page_htmx_handler(
         status: Some(ProductStatus::Available),
         ..Default::default()
     };
-    let page_content = list_products_htmx_handler(State(app_state), Query(params)).await?;
+
+    let page_content = render_product_listing_view(app_state, params).await?;
     build_response(headers, page_content).await
 }
 
@@ -4587,6 +4575,28 @@ pub async fn sale_page_htmx_handler(
         limit: Some(8),
         ..Default::default()
     };
-    let page_content = list_products_htmx_handler(State(app_state), Query(params)).await?;
+    let page_content = render_product_listing_view(app_state, params).await?;
     build_response(headers, page_content).await
+}
+
+pub async fn render_product_listing_view(
+    app_state: AppState,
+    params: ListingParams,
+) -> Result<Markup, AppError> {
+    tracing::info!("MAUD: /htmx/products z parametrami: {:?}", params);
+    let paginated_response_axum_json =
+        crate::handlers::list_products(State(app_state), Query(params.clone())).await?;
+    let paginated_response: PaginatedProductsResponse = paginated_response_axum_json.0;
+
+    let filter_query_string = build_filter_only_query_string(&params);
+    let current_listing_params_qs = build_full_query_string_from_params(&params);
+
+    Ok(render_product_grid_maud(
+        &paginated_response.data,
+        paginated_response.current_page,
+        paginated_response.total_pages,
+        paginated_response.per_page,
+        &filter_query_string,
+        &current_listing_params_qs,
+    ))
 }

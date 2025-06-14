@@ -167,7 +167,7 @@ async fn main() {
             "/htmx/cart/add/{product_id}",
             post(add_item_to_cart_htmx_handler),
         )
-        .route("/htmx/cart/details", get(get_cart_details_htmx_handler))
+        .route("/htmx/cart/details", get(get_cart_details_htmx_handler)) // TODO
         .route("/htmx/products", get(list_products_htmx_handler))
         .route(
             "/htmx/cart/remove/{product_id}",
