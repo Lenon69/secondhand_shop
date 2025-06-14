@@ -9,58 +9,47 @@
 */
 
 // Wszystkie listenery inicjujemy po załadowaniu struktury strony (DOM).
-document.addEventListener(
-  "DOMContentLoaded",
-  document.addEventListener("DOMContentLoaded", function () {
-    const globalSpinner = document.getElementById("global-loading-spinner");
+document.addEventListener("DOMContentLoaded", function () {
+  const globalSpinner = document.getElementById("global-loading-spinner");
 
-    if (!globalSpinner) {
-      console.error(
-        "Global spinner element #global-loading-spinner NOT FOUND!",
-      );
+  if (!globalSpinner) {
+    console.error("Global spinner element #global-loading-spinner NOT FOUND!");
+    return;
+  }
+
+  const hideSpinner = () => {
+    globalSpinner.classList.remove("show");
+  };
+
+  // Pokaż spinner przed każdym żądaniem HTMX
+  document.body.addEventListener("htmx:beforeRequest", (event) => {
+    // Sprawdzamy, czy to żądanie do strony głównej, aby wymusić pełny reload
+    const path = event.detail.requestConfig.path;
+    if (path === "/" || path === "") {
+      event.preventDefault();
+      window.location.href = "/";
       return;
     }
+    globalSpinner.classList.add("show");
+  });
 
-    const hideSpinner = () => {
-      globalSpinner.classList.remove("show");
-    };
+  // Schowaj spinner po każdym zakończonym żądaniu (sukces lub błąd)
+  document.body.addEventListener("htmx:afterRequest", hideSpinner);
+  document.body.addEventListener("htmx:sendError", hideSpinner);
+  document.body.addEventListener("htmx:responseError", hideSpinner);
 
-    // 1. ZAWSZE pokazuj spinner przed wysłaniem żądania HTMX.
-    document.body.addEventListener("htmx:beforeRequest", function (event) {
-      // Sprawdzamy, czy to żądanie do strony głównej, aby wymusić pełny reload
-      // i uniknąć zablokowania spinnera (z poprzedniej poprawki).
-      const path = event.detail.requestConfig.path;
-      if (path === "/" || path === "") {
-        event.preventDefault();
-        window.location.href = "/";
-        return;
-      }
-      globalSpinner.classList.add("show");
-    });
+  // Specjalna obsługa przycisku "Wstecz", która polega na odświeżeniu
+  // strony z pamięci podręcznej przeglądarki (bfcache).
+  window.addEventListener("pageshow", function (event) {
+    if (event.persisted) {
+      // Jeśli strona jest przywracana z bfcache, spinner mógł zostać "zamrożony".
+      // Chowamy go z minimalnym opóźnieniem, aby zapewnić płynność.
+      setTimeout(hideSpinner, 100); // Możesz dostosować opóźnienie
+    }
+  });
+});
 
-    // 2. ZAWSZE chowaj spinner po zakończeniu ZWYKŁEGO żądania HTMX.
-    document.body.addEventListener("htmx:afterRequest", hideSpinner);
-
-    // 3. ZAWSZE chowaj spinner w razie jakiegokolwiek błędu.
-    document.body.addEventListener("htmx:sendError", hideSpinner);
-    document.body.addEventListener("htmx:responseError", hideSpinner);
-
-    // 4. (NAJWAŻNIEJSZE) Specjalna obsługa przycisku "Wstecz"/"Dalej".
-    // Używamy natywnego zdarzenia przeglądarki 'pageshow'.
-    window.addEventListener("pageshow", function (event) {
-      // event.persisted jest 'true', gdy strona jest przywracana z BFCache
-      // (co dzieje się po kliknięciu "Wstecz").
-      if (event.persisted) {
-        // Dajemy przeglądarce 200ms na odmalowanie widoku, a potem
-        // chowamy spinner, który mógł zostać "zamrożony" w stanie widocznym.
-        setTimeout(hideSpinner, 200);
-      }
-    });
-  }),
-
-  initEventListeners(),
-);
-
+initEventListeners();
 function initEventListeners() {
   // ========================================================================
   // A. Konfiguracja i cykl życia HTMX
@@ -178,7 +167,10 @@ function initEventListeners() {
           // Pokaż toast o sukcesie
           window.dispatchEvent(
             new CustomEvent("showMessage", {
-              detail: { message: "Pomyślnie zapisano zmiany", type: "success" },
+              detail: {
+                message: "Pomyślnie zapisano zmiany",
+                type: "success",
+              },
             }),
           );
 

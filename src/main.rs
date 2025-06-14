@@ -182,15 +182,22 @@ async fn main() {
             get(privacy_policy_page_handler),
         )
         .route("/htmx/page/o-nas", get(about_us_page_handler))
+        .route("/o-nas", get(about_us_page_handler))
         .route("/htmx/page/regulamin", get(terms_of_service_page_handler))
+        .route("/regulamin", get(terms_of_service_page_handler))
         .route("/htmx/page/kontakt", get(contact_page_handler))
+        .route("/kontakt", get(contact_page_handler))
         .route("/htmx/page/faq", get(faq_page_handler))
+        .route("/faq", get(faq_page_handler))
         .route(
             "/htmx/page/wysylka-i-zwroty",
             get(shipping_returns_page_handler),
         )
+        .route("/wysylka-i-zwroty", get(shipping_returns_page_handler))
         .route("/htmx/logowanie", get(login_page_htmx_handler))
+        .route("/logowanie", get(login_page_htmx_handler))
         .route("/htmx/rejestracja", get(registration_page_htmx_handler))
+        .route("/rejestracja", get(registration_page_htmx_handler))
         .route("/htmx/my-account", get(my_account_page_handler))
         .route("/htmx/moje-konto/zamowienia", get(my_orders_htmx_handler))
         .route("/htmx/moje-konto/dane", get(my_account_data_htmx_handler))
@@ -205,6 +212,8 @@ async fn main() {
             "/htmx/admin/products",
             get(admin_products_list_htmx_handler),
         )
+        .route("/admin/produkty", get(admin_products_list_htmx_handler))
+        .route("/admin/zamowienia", get(admin_orders_list_htmx_handler))
         .route(
             "/htmx/admin/products/new-form",
             get(admin_product_new_form_htmx_handler),
