@@ -27,6 +27,7 @@ use crate::{
         ProductCondition, ProductGender, ProductStatus, UserShippingDetails,
     },
     pagination::PaginatedOrdersResponse,
+    response::{AppResponse, build_response, serve_full_page},
 };
 #[allow(unused_imports)]
 use crate::{
@@ -125,10 +126,11 @@ fn format_price_maud(price: i64) -> String {
 }
 
 pub async fn get_product_detail_htmx_handler(
+    headers: HeaderMap,
     State(app_state): State<AppState>,
     Path(product_id): Path<Uuid>,
     Query(query_params): Query<DetailViewParams>,
-) -> Result<Markup, AppError> {
+) -> Result<AppResponse, AppError> {
     tracing::info!(
         "MAUD: /htmx/product/{} z parametrami: {:?}",
         product_id,
@@ -186,7 +188,7 @@ pub async fn get_product_detail_htmx_handler(
 
     let return_query_params_str_rust: Option<String> = query_params.return_params;
 
-    Ok(html! {
+    let page_content = html! {
     div #product-detail-view "x-data"=(x_data_attribute_value)
         class="bg-white p-4 sm:p-6 lg:p-8 rounded-lg shadow-xl" {
         div ."grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12" {
@@ -320,7 +322,8 @@ pub async fn get_product_detail_htmx_handler(
                     }
                 }
             }
-        })
+        };
+    build_response(headers, page_content).await
 }
 
 pub async fn get_cart_details_htmx_handler(
@@ -950,9 +953,10 @@ pub async fn list_products_htmx_handler(
 }
 
 pub async fn gender_page_handler(
+    headers: HeaderMap,
     State(app_state): State<AppState>,
     Path(gender_slug): Path<String>,
-) -> Result<Markup, AppError> {
+) -> Result<AppResponse, AppError> {
     tracing::info!("MAUD: /htmx/dla/{} - ładowanie strony płci", gender_slug);
 
     let (current_gender, current_gender_display_name) = match gender_slug.as_str() {
@@ -995,7 +999,7 @@ pub async fn gender_page_handler(
     let current_listing_params_qs_for_initial_grid =
         build_full_query_string_from_params(&initial_listing_params);
 
-    Ok(html! {
+    let page_content = html! {
             // Dodajemy x-data. Domyślnie kategorie na mobile są zwinięte (false), na desktopie logika x-show nie zadziała dzięki md:block
             div ."flex flex-col md:flex-row gap-6"
                 // "x-data"="{ showMobileCategories: false }"
@@ -1075,11 +1079,13 @@ pub async fn gender_page_handler(
                     ))
                 }
             }
-        })
+        };
+
+    build_response(headers, page_content).await
 }
 
-pub async fn about_us_page_handler() -> Result<Markup, AppError> {
-    Ok(html! {
+pub async fn about_us_page_handler(headers: HeaderMap) -> Result<AppResponse, AppError> {
+    let page_content = html! {
         div ."max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16" {
             // Baner lub główny nagłówek strony
             div ."text-center mb-12" {
@@ -1147,10 +1153,12 @@ pub async fn about_us_page_handler() -> Result<Markup, AppError> {
                 }
             }
         }
-    })
+    };
+
+    build_response(headers, page_content).await
 }
 
-pub async fn privacy_policy_page_handler() -> Result<Markup, AppError> {
+pub async fn privacy_policy_page_handler(headers: HeaderMap) -> Result<AppResponse, AppError> {
     let effective_date = "25 maja 2025";
     let shop_name = "MEG JONI";
     let shop_url = "www.megjoni.com";
@@ -1266,7 +1274,7 @@ pub async fn privacy_policy_page_handler() -> Result<Markup, AppError> {
         contact_email_privacy
     );
 
-    Ok(html! {
+    let page_content = html! {
         div ."max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16" {
             div ."text-center mb-10" {
                 h1 ."text-3xl sm:text-4xl font-bold tracking-tight text-gray-900" { (heading_main_text) }
@@ -1335,10 +1343,12 @@ pub async fn privacy_policy_page_handler() -> Result<Markup, AppError> {
                 p { (contact_text_final_paragraph) } // Użycie poprawionego stringa
             }
         }
-    })
+    };
+
+    build_response(headers, page_content).await
 }
 
-pub async fn terms_of_service_page_handler() -> Result<Markup, AppError> {
+pub async fn terms_of_service_page_handler(headers: HeaderMap) -> Result<AppResponse, AppError> {
     let effective_date = "25 maja 2025";
     let shop_name = "MEG JONI";
     let shop_url = "www.megjoni.com";
@@ -1543,7 +1553,7 @@ pub async fn terms_of_service_page_handler() -> Result<Markup, AppError> {
         internetowymi Urzędu Ochrony Konkurencji i Konsumentów: [wstaw odpowiednie linki do UOKiK, platformy ODR itp.].";
     let s8_p5 = format!("Regulamin wchodzi w życie z dniem {}.", effective_date);
 
-    Ok(html! {
+    let page_content = html! {
         div ."max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16" {
             div ."text-center mb-10" {
                 h1 ."text-3xl sm:text-4xl font-bold tracking-tight text-gray-900" { (heading_main_text) }
@@ -1660,10 +1670,12 @@ pub async fn terms_of_service_page_handler() -> Result<Markup, AppError> {
                 }
             }
         }
-    })
+    };
+
+    build_response(headers, page_content).await
 }
 
-pub async fn contact_page_handler() -> Result<Markup, AppError> {
+pub async fn contact_page_handler(headers: HeaderMap) -> Result<AppResponse, AppError> {
     // Dane kontaktowe - UZUPEŁNIJ WŁASNYMI DANYMI!
     let shop_name = "MEG JONI";
     let contact_email = "kontakt@megjoni.com";
@@ -1704,7 +1716,7 @@ pub async fn contact_page_handler() -> Result<Markup, AppError> {
     let response_time_text =
         "Staramy się odpowiadać na wszystkie zapytania w ciągu 24 godzin w dni robocze.";
 
-    Ok(html! {
+    let content = html! {
         div ."max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16" {
             div ."text-center mb-12" {
                 h1 ."text-4xl sm:text-5xl font-bold tracking-tight text-gray-900" { (heading_main_text) }
@@ -1772,7 +1784,9 @@ pub async fn contact_page_handler() -> Result<Markup, AppError> {
                 }
             }
         }
-    })
+    };
+
+    build_response(headers, content).await
 }
 
 #[derive(Debug)]
@@ -1781,7 +1795,7 @@ struct FaqItem {
     answer: String,
 }
 
-pub async fn faq_page_handler() -> Result<Markup, AppError> {
+pub async fn faq_page_handler(headers: HeaderMap) -> Result<AppResponse, AppError> {
     let faq_items = vec![
         FaqItem {
             question: "Jakie są dostępne metody płatności?".to_string(),
@@ -1821,7 +1835,7 @@ pub async fn faq_page_handler() -> Result<Markup, AppError> {
         },
     ];
 
-    Ok(html! {
+    let page_content = html! {
         div ."max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16" {
             div ."text-center mb-12" {
                 h1 ."text-4xl sm:text-5xl font-bold tracking-tight text-gray-900" { "Najczęściej Zadawane Pytania (FAQ)" }
@@ -1866,10 +1880,12 @@ pub async fn faq_page_handler() -> Result<Markup, AppError> {
                 }
         }
             }
-    })
+    };
+
+    build_response(headers, page_content).await
 }
 
-pub async fn shipping_returns_page_handler() -> Result<Markup, AppError> {
+pub async fn shipping_returns_page_handler(headers: HeaderMap) -> Result<AppResponse, AppError> {
     let shop_name = "MEG JONI";
     let processing_time = "1-2 dni robocze";
     let delivery_time = "1-2 dni robocze";
@@ -1943,7 +1959,7 @@ pub async fn shipping_returns_page_handler() -> Result<Markup, AppError> {
         reklamacyjnej, Twoich praw oraz naszych obowiązków znajdziesz w §6 naszego Regulaminu Sklepu, dostępnego tutaj: ";
     let complaints_text_part2 = ".";
 
-    Ok(html! {
+    let page_content = html! {
             div ."max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16" {
                 div ."text-center mb-12" {
                     h1 ."text-4xl sm:text-5xl font-bold tracking-tight text-gray-900" { (page_title) }
@@ -2038,10 +2054,15 @@ pub async fn shipping_returns_page_handler() -> Result<Markup, AppError> {
                 }
            }
        }
-    })
+    };
+
+    build_response(headers, page_content).await
 }
 
-pub async fn my_account_page_handler(claims: TokenClaims) -> Result<Markup, AppError> {
+pub async fn my_account_page_handler(
+    claims: TokenClaims,
+    headers: HeaderMap,
+) -> Result<AppResponse, AppError> {
     tracing::info!(
         "MAUD: Użytkownik ID {} wszedł na stronę Moje Konto",
         claims.sub
@@ -2057,7 +2078,7 @@ pub async fn my_account_page_handler(claims: TokenClaims) -> Result<Markup, AppE
     ];
     let default_section_url = "/htmx/moje-konto/zamowienia";
 
-    Ok(html! {
+    let page_content = html! {
         div ."max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-8 sm:py-10" {
             h1 ."text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 mb-8 text-center md:text-left" { "Moje Konto" }
             div ."flex flex-col md:flex-row gap-6 lg:gap-8" {
@@ -2100,7 +2121,9 @@ pub async fn my_account_page_handler(claims: TokenClaims) -> Result<Markup, AppE
                 }
             }
         }
-    })
+    };
+
+    build_response(headers, page_content).await
 }
 
 // REFAKTORYZACJA: Nowa, reużywalna funkcja do renderowania formularza produktu
@@ -2337,7 +2360,10 @@ fn render_product_form_maud(product_opt: Option<&Product>) -> Result<Markup, App
     })
 }
 
-pub async fn admin_product_new_form_htmx_handler(claims: TokenClaims) -> Result<Markup, AppError> {
+pub async fn admin_product_new_form_htmx_handler(
+    claims: TokenClaims,
+    headers: HeaderMap,
+) -> Result<AppResponse, AppError> {
     if claims.role != Role::Admin {
         return Err(AppError::UnauthorizedAccess(
             "Brak uprawnień administratora.".to_string(),
@@ -2347,14 +2373,16 @@ pub async fn admin_product_new_form_htmx_handler(claims: TokenClaims) -> Result<
         "Admin ID {} żąda formularza dodawania nowego produktu",
         claims.sub
     );
-    render_product_form_maud(None) // ZMIANA: Wywołanie nowej, reużywalnej funkcji
+    let page_content = render_product_form_maud(None)?;
+    build_response(headers, page_content).await
 }
 
 pub async fn admin_product_edit_form_htmx_handler(
+    headers: HeaderMap,
     State(app_state): State<AppState>,
     claims: TokenClaims,
     Path(product_id): Path<Uuid>,
-) -> Result<Markup, AppError> {
+) -> Result<AppResponse, AppError> {
     if claims.role != Role::Admin {
         return Err(AppError::UnauthorizedAccess(
             "Brak uprawnień administratora.".to_string(),
@@ -2375,10 +2403,11 @@ pub async fn admin_product_edit_form_htmx_handler(
             _ => AppError::SqlxError(err),
         })?;
 
-    render_product_form_maud(Some(&product_to_edit))
+    let page_content = render_product_form_maud(Some(&product_to_edit))?;
+    build_response(headers, page_content).await
 }
 
-pub async fn login_page_htmx_handler() -> Result<Markup, AppError> {
+pub async fn login_page_htmx_handler(headers: HeaderMap) -> Result<AppResponse, AppError> {
     tracing::info!("MAUD: Żądanie strony logowania HTMX");
 
     let page_title = "Logowanie";
@@ -2388,7 +2417,7 @@ pub async fn login_page_htmx_handler() -> Result<Markup, AppError> {
     let registration_htmx_endpoint = "/htmx/rejestracja"; // Bez /page/
     let registration_url = "/rejestracja";
 
-    Ok(html! {
+    let page_content = html! {
         div ."min-h-[calc(100vh-var(--header-height,10rem))] w-full flex items-center justify-center p-4 bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-100" {
             div ."w-full max-w-md" { // Ten div centruje kartę
                 div ."bg-white/80 backdrop-blur-md py-8 px-6 sm:px-10 shadow-2xl rounded-xl border border-gray-200" {
@@ -2453,10 +2482,12 @@ pub async fn login_page_htmx_handler() -> Result<Markup, AppError> {
                 }
             }
         }
-    })
+    };
+
+    build_response(headers, page_content).await
 }
 
-pub async fn registration_page_htmx_handler() -> Result<Markup, AppError> {
+pub async fn registration_page_htmx_handler(headers: HeaderMap) -> Result<AppResponse, AppError> {
     tracing::info!("MAUD: Żądanie strony rejestracji HTMX");
 
     let page_title = "Załóż konto";
@@ -2466,7 +2497,7 @@ pub async fn registration_page_htmx_handler() -> Result<Markup, AppError> {
     let login_htmx_endpoint = "/htmx/logowanie"; // Bez /page/
     let login_url = "/logowanie";
 
-    Ok(html! {
+    let page_content = html! {
         div ."min-h-[calc(100vh-var(--header-height,10rem))] w-full flex items-center justify-center p-4 bg-gradient-to-br from-teal-50 via-cyan-50 to-sky-100" {
             div ."w-full max-w-md" {
                 div ."bg-white/80 backdrop-blur-md py-8 px-6 sm:px-10 shadow-2xl rounded-xl border border-gray-200" {
@@ -2541,13 +2572,16 @@ pub async fn registration_page_htmx_handler() -> Result<Markup, AppError> {
                 }
             }
         }
-    })
+    };
+
+    build_response(headers, page_content).await
 }
 
 pub async fn my_orders_htmx_handler(
+    headers: HeaderMap,
     State(app_state): State<AppState>,
     claims: TokenClaims, // Wymagane zalogowanie
-) -> Result<Markup, AppError> {
+) -> Result<AppResponse, AppError> {
     let user_id = claims.sub;
     tracing::info!("MAUD: Użytkownik ID {} żąda listy swoich zamówień", user_id);
 
@@ -2584,7 +2618,7 @@ pub async fn my_orders_htmx_handler(
     .fetch_all(&app_state.db_pool)
     .await?;
 
-    Ok(html! {
+    let page_content = html! {
         div { // Główny kontener dla tej sekcji, może mieć ID jeśli jest potrzebne dla hx-target z innego miejsca
             h2 ."text-2xl sm:text-3xl font-semibold text-gray-800 mb-6" { "Moje Zamówienia" }
             @if orders.is_empty() {
@@ -2647,14 +2681,17 @@ pub async fn my_orders_htmx_handler(
                 }
             }
         }
-    })
+    };
+
+    build_response(headers, page_content).await
 }
 
 pub async fn checkout_page_handler(
+    request_headers: HeaderMap,
     State(app_state): State<AppState>,
     user_claims_result: Result<TokenClaims, AppError>, // Wynik ekstrakcji JWT
     guest_cart_id_header: Option<TypedHeader<XGuestCartId>>,
-) -> Result<(HeaderMap, Markup), AppError> {
+) -> Result<(HeaderMap, AppResponse), AppError> {
     tracing::info!("MAUD: /htmx/checkout - żądanie strony kasy");
 
     // --- Sekcja 1: Pobieranie danych i inicjalizacja ---
@@ -2694,7 +2731,7 @@ pub async fn checkout_page_handler(
     }
 
     let cart_details = cart_details_response_opt.unwrap_or_else(|| CartDetailsResponse {
-        cart_id: Uuid::nil(), // Lub inne domyślne UUID, jeśli Uuid::nil() nie jest odpowiednie
+        cart_id: Uuid::nil(),
         user_id: None,
         items: vec![],
         total_items: 0,
@@ -2718,38 +2755,16 @@ pub async fn checkout_page_handler(
         }
     }
 
-    // Przygotowanie nagłówka HX-Trigger do aktualizacji licznika koszyka w UI
-    let mut headers = HeaderMap::new();
-    let trigger_payload_cart_count = serde_json::json!({
+    let mut response_headers = HeaderMap::new();
+    let trigger_payload = serde_json::json!({
         "updateCartCount": {
             "newCount": cart_details.total_items,
             "newCartTotalPrice": cart_details.total_price,
             "newGuestCartId": final_guest_cart_id_for_trigger
         }
     });
-    if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload_cart_count.to_string()) {
-        headers.insert("HX-Trigger", trigger_value);
-    }
-
-    // --- Sekcja 2: Obsługa pustego koszyka ---
-    if cart_details.items.is_empty() {
-        let markup = html! {
-            div ."max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 text-center" {
-                div ."bg-white p-8 rounded-lg shadow-lg border border-gray-200 inline-block" {
-                    h2 ."text-2xl font-bold text-gray-800 mb-4" { "Twój koszyk jest pusty" }
-                    p ."text-gray-600 mb-6" { "Nie możesz przejść do kasy z pustym koszykiem." }
-                    a href="/"
-                       hx-get="/htmx/products?limit=8" // Upewnij się, że ten link jest aktualny
-                       hx-target="#content"
-                       hx-swap="innerHTML"
-                       hx-push-url="/"
-                       class="inline-block bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200" {
-                        "Wróć do sklepu"
-                    }
-                }
-            }
-        };
-        return Ok((headers, markup)); // Zwracamy nagłówki nawet dla pustego koszyka
+    if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
+        response_headers.insert("HX-Trigger", trigger_value);
     }
 
     // --- Sekcja 3: Przygotowanie danych dla szablonu Maud ---
@@ -2768,355 +2783,374 @@ pub async fn checkout_page_handler(
     let items_for_summary = cart_details.items.clone(); // Klonujemy, aby przekazać do szablonu
 
     // --- Sekcja 4: Renderowanie Głównego Formularza Kasy i Podsumowania ---
-    let markup = html! {
-        div ."max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12" {
-            div ."flex flex-col lg:flex-row gap-8" { // Główny kontener flex
+    let page_content = if cart_details.items.is_empty() {
+        html! {
+            div ."max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 text-center" {
+                div ."bg-white p-8 rounded-lg shadow-lg border border-gray-200 inline-block" {
+                    h2 ."text-2xl font-bold text-gray-800 mb-4" { "Twój koszyk jest pusty" }
+                    p ."text-gray-600 mb-6" { "Nie możesz przejść do kasy z pustym koszykiem." }
+                    a href="/"
+                       hx-get="/htmx/products?limit=8" // Upewnij się, że ten link jest aktualny
+                       hx-target="#content"
+                       hx-swap="innerHTML"
+                       hx-push-url="/"
+                       class="inline-block bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200" {
+                        "Wróć do sklepu"
+                    }
+                }
+            }
+        }
+    } else {
+        html! {
+            div ."max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12" {
+                div ."flex flex-col lg:flex-row gap-8" { // Główny kontener flex
 
-                // --- Kolumna Podsumowania Zamówienia (Zielone Pole - na mobilnych order-1, na lg order-2) ---
-                div ."lg:w-1/3 lg:order-2" {
-                    div x-data={(format!( // Formatowanie całego obiektu x-data jako string Rusta
-                        r#"{{
-                            subtotal: {}, 
-                            selectedShippingCost: 0,
-                            selectedShippingKeyInternal: '', // Wewnętrzny stan Alpine dla klucza metody
-                            shippingOptions: [
-                                {{ id: 'inpost', name: 'Paczkomat InPost 24/7', cost: 1199, displayCost: '11,99 zł' }},
-                                {{ id: 'poczta', name: 'Poczta Polska S.A.', cost: 1799, displayCost: '17,99 zł' }}
-                            ],
-                            initComponent() {{
-                                console.log('Alpine Checkout Summary: initComponent started.');
-                                const hiddenInput = document.getElementById('selected_shipping_method_key_input');
-                                if (!hiddenInput) {{
-                                    console.error('Alpine BŁĄD KRYTYCZNY: Ukryte pole #selected_shipping_method_key_input nie istnieje w DOM!');
-                                    return;
-                                }}
-                                // Domyślnie ustaw pierwszą opcję, jeśli koszyk nie jest pusty i nic nie jest wybrane (ukryte pole jest puste)
-                                if (this.subtotal > 0 && this.shippingOptions.length > 0 && !hiddenInput.value) {{
-                                    console.log('Alpine initComponent: Ustawianie domyślnej metody dostawy (pierwsza z listy).');
-                                    this.selectShippingOption(this.shippingOptions[0]);
-                                }} else if (hiddenInput.value) {{
-                                    // Synchronizuj z wartością ukrytego pola, jeśli już istnieje (np. po przeładowaniu z błędem walidacji)
-                                    const initialOption = this.shippingOptions.find(opt => opt.id === hiddenInput.value);
-                                    if (initialOption) {{
-                                        this.selectedShippingCost = initialOption.cost;
-                                        this.selectedShippingKeyInternal = initialOption.id;
-                                        const radio = document.getElementById(initialOption.id + '_shipping_option');
-                                        if (radio) {{ this.$nextTick(() => {{ radio.checked = true; }}); }}
-                                        console.log('Alpine initComponent: Zsynchronizowano z wartością ukrytego pola:', initialOption.id);
-                                    }} else {{ // Wartość z HTML nie pasuje - wyczyść lub ustaw pierwszą
-                                         console.warn('Alpine initComponent: Wartość w ukrytym polu (' + hiddenInput.value + ') nie pasuje. Resetuję.');
-                                         if (this.shippingOptions.length > 0) {{ this.selectShippingOption(this.shippingOptions[0]); }}
-                                         else {{ hiddenInput.value = ''; this.selectedShippingCost = 0; this.selectedShippingKeyInternal = '';}}
+                    // --- Kolumna Podsumowania Zamówienia (Zielone Pole - na mobilnych order-1, na lg order-2) ---
+                    div ."lg:w-1/3 lg:order-2" {
+                        div x-data={(format!( // Formatowanie całego obiektu x-data jako string Rusta
+                            r#"{{
+                                subtotal: {}, 
+                                selectedShippingCost: 0,
+                                selectedShippingKeyInternal: '', // Wewnętrzny stan Alpine dla klucza metody
+                                shippingOptions: [
+                                    {{ id: 'inpost', name: 'Paczkomat InPost 24/7', cost: 1199, displayCost: '11,99 zł' }},
+                                    {{ id: 'poczta', name: 'Poczta Polska S.A.', cost: 1799, displayCost: '17,99 zł' }}
+                                ],
+                                initComponent() {{
+                                    console.log('Alpine Checkout Summary: initComponent started.');
+                                    const hiddenInput = document.getElementById('selected_shipping_method_key_input');
+                                    if (!hiddenInput) {{
+                                        console.error('Alpine BŁĄD KRYTYCZNY: Ukryte pole #selected_shipping_method_key_input nie istnieje w DOM!');
+                                        return;
                                     }}
+                                    // Domyślnie ustaw pierwszą opcję, jeśli koszyk nie jest pusty i nic nie jest wybrane (ukryte pole jest puste)
+                                    if (this.subtotal > 0 && this.shippingOptions.length > 0 && !hiddenInput.value) {{
+                                        console.log('Alpine initComponent: Ustawianie domyślnej metody dostawy (pierwsza z listy).');
+                                        this.selectShippingOption(this.shippingOptions[0]);
+                                    }} else if (hiddenInput.value) {{
+                                        // Synchronizuj z wartością ukrytego pola, jeśli już istnieje (np. po przeładowaniu z błędem walidacji)
+                                        const initialOption = this.shippingOptions.find(opt => opt.id === hiddenInput.value);
+                                        if (initialOption) {{
+                                            this.selectedShippingCost = initialOption.cost;
+                                            this.selectedShippingKeyInternal = initialOption.id;
+                                            const radio = document.getElementById(initialOption.id + '_shipping_option');
+                                            if (radio) {{ this.$nextTick(() => {{ radio.checked = true; }}); }}
+                                            console.log('Alpine initComponent: Zsynchronizowano z wartością ukrytego pola:', initialOption.id);
+                                        }} else {{ // Wartość z HTML nie pasuje - wyczyść lub ustaw pierwszą
+                                             console.warn('Alpine initComponent: Wartość w ukrytym polu (' + hiddenInput.value + ') nie pasuje. Resetuję.');
+                                             if (this.shippingOptions.length > 0) {{ this.selectShippingOption(this.shippingOptions[0]); }}
+                                             else {{ hiddenInput.value = ''; this.selectedShippingCost = 0; this.selectedShippingKeyInternal = '';}}
+                                        }}
+                                    }}
+                                }},
+                                selectShippingOption(option) {{
+                                    console.log('Alpine: selectShippingOption wywołane z opcją:', JSON.stringify(option));
+                                    if (!option || typeof option.cost === 'undefined' || typeof option.id === 'undefined') {{
+                                         console.error('Alpine BŁĄD: Nieprawidłowy obiekt opcji w selectShippingOption:', option);
+                                         return;
+                                    }}
+                                    this.selectedShippingCost = option.cost;
+                                    this.selectedShippingKeyInternal = option.id;
+                                    const hiddenInputKeyElem = document.getElementById('selected_shipping_method_key_input');
+                                    if (hiddenInputKeyElem) {{
+                                        hiddenInputKeyElem.value = option.id;
+                                        console.log('Alpine: Ustawiono #selected_shipping_method_key_input na:', hiddenInputKeyElem.value);
+                                    }} else {{
+                                        console.error('Alpine BŁĄD: Nie znaleziono #selected_shipping_method_key_input w selectShippingOption!');
+                                    }}
+                                }},
+                                get grandTotal() {{ return this.subtotal + this.selectedShippingCost; }},
+                                formatPrice(priceInGrosz) {{
+                                    if (typeof priceInGrosz !== 'number' || isNaN(priceInGrosz)) return '0,00 zł';
+                                    return (priceInGrosz / 100).toFixed(2).replace('.', ',') + ' zł';
                                 }}
-                            }},
-                            selectShippingOption(option) {{
-                                console.log('Alpine: selectShippingOption wywołane z opcją:', JSON.stringify(option));
-                                if (!option || typeof option.cost === 'undefined' || typeof option.id === 'undefined') {{
-                                     console.error('Alpine BŁĄD: Nieprawidłowy obiekt opcji w selectShippingOption:', option);
-                                     return;
-                                }}
-                                this.selectedShippingCost = option.cost;
-                                this.selectedShippingKeyInternal = option.id;
-                                const hiddenInputKeyElem = document.getElementById('selected_shipping_method_key_input');
-                                if (hiddenInputKeyElem) {{
-                                    hiddenInputKeyElem.value = option.id;
-                                    console.log('Alpine: Ustawiono #selected_shipping_method_key_input na:', hiddenInputKeyElem.value);
-                                }} else {{
-                                    console.error('Alpine BŁĄD: Nie znaleziono #selected_shipping_method_key_input w selectShippingOption!');
-                                }}
-                            }},
-                            get grandTotal() {{ return this.subtotal + this.selectedShippingCost; }},
-                            formatPrice(priceInGrosz) {{
-                                if (typeof priceInGrosz !== 'number' || isNaN(priceInGrosz)) return '0,00 zł';
-                                return (priceInGrosz / 100).toFixed(2).replace('.', ',') + ' zł';
-                            }}
-                        }}"#,
-                        total_price_items // Wstawienie wartości subtotal z Rusta
-                    ))}
-                    x-init="initComponent()"
-                    class="bg-white p-6 rounded-lg shadow-md border border-gray-200 sticky top-20 md:top-40" { // Zmieniono top dla lepszego dopasowania
-                        h2 ."text-xl font-semibold text-gray-800 mb-4" { "Twoje zamówienie" }
+                            }}"#,
+                            total_price_items // Wstawienie wartości subtotal z Rusta
+                        ))}
+                        x-init="initComponent()"
+                        class="bg-white p-6 rounded-lg shadow-md border border-gray-200 sticky top-20 md:top-40" { // Zmieniono top dla lepszego dopasowania
+                            h2 ."text-xl font-semibold text-gray-800 mb-4" { "Twoje zamówienie" }
 
-                        // Lista produktów w koszyku
-                        div ."border-b border-gray-200 pb-4 mb-4" {
-                            ul role="list" class="divide-y divide-gray-200 max-h-60 overflow-y-auto" {
-                                @if items_for_summary.is_empty() {
-                                    li { p ."text-gray-500 py-2" { "Koszyk jest pusty." } }
-                                } @else {
-                                    @for item_summary in &items_for_summary {
-                                        li class="py-3 flex justify-between items-center" {
-                                            // ... (kod wyświetlania produktu - bez zmian) ...
-                                            div class="flex items-center min-w-0" {
-                                                @if !item_summary.product.images.is_empty() {
-                                                    img src=(item_summary.product.images[0]) alt=(item_summary.product.name)
-                                                         class="h-12 w-12 sm:h-16 sm:w-16 flex-shrink-0 rounded-md border border-gray-200 object-cover";
-                                                } @else {
-                                                    div class="h-12 w-12 sm:h-16 sm:w-16 flex-shrink-0 rounded-md border border-gray-200 bg-gray-100 flex items-center justify-center" {
-                                                        span class="text-xs text-gray-500" { "Brak foto" }
+                            // Lista produktów w koszyku
+                            div ."border-b border-gray-200 pb-4 mb-4" {
+                                ul role="list" class="divide-y divide-gray-200 max-h-60 overflow-y-auto" {
+                                    @if items_for_summary.is_empty() {
+                                        li { p ."text-gray-500 py-2" { "Koszyk jest pusty." } }
+                                    } @else {
+                                        @for item_summary in &items_for_summary {
+                                            li class="py-3 flex justify-between items-center" {
+                                                // ... (kod wyświetlania produktu - bez zmian) ...
+                                                div class="flex items-center min-w-0" {
+                                                    @if !item_summary.product.images.is_empty() {
+                                                        img src=(item_summary.product.images[0]) alt=(item_summary.product.name)
+                                                             class="h-12 w-12 sm:h-16 sm:w-16 flex-shrink-0 rounded-md border border-gray-200 object-cover";
+                                                    } @else {
+                                                        div class="h-12 w-12 sm:h-16 sm:w-16 flex-shrink-0 rounded-md border border-gray-200 bg-gray-100 flex items-center justify-center" {
+                                                            span class="text-xs text-gray-500" { "Brak foto" }
+                                                        }
+                                                    }
+                                                    div class="ml-3 sm:ml-4 min-w-0 flex-1" {
+                                                        h3 class="text-sm font-medium text-gray-900 truncate" { (item_summary.product.name) }
+                                                        p class="text-xs text-gray-500 mt-1" {
+                                                            (item_summary.product.category.to_string())
+                                                        }
                                                     }
                                                 }
-                                                div class="ml-3 sm:ml-4 min-w-0 flex-1" {
-                                                    h3 class="text-sm font-medium text-gray-900 truncate" { (item_summary.product.name) }
-                                                    p class="text-xs text-gray-500 mt-1" {
-                                                        (item_summary.product.category.to_string())
-                                                    }
+                                                p class="text-sm font-medium text-gray-900 ml-2 whitespace-nowrap" {
+                                                    (format_price_maud(item_summary.product.price)) // Zakładam, że masz format_price_maud
                                                 }
-                                            }
-                                            p class="text-sm font-medium text-gray-900 ml-2 whitespace-nowrap" {
-                                                (format_price_maud(item_summary.product.price)) // Zakładam, że masz format_price_maud
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        // Sekcja wyboru metody dostawy
-                        div class="mb-4" {
-                            h3 ."text-sm font-medium text-gray-900 mb-2" { "Metoda dostawy:" }
-                            fieldset {
-                                legend class="sr-only" { "Wybierz metodę dostawy" }
-                                div class="space-y-2" {
-                                    template x-for="option in shippingOptions" x-bind:key="option.id" {
-                                        div class="flex items-center" {
-                                            input x-bind:id="option.id + '_shipping_option'"
-                                                   name="shipping_method_visual_selector" // Dla grupowania wizualnego radio
-                                                   type="radio"
-                                                   x-on:click="selectShippingOption(option)" // Wywołaj nową funkcję
-                                                   x-bind:checked="selectedShippingKeyInternal === option.id" // Synchronizacja zaznaczenia
-                                                   class="h-4 w-4 text-pink-600 border-gray-300 focus:ring-pink-500";
-                                            label x-bind:for="option.id + '_shipping_option'" class="ml-3 block text-sm text-gray-700 hover:cursor-pointer" {
-                                                span x-text="option.name" {};
-                                                " - "
-                                                span x-text="option.displayCost" class="font-medium" {};
+                            // Sekcja wyboru metody dostawy
+                            div class="mb-4" {
+                                h3 ."text-sm font-medium text-gray-900 mb-2" { "Metoda dostawy:" }
+                                fieldset {
+                                    legend class="sr-only" { "Wybierz metodę dostawy" }
+                                    div class="space-y-2" {
+                                        template x-for="option in shippingOptions" x-bind:key="option.id" {
+                                            div class="flex items-center" {
+                                                input x-bind:id="option.id + '_shipping_option'"
+                                                       name="shipping_method_visual_selector" // Dla grupowania wizualnego radio
+                                                       type="radio"
+                                                       x-on:click="selectShippingOption(option)" // Wywołaj nową funkcję
+                                                       x-bind:checked="selectedShippingKeyInternal === option.id" // Synchronizacja zaznaczenia
+                                                       class="h-4 w-4 text-pink-600 border-gray-300 focus:ring-pink-500";
+                                                label x-bind:for="option.id + '_shipping_option'" class="ml-3 block text-sm text-gray-700 hover:cursor-pointer" {
+                                                    span x-text="option.name" {};
+                                                    " - "
+                                                    span x-text="option.displayCost" class="font-medium" {};
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        // Podsumowanie cen
-                        div class="space-y-3" {
-                            div class="flex justify-between" {
-                                span class="text-sm text-gray-600" { "Suma częściowa" }
-                                span class="text-sm font-medium text-gray-900" x-text="formatPrice(subtotal)" {}
+                            // Podsumowanie cen
+                            div class="space-y-3" {
+                                div class="flex justify-between" {
+                                    span class="text-sm text-gray-600" { "Suma częściowa" }
+                                    span class="text-sm font-medium text-gray-900" x-text="formatPrice(subtotal)" {}
+                                }
+                                div class="flex justify-between" {
+                                    span class="text-sm text-gray-600" { "Dostawa" }
+                                    span class="text-sm font-medium text-gray-900" id="checkout-shipping-cost"
+                                          x-text="selectedShippingCost > 0 ? formatPrice(selectedShippingCost) : (subtotal > 0 ? 'Wybierz metodę' : formatPrice(0))" {}
+                                }
+                                div class="flex justify-between border-t border-gray-200 pt-3" {
+                                    span class="text-base font-semibold text-gray-900" { "Do zapłaty" }
+                                    span class="text-base font-semibold text-pink-600" id="checkout-grand-total"
+                                          x-text="formatPrice(grandTotal)" {}
+                                }
                             }
-                            div class="flex justify-between" {
-                                span class="text-sm text-gray-600" { "Dostawa" }
-                                span class="text-sm font-medium text-gray-900" id="checkout-shipping-cost"
-                                      x-text="selectedShippingCost > 0 ? formatPrice(selectedShippingCost) : (subtotal > 0 ? 'Wybierz metodę' : formatPrice(0))" {}
-                            }
-                            div class="flex justify-between border-t border-gray-200 pt-3" {
-                                span class="text-base font-semibold text-gray-900" { "Do zapłaty" }
-                                span class="text-base font-semibold text-pink-600" id="checkout-grand-total"
-                                      x-text="formatPrice(grandTotal)" {}
-                            }
-                        }
-                        // Linki do regulaminu i polityki prywatności
-                        div class="mt-6 pt-6 border-t border-gray-200" {
-                            p class="text-xs text-gray-500" {
-                                "Klikając „Złóż zamówienie i zapłać”, akceptujesz "
-                                a href="/regulamin" hx-get="/htmx/page/regulamin" hx-target="#content" hx-swap="innerHTML" hx-push-url="/regulamin"
-                                   class="text-pink-600 hover:underline" { "Regulamin sklepu" }
-                                " oraz "
-                                a href="/polityka-prywatnosci" hx-get="/htmx/page/polityka-prywatnosci" hx-target="#content" hx-swap="innerHTML" hx-push-url="/polityka-prywatnosci"
-                                   class="text-pink-600 hover:underline" { "Politykę prywatności" }
-                                "."
+                            // Linki do regulaminu i polityki prywatności
+                            div class="mt-6 pt-6 border-t border-gray-200" {
+                                p class="text-xs text-gray-500" {
+                                    "Klikając „Złóż zamówienie i zapłać”, akceptujesz "
+                                    a href="/regulamin" hx-get="/htmx/page/regulamin" hx-target="#content" hx-swap="innerHTML" hx-push-url="/regulamin"
+                                       class="text-pink-600 hover:underline" { "Regulamin sklepu" }
+                                    " oraz "
+                                    a href="/polityka-prywatnosci" hx-get="/htmx/page/polityka-prywatnosci" hx-target="#content" hx-swap="innerHTML" hx-push-url="/polityka-prywatnosci"
+                                       class="text-pink-600 hover:underline" { "Politykę prywatności" }
+                                    "."
+                                }
                             }
                         }
                     }
-                }
 
-                // --- Kolumna Formularza Danych (Czerwone Pole pod nim - na mobilnych order-2, na lg order-1) ---
-                div ."lg:w-2/3 lg:order-1" {
-                    h1 ."text-2xl sm:text-3xl font-bold text-gray-900 mb-6" { "Dane do zamówienia" }
-                    form #checkout-form // ID formularza
-                         hx-post="/api/orders"
-                         hx-target="this" hx-swap="outerHTML" // Lub inny target dla komunikatów
-                         class="space-y-6" {
+                    // --- Kolumna Formularza Danych (Czerwone Pole pod nim - na mobilnych order-2, na lg order-1) ---
+                    div ."lg:w-2/3 lg:order-1" {
+                        h1 ."text-2xl sm:text-3xl font-bold text-gray-900 mb-6" { "Dane do zamówienia" }
+                        form #checkout-form // ID formularza
+                             hx-post="/api/orders"
+                             hx-target="this" hx-swap="outerHTML" // Lub inny target dla komunikatów
+                             class="space-y-6" {
 
-                        // Ukryte pole na klucz metody dostawy
-                        input type="hidden" name="shipping_method_key" id="selected_shipping_method_key_input" value="" required; // value="" i required
+                            // Ukryte pole na klucz metody dostawy
+                            input type="hidden" name="shipping_method_key" id="selected_shipping_method_key_input" value="" required; // value="" i required
 
-                        div #checkout-messages {}
+                            div #checkout-messages {}
 
-                        // Sekcja emaila dla gościa
-                        @if user_claims_result.is_err() {
-                            div ."mt-4" {
-                                label for="guest_checkout_email" class="block text-sm font-medium text-gray-700 mb-1" { "Twój adres email *" }
-                                input type="email" id="guest_checkout_email" name="guest_checkout_email" required
-                                       placeholder="email@example.com"
-                                       class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
-                                p ."mt-1 text-xs text-gray-500" { "Potrzebny do potwierdzenia zamówienia, jeśli kupujesz jako gość." }
-                            }
-                        }
-
-                        // Fieldset: Dane dostawy
-                        // Sekcja dostawy
-                        fieldset ."bg-white p-6 rounded-lg shadow-sm border border-gray-200" {
-                            legend ."text-lg font-semibold text-gray-800 px-2" { "Dane dostawy" }
-
-                            div ."grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4" {
-                                div {
-                                    label for="shipping_first_name" class="block text-sm font-medium text-gray-700 mb-1" { "Imię *" }
-                                    input type="text" id="shipping_first_name" name="shipping_first_name" required
-                                           value=[user_shipping_data_for_form.shipping_first_name.as_deref()]
+                            // Sekcja emaila dla gościa
+                            @if user_claims_result.is_err() {
+                                div ."mt-4" {
+                                    label for="guest_checkout_email" class="block text-sm font-medium text-gray-700 mb-1" { "Twój adres email *" }
+                                    input type="email" id="guest_checkout_email" name="guest_checkout_email" required
+                                           placeholder="email@example.com"
                                            class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
-                                }
-                                div {
-                                    label for="shipping_last_name" class="block text-sm font-medium text-gray-700 mb-1" { "Nazwisko *" }
-                                    input type="text" id="shipping_last_name" name="shipping_last_name" required
-                                           value=[user_shipping_data_for_form.shipping_last_name.as_deref()]
-                                           class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                    p ."mt-1 text-xs text-gray-500" { "Potrzebny do potwierdzenia zamówienia, jeśli kupujesz jako gość." }
                                 }
                             }
-                            div ."mt-4" {
-                                label for="shipping_address_line1" class="block text-sm font-medium text-gray-700 mb-1" { "Adres (ulica i numer) *" }
-                                input type="text" id="shipping_address_line1" name="shipping_address_line1" required
-                                       value=[user_shipping_data_for_form.shipping_address_line1.as_deref()]
-                                       class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
-                            }
-                            div ."mt-4" {
-                                label for="shipping_address_line2" class="block text-sm font-medium text-gray-700 mb-1" { "Adres cd. (opcjonalnie)" }
-                                input type="text" id="shipping_address_line2" name="shipping_address_line2"
-                                       value=[user_shipping_data_for_form.shipping_address_line2.as_deref()]
-                                       class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
-                            }
-                            div ."grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4" {
-                                div {
-                                    label for="shipping_city" class="block text-sm font-medium text-gray-700 mb-1" { "Miasto *" }
-                                    input type="text" id="shipping_city" name="shipping_city" required
-                                           value=[user_shipping_data_for_form.shipping_city.as_deref()]
-                                           class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
-                                }
-                                div {
-                                    label for="shipping_postal_code" class="block text-sm font-medium text-gray-700 mb-1" { "Kod pocztowy *" }
-                                    input type="text" id="shipping_postal_code" name="shipping_postal_code" required
-                                           value=[user_shipping_data_for_form.shipping_postal_code.as_deref()]
-                                           class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
-                                }
-                                div {
-                                    label for="shipping_country" class="block text-sm font-medium text-gray-700 mb-1" { "Kraj *" }
-                                    select id="shipping_country" name="shipping_country" required
-                                            class="w-full px-4 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500" {
-                                        option value="" disabled[user_shipping_data_for_form.shipping_country.is_none()] selected[user_shipping_data_for_form.shipping_country.is_none()] { "Wybierz kraj..." }
-                                        @for country_name_str_slice in &countries {
-                                            option value=(country_name_str_slice)
-                                                   selected[user_shipping_data_for_form.shipping_country.as_deref() == Some(country_name_str_slice)] {
-                                                (country_name_str_slice)
-                                            }
-                                        }
-                                        @if let Some(ref saved_country_string) = user_shipping_data_for_form.shipping_country {
-                                            @let saved_country_str = saved_country_string.as_str();
-                                            @if !countries.iter().any(|&c| c == saved_country_str) {
-                                                option value=(saved_country_str) selected { (saved_country_str) " (inny)" }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            div ."mt-4" {
-                                label for="shipping_phone" class="block text-sm font-medium text-gray-700 mb-1" { "Telefon *" }
-                                input type="tel" id="shipping_phone" name="shipping_phone" required
-                                       value=[user_shipping_data_for_form.shipping_phone.as_deref()]
-                                       class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
-                            }
-                        } // koniec fieldset dane dostawy
 
-                        // Sekcja faktury (pozostaje bez zmian - użytkownik wypełnia lub checkbox)
-                        fieldset ."bg-white p-6 rounded-lg shadow-sm border border-gray-200 mt-6" {
-                            legend ."text-lg font-semibold text-gray-800 px-2" { "Dane do faktury" }
-                            div ."flex items-center mb-4" {
-                                input type="checkbox" id="billing_same_as_shipping" name="billing_same_as_shipping" checked
-                                       class="h-4 w-4 text-pink-600 focus:ring-pink-500 border-gray-300 rounded"
-                                       "@click"="document.getElementById('billing-fields').classList.toggle('hidden')";
-                                label for="billing_same_as_shipping" class="ml-2 block text-sm text-gray-700" {
-                                    "Takie same jak dane dostawy"
-                                }
-                            }
-                            div #billing-fields class="hidden space-y-4" { // Dodano space-y-4 dla odstępów
-                                div ."grid grid-cols-1 sm:grid-cols-2 gap-4" { // Usunięto mt-4, bo jest space-y
+                            // Fieldset: Dane dostawy
+                            // Sekcja dostawy
+                            fieldset ."bg-white p-6 rounded-lg shadow-sm border border-gray-200" {
+                                legend ."text-lg font-semibold text-gray-800 px-2" { "Dane dostawy" }
+
+                                div ."grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4" {
                                     div {
-                                        label for="billing_first_name" class="block text-sm font-medium text-gray-700 mb-1" { "Imię" }
-                                        input type="text" id="billing_first_name" name="billing_first_name"
+                                        label for="shipping_first_name" class="block text-sm font-medium text-gray-700 mb-1" { "Imię *" }
+                                        input type="text" id="shipping_first_name" name="shipping_first_name" required
+                                               value=[user_shipping_data_for_form.shipping_first_name.as_deref()]
                                                class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
                                     }
                                     div {
-                                        label for="billing_last_name" class="block text-sm font-medium text-gray-700 mb-1" { "Nazwisko" }
-                                        input type="text" id="billing_last_name" name="billing_last_name"
+                                        label for="shipping_last_name" class="block text-sm font-medium text-gray-700 mb-1" { "Nazwisko *" }
+                                        input type="text" id="shipping_last_name" name="shipping_last_name" required
+                                               value=[user_shipping_data_for_form.shipping_last_name.as_deref()]
                                                class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
                                     }
                                 }
-                                div { // Usunięto mt-4
-                                    label for="billing_address_line1" class="block text-sm font-medium text-gray-700 mb-1" { "Adres (ulica i numer)" }
-                                    input type="text" id="billing_address_line1" name="billing_address_line1"
+                                div ."mt-4" {
+                                    label for="shipping_address_line1" class="block text-sm font-medium text-gray-700 mb-1" { "Adres (ulica i numer) *" }
+                                    input type="text" id="shipping_address_line1" name="shipping_address_line1" required
+                                           value=[user_shipping_data_for_form.shipping_address_line1.as_deref()]
                                            class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
                                 }
-                                div { // Usunięto mt-4
-                                    label for="billing_address_line2" class="block text-sm font-medium text-gray-700 mb-1" { "Adres cd. (opcjonalnie)" }
-                                    input type="text" id="billing_address_line2" name="billing_address_line2"
+                                div ."mt-4" {
+                                    label for="shipping_address_line2" class="block text-sm font-medium text-gray-700 mb-1" { "Adres cd. (opcjonalnie)" }
+                                    input type="text" id="shipping_address_line2" name="shipping_address_line2"
+                                           value=[user_shipping_data_for_form.shipping_address_line2.as_deref()]
                                            class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
                                 }
-                                div ."grid grid-cols-1 sm:grid-cols-3 gap-4" { // Usunięto mt-4
+                                div ."grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4" {
                                     div {
-                                        label for="billing_city" class="block text-sm font-medium text-gray-700 mb-1" { "Miasto" }
-                                        input type="text" id="billing_city" name="billing_city"
+                                        label for="shipping_city" class="block text-sm font-medium text-gray-700 mb-1" { "Miasto *" }
+                                        input type="text" id="shipping_city" name="shipping_city" required
+                                               value=[user_shipping_data_for_form.shipping_city.as_deref()]
                                                class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
                                     }
                                     div {
-                                        label for="billing_postal_code" class="block text-sm font-medium text-gray-700 mb-1" { "Kod pocztowy" }
-                                        input type="text" id="billing_postal_code" name="billing_postal_code"
+                                        label for="shipping_postal_code" class="block text-sm font-medium text-gray-700 mb-1" { "Kod pocztowy *" }
+                                        input type="text" id="shipping_postal_code" name="shipping_postal_code" required
+                                               value=[user_shipping_data_for_form.shipping_postal_code.as_deref()]
                                                class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
                                     }
                                     div {
-                                        label for="billing_country" class="block text-sm font-medium text-gray-700 mb-1" { "Kraj" }
-                                        select id="billing_country" name="billing_country"
+                                        label for="shipping_country" class="block text-sm font-medium text-gray-700 mb-1" { "Kraj *" }
+                                        select id="shipping_country" name="shipping_country" required
                                                 class="w-full px-4 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500" {
-                                            @for country_name_str_slice in &countries { // Używamy tej samej listy krajów
-                                                option value=(country_name_str_slice) selected[country_name_str_slice == &"Polska"] { // Domyślnie Polska
+                                            option value="" disabled[user_shipping_data_for_form.shipping_country.is_none()] selected[user_shipping_data_for_form.shipping_country.is_none()] { "Wybierz kraj..." }
+                                            @for country_name_str_slice in &countries {
+                                                option value=(country_name_str_slice)
+                                                       selected[user_shipping_data_for_form.shipping_country.as_deref() == Some(country_name_str_slice)] {
                                                     (country_name_str_slice)
+                                                }
+                                            }
+                                            @if let Some(ref saved_country_string) = user_shipping_data_for_form.shipping_country {
+                                                @let saved_country_str = saved_country_string.as_str();
+                                                @if !countries.iter().any(|&c| c == saved_country_str) {
+                                                    option value=(saved_country_str) selected { (saved_country_str) " (inny)" }
                                                 }
                                             }
                                         }
                                     }
                                 }
-                            } // koniec div#billing-fields
-                        } // koniec fieldset dane do faktury
+                                div ."mt-4" {
+                                    label for="shipping_phone" class="block text-sm font-medium text-gray-700 mb-1" { "Telefon *" }
+                                    input type="tel" id="shipping_phone" name="shipping_phone" required
+                                           value=[user_shipping_data_for_form.shipping_phone.as_deref()]
+                                           class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                }
+                            } // koniec fieldset dane dostawy
 
-                        // Sekcja płatności (pozostaje jak była)
-                        fieldset ."bg-white p-6 rounded-lg shadow-sm border border-gray-200 mt-6" {
-                            legend ."text-lg font-semibold text-gray-800 px-2" { "Metoda płatności" }
-                            div ."space-y-4 mt-4" {
-                                div ."flex items-center" {
-                                    input type="radio" id="payment_blik" name="payment_method" value="blik" checked
-                                           class="h-4 w-4 text-pink-600 focus:ring-pink-500 border-gray-300";
-                                    label for="payment_blik" class="ml-3 block text-sm font-medium text-gray-700" {
-                                        "BLIK"
-                                        span class="text-xs text-gray-500 ml-1" { "(Zalecane)" }
+                            // Sekcja faktury (pozostaje bez zmian - użytkownik wypełnia lub checkbox)
+                            fieldset ."bg-white p-6 rounded-lg shadow-sm border border-gray-200 mt-6" {
+                                legend ."text-lg font-semibold text-gray-800 px-2" { "Dane do faktury" }
+                                div ."flex items-center mb-4" {
+                                    input type="checkbox" id="billing_same_as_shipping" name="billing_same_as_shipping" checked
+                                           class="h-4 w-4 text-pink-600 focus:ring-pink-500 border-gray-300 rounded"
+                                           "@click"="document.getElementById('billing-fields').classList.toggle('hidden')";
+                                    label for="billing_same_as_shipping" class="ml-2 block text-sm text-gray-700" {
+                                        "Takie same jak dane dostawy"
                                     }
                                 }
-                                div ."flex items-center" {
-                                    input type="radio" id="payment_transfer" name="payment_method" value="transfer"
-                                           class="h-4 w-4 text-pink-600 focus:ring-pink-500 border-gray-300";
-                                    label for="payment_transfer" class="ml-3 block text-sm font-medium text-gray-700" {
-                                        "Przelew tradycyjny"
+                                div #billing-fields class="hidden space-y-4" { // Dodano space-y-4 dla odstępów
+                                    div ."grid grid-cols-1 sm:grid-cols-2 gap-4" { // Usunięto mt-4, bo jest space-y
+                                        div {
+                                            label for="billing_first_name" class="block text-sm font-medium text-gray-700 mb-1" { "Imię" }
+                                            input type="text" id="billing_first_name" name="billing_first_name"
+                                                   class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                        }
+                                        div {
+                                            label for="billing_last_name" class="block text-sm font-medium text-gray-700 mb-1" { "Nazwisko" }
+                                            input type="text" id="billing_last_name" name="billing_last_name"
+                                                   class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                        }
+                                    }
+                                    div { // Usunięto mt-4
+                                        label for="billing_address_line1" class="block text-sm font-medium text-gray-700 mb-1" { "Adres (ulica i numer)" }
+                                        input type="text" id="billing_address_line1" name="billing_address_line1"
+                                               class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                    }
+                                    div { // Usunięto mt-4
+                                        label for="billing_address_line2" class="block text-sm font-medium text-gray-700 mb-1" { "Adres cd. (opcjonalnie)" }
+                                        input type="text" id="billing_address_line2" name="billing_address_line2"
+                                               class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                    }
+                                    div ."grid grid-cols-1 sm:grid-cols-3 gap-4" { // Usunięto mt-4
+                                        div {
+                                            label for="billing_city" class="block text-sm font-medium text-gray-700 mb-1" { "Miasto" }
+                                            input type="text" id="billing_city" name="billing_city"
+                                                   class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                        }
+                                        div {
+                                            label for="billing_postal_code" class="block text-sm font-medium text-gray-700 mb-1" { "Kod pocztowy" }
+                                            input type="text" id="billing_postal_code" name="billing_postal_code"
+                                                   class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                        }
+                                        div {
+                                            label for="billing_country" class="block text-sm font-medium text-gray-700 mb-1" { "Kraj" }
+                                            select id="billing_country" name="billing_country"
+                                                    class="w-full px-4 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500" {
+                                                @for country_name_str_slice in &countries { // Używamy tej samej listy krajów
+                                                    option value=(country_name_str_slice) selected[country_name_str_slice == &"Polska"] { // Domyślnie Polska
+                                                        (country_name_str_slice)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                } // koniec div#billing-fields
+                            } // koniec fieldset dane do faktury
+
+                            // Sekcja płatności (pozostaje jak była)
+                            fieldset ."bg-white p-6 rounded-lg shadow-sm border border-gray-200 mt-6" {
+                                legend ."text-lg font-semibold text-gray-800 px-2" { "Metoda płatności" }
+                                div ."space-y-4 mt-4" {
+                                    div ."flex items-center" {
+                                        input type="radio" id="payment_blik" name="payment_method" value="blik" checked
+                                               class="h-4 w-4 text-pink-600 focus:ring-pink-500 border-gray-300";
+                                        label for="payment_blik" class="ml-3 block text-sm font-medium text-gray-700" {
+                                            "BLIK"
+                                            span class="text-xs text-gray-500 ml-1" { "(Zalecane)" }
+                                        }
+                                    }
+                                    div ."flex items-center" {
+                                        input type="radio" id="payment_transfer" name="payment_method" value="transfer"
+                                               class="h-4 w-4 text-pink-600 focus:ring-pink-500 border-gray-300";
+                                        label for="payment_transfer" class="ml-3 block text-sm font-medium text-gray-700" {
+                                            "Przelew tradycyjny"
+                                        }
                                     }
                                 }
+                            } // koniec fieldset metody płatności
+                        } // Koniec form #checkout-form
+
+                        // Przyciski akcji (Czerwone Pole)
+                        div ."mt-8 flex flex-col sm:flex-row-reverse justify-between items-center gap-4" {
+                            button type="submit" form="checkout-form" // Atrybut 'form' wskazuje na ID formularza
+                                   class="w-full sm:w-auto px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-all duration-200 transform hover:scale-105" {
+                                "Złóż zamówienie i zapłać"
                             }
-                        } // koniec fieldset metody płatności
-                    } // Koniec form #checkout-form
-
-                    // Przyciski akcji (Czerwone Pole)
-                    div ."mt-8 flex flex-col sm:flex-row-reverse justify-between items-center gap-4" {
-                        button type="submit" form="checkout-form" // Atrybut 'form' wskazuje na ID formularza
-                               class="w-full sm:w-auto px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-all duration-200 transform hover:scale-105" {
-                            "Złóż zamówienie i zapłać"
-                        }
-                        a href="/" hx-get="/htmx/products?limit=8" hx-target="#content" hx-swap="innerHTML" hx-push-url="/"
-                           class="w-full sm:w-auto px-6 py-3 border border-gray-300 rounded-md shadow-sm text-base font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 text-center" {
-                            "Wróć do sklepu"
+                            a href="/" hx-get="/htmx/products?limit=8" hx-target="#content" hx-swap="innerHTML" hx-push-url="/"
+                               class="w-full sm:w-auto px-6 py-3 border border-gray-300 rounded-md shadow-sm text-base font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 text-center" {
+                                "Wróć do sklepu"
+                            }
                         }
                     }
                 }
@@ -3124,13 +3158,15 @@ pub async fn checkout_page_handler(
         }
     };
 
-    Ok((headers, markup))
+    let app_response = build_response(request_headers, page_content).await?;
+    Ok((response_headers, app_response))
 }
 
 pub async fn my_account_data_htmx_handler(
+    headers: HeaderMap,
     State(app_state): State<AppState>,
     claims: TokenClaims,
-) -> Result<Markup, AppError> {
+) -> Result<AppResponse, AppError> {
     let user_id = claims.sub;
     tracing::info!("MAUD: Użytkownik ID {} żąda sekcji 'Moje dane'", user_id);
 
@@ -3157,7 +3193,7 @@ pub async fn my_account_data_htmx_handler(
         "Włochy",
     ];
 
-    Ok(html! {
+    let page_content = html! {
         div #my-data-section { // Kontener dla tej sekcji
             h2 ."text-2xl sm:text-3xl font-semibold text-gray-800 mb-6" { "Moje dane do wysyłki" }
 
@@ -3270,14 +3306,16 @@ pub async fn my_account_data_htmx_handler(
                 }
             }
         }
-    })
+    };
+    build_response(headers, page_content).await
 }
 
 pub async fn my_order_details_htmx_handler(
+    headers: HeaderMap,
     State(app_state): State<AppState>,
     claims: TokenClaims,
     Path(order_id): Path<Uuid>,
-) -> Result<Markup, AppError> {
+) -> Result<AppResponse, AppError> {
     let user_id = claims.sub;
     let user_role = claims.role;
 
@@ -3413,7 +3451,7 @@ pub async fn my_order_details_htmx_handler(
         OrderStatus::Cancelled => "bg-red-100 text-red-800",
     };
 
-    Ok(html! {
+    let page_content = html! {
         div #order-details-section {
             div ."flex justify-between items-center mb-6 pb-4 border-b border-gray-200" {
                 h2 ."text-2xl sm:text-3xl font-semibold text-gray-800" {
@@ -3504,10 +3542,14 @@ pub async fn my_order_details_htmx_handler(
                 }
             }
         }
-    })
+    };
+    build_response(headers, page_content).await
 }
 
-pub async fn admin_dashboard_htmx_handler(claims: TokenClaims) -> Result<Markup, AppError> {
+pub async fn admin_dashboard_htmx_handler(
+    headers: HeaderMap,
+    claims: TokenClaims,
+) -> Result<AppResponse, AppError> {
     if claims.role != Role::Admin {
         return Err(AppError::UnauthorizedAccess(
             "Brak uprawnień administratora.".to_string(),
@@ -3515,7 +3557,7 @@ pub async fn admin_dashboard_htmx_handler(claims: TokenClaims) -> Result<Markup,
     }
     tracing::info!("Admin ID {} wszedł na dashboard admina", claims.sub);
 
-    Ok(html! {
+    let page_content = html! {
         div ."flex flex-col md:flex-row min-h-screen" {
             // Sidebar nawigacyjny admina
             nav ."w-full md:w-64 bg-gray-800 text-white p-4 space-y-2" {
@@ -3550,14 +3592,16 @@ pub async fn admin_dashboard_htmx_handler(claims: TokenClaims) -> Result<Markup,
                 p { "Witaj w panelu administratora! Wybierz opcję z menu." }
             }
         }
-    })
+    };
+    build_response(headers, page_content).await
 }
 
 pub async fn admin_products_list_htmx_handler(
+    headers: HeaderMap,
     State(app_state): State<AppState>,
     claims: TokenClaims,
     Query(mut params): Query<ListingParams>,
-) -> Result<Markup, AppError> {
+) -> Result<AppResponse, AppError> {
     if claims.role != Role::Admin {
         return Err(AppError::UnauthorizedAccess(
             "Brak uprawnień administratora.".to_string(),
@@ -3582,7 +3626,7 @@ pub async fn admin_products_list_htmx_handler(
 
     let params_for_edit_links = params.to_query_string_with_skips(&["offset"]);
 
-    Ok(html! {
+    let page_content = html! {
         div #admin-product-list-container ."p-1"
             hx-get=(format!("/htmx/admin/products?{}", current_query_string))
             hx-trigger="reloadAdminProductList from:body"  // Nasłuchuje na zdarzenie z elementu body
@@ -3807,7 +3851,9 @@ pub async fn admin_products_list_htmx_handler(
                 }
             }
         }
-    })
+    };
+
+    build_response(headers, page_content).await
 }
 
 // Pomocnicza funkcja do generowania linków sortowania
@@ -3878,7 +3924,7 @@ fn get_status_badge_classes(status: ProductStatus) -> &'static str {
             "px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800"
         }
         ProductStatus::Archived => {
-            "px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800"
+            "px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-200 text-gray-800"
         }
     }
 }
@@ -4036,10 +4082,11 @@ fn order_sort_link(
 }
 
 pub async fn admin_orders_list_htmx_handler(
+    headers: HeaderMap,
     State(app_state): State<AppState>,
     claims: TokenClaims,
     Query(params): Query<OrderListingParams>,
-) -> Result<Markup, AppError> {
+) -> Result<AppResponse, AppError> {
     if claims.role != Role::Admin {
         return Err(AppError::UnauthorizedAccess(
             "Brak uprawnień administratora.".to_string(),
@@ -4077,7 +4124,7 @@ pub async fn admin_orders_list_htmx_handler(
     pagination_query_params.push(format!("limit={}", current_limit));
     let base_pagination_query_string_for_links = pagination_query_params.join("&");
 
-    Ok(html! {
+    let page_content = html! {
         div #admin-orders-list-container ."p-1"
             hx-get=(format!("/htmx/admin/orders?{}", params.to_query_string()))
             hx-trigger="reloadAdminOrderList from:body"
@@ -4314,16 +4361,18 @@ pub async fn admin_orders_list_htmx_handler(
                 }
             }
         }
-    })
+    };
+    build_response(headers, page_content).await
 }
 
 pub async fn admin_order_details_htmx_handler(
+    headers: HeaderMap,
     State(app_state): State<AppState>,
     claims: TokenClaims,
     Path(order_id): Path<Uuid>,
     // Opcjonalnie: Query(params) jeśli chcesz przekazać parametry powrotu do listy
     Query(list_params): Query<OrderListingParams>, // Aby zbudować link "Wróć do listy"
-) -> Result<Markup, AppError> {
+) -> Result<AppResponse, AppError> {
     if claims.role != Role::Admin {
         return Err(AppError::UnauthorizedAccess(
             "Brak uprawnień administratora.".to_string(),
@@ -4353,7 +4402,7 @@ pub async fn admin_order_details_htmx_handler(
     // Przygotuj query string dla linku powrotnego do listy zamówień, zachowując filtry
     let back_to_list_query_string = list_params.to_query_string();
 
-    Ok(html! {
+    let page_content = html! {
         // Kontener dla strony szczegółów, który będzie nasłuchiwał na odświeżenie
         // po zmianie statusu na tej stronie.
         div id=(format!("order-details-page-container-{}", order.id)) // Unikalne ID kontenera
@@ -4493,7 +4542,8 @@ pub async fn admin_order_details_htmx_handler(
                 }
             }
         } // Koniec #order-details-page-container
-    })
+    };
+    build_response(headers, page_content).await
 }
 
 // Funkcja pomocnicza do klas badge dla statusu zamówienia (możesz ją przenieść)
@@ -4509,7 +4559,10 @@ fn get_order_status_badge_classes(status: OrderStatus) -> &'static str {
 }
 
 // NOWA FUNKCJA
-pub async fn news_page_htmx_handler(State(app_state): State<AppState>) -> Result<Markup, AppError> {
+pub async fn news_page_htmx_handler(
+    headers: HeaderMap,
+    State(app_state): State<AppState>,
+) -> Result<AppResponse, AppError> {
     tracing::info!("MAUD: Obsługa publicznego URL /nowosci");
     let params = ListingParams {
         sort_by: Some("created_at".to_string()),
@@ -4518,11 +4571,15 @@ pub async fn news_page_htmx_handler(State(app_state): State<AppState>) -> Result
         status: Some(ProductStatus::Available),
         ..Default::default()
     };
-    list_products_htmx_handler(State(app_state), Query(params)).await
+    let page_content = list_products_htmx_handler(State(app_state), Query(params)).await?;
+    build_response(headers, page_content).await
 }
 
 // NOWA FUNKCJA
-pub async fn sale_page_htmx_handler(State(app_state): State<AppState>) -> Result<Markup, AppError> {
+pub async fn sale_page_htmx_handler(
+    headers: HeaderMap,
+    State(app_state): State<AppState>,
+) -> Result<AppResponse, AppError> {
     tracing::info!("MAUD: Obsługa publicznego URL /wyprzedaz");
     let params = ListingParams {
         on_sale: Some(true),
@@ -4530,5 +4587,6 @@ pub async fn sale_page_htmx_handler(State(app_state): State<AppState>) -> Result
         limit: Some(8),
         ..Default::default()
     };
-    list_products_htmx_handler(State(app_state), Query(params)).await
+    let page_content = list_products_htmx_handler(State(app_state), Query(params)).await?;
+    build_response(headers, page_content).await
 }
