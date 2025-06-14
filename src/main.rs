@@ -147,13 +147,8 @@ async fn main() {
             get(get_product_detail_htmx_handler),
         )
         .route("/o-nas", get(about_us_page_handler))
-        .route("/kontakt", get(contact_page_handler))
         .route("/regulamin", get(terms_of_service_page_handler))
         .route("/polityka-prywatnosci", get(privacy_policy_page_handler))
-        .route("/faq", get(faq_page_handler))
-        .route("/wysylka-i-zwroty", get(shipping_returns_page_handler))
-        .route("/logowanie", get(login_page_htmx_handler))
-        .route("/rejestracja", get(registration_page_htmx_handler))
         .route("/moje-konto", get(my_account_page_handler))
         .route("/moje-konto/zamowienia", get(my_orders_htmx_handler))
         .route(
@@ -182,9 +177,7 @@ async fn main() {
             get(privacy_policy_page_handler),
         )
         .route("/htmx/page/o-nas", get(about_us_page_handler))
-        .route("/o-nas", get(about_us_page_handler))
         .route("/htmx/page/regulamin", get(terms_of_service_page_handler))
-        .route("/regulamin", get(terms_of_service_page_handler))
         .route("/htmx/page/kontakt", get(contact_page_handler))
         .route("/kontakt", get(contact_page_handler))
         .route("/htmx/page/faq", get(faq_page_handler))

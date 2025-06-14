@@ -27,7 +27,7 @@ use crate::{
         ProductCondition, ProductGender, ProductStatus, UserShippingDetails,
     },
     pagination::PaginatedOrdersResponse,
-    response::{AppResponse, build_response, serve_full_page},
+    response::{AppResponse, build_response},
 };
 #[allow(unused_imports)]
 use crate::{
