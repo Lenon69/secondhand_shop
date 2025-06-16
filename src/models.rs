@@ -258,9 +258,10 @@ pub struct Order {
 pub enum PaymentMethod {
     #[strum(serialize = "BLIK")]
     Blik,
-    #[strum(serialize = "Przelew tradycyjny (P24)")]
+    #[strum(serialize = "Przelew tradycyjny", serialize = "transfer")]
     Transfer,
 }
+
 // --- STRUKTURY PAYLOAD DLA HANDLERÓW ZAMÓWIEŃ ---
 
 /// Reprezentuje pojedyńczy produkt w payloadzie tworzenia zamówienia
