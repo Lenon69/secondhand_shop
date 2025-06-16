@@ -300,11 +300,11 @@
               hx-swap="innerHTML"
               @click="isMobileMenuOpen = false; currentMobilePage=''"
               class="block hover:opacity-80 transition-opacity duration-200"
-              aria-label="Strona główna - Mess - all that vintage"
+              aria-label="Strona główna - mess - all that vintage"
             >
               <img
                 src="/static/main-logo.png"
-                alt="Mess - all that vintage"
+                alt="mess - all that vintage"
                 class="h-22 w-auto" 
               />
               </a>
@@ -803,7 +803,23 @@
           </div>
         </div>
         <p class="text-center text-xs text-gray-500 mt-8">
-          &copy; <span x-text="new Date().getFullYear()"></span> mess - all that vintage.
+          &copy; <span x-text="new Date().getFullYear()"></span>
+
+          <template x-if="!isAuthenticated">
+            <span>mess - all that vintage.</span>
+          </template>
+
+          <template x-if="isAuthenticated">
+            <a href="/admin"
+               hx-get="/htmx/admin"
+               hx-target="#content"
+               hx-swap="innerHTML"
+               hx-push-url="/admin"
+               class="font-medium hover:text-pink-600 transition-colors"
+               title="Przejdź do Panelu Admina"
+            >mess - all that vintage.</a>
+          </template>
+  
           Wszelkie prawa zastrzeżone.
         </p>
       </div>
@@ -1078,22 +1094,5 @@
   <p x-text="message"></p>
 
 </div>
-
-
-<div x-data="{ isAuthenticated: !!localStorage.getItem('jwtToken') }">
-    <template x-if="isAuthenticated">
-        <div class="p-4 bg-yellow-200">
-            <h2 class="font-bold">Linki Tylko dla Zalogowanych (Testowe):</h2>
-            <a href="/admin"
-               hx-get="/htmx/admin"
-               hx-target="#content"
-               hx-swap="innerHTML"
-               hx-push-url="/admin"
-               class="text-blue-600 hover:underline">Przejdź do Panelu Admina (HTMX)</a>
-        </div>
-    </template>
-</div>
-
-
     </body>
 </html>
