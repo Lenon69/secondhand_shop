@@ -16,7 +16,10 @@ use crate::cloudinary::{delete_image_from_cloudinary, extract_public_id_from_url
 use crate::email_service::send_order_confirmation_email;
 use crate::errors::AppError;
 use crate::filters::{ListingParams, OrderListingParams};
-use crate::htmx_handlers::{render_checkout_error_page_maud, render_thank_you_page_maud};
+use crate::htmx_handlers::{
+    render_cart_bubbles_oob_maud, render_checkout_error_page_maud,
+    render_empty_cart_sidebar_oob_maud, render_thank_you_page_maud,
+};
 use crate::middleware::OptionalTokenClaims;
 use crate::models::Product;
 use crate::models::*;
@@ -1449,7 +1452,18 @@ pub async fn create_order_handler(
     // 2. Wyrenderuj widok strony z podziękowaniem, używając naszej nowej funkcji
     let thank_you_html = render_thank_you_page_maud(&order_details.order, &order_details.items);
 
-    // 3. Przygotuj nagłówki dla HTMX
+    // 3. Wyrenderuj fragmenty "Out of Band"
+    let empty_cart_sidebar_html = render_empty_cart_sidebar_oob_maud();
+    let updated_cart_bubbles_html = render_cart_bubbles_oob_maud();
+
+    // 4. Połącz wszystkie fragmenty w jedną odpowiedź HTML
+    let final_response_html = html! {
+        (thank_you_html)
+        (empty_cart_sidebar_html)
+        (updated_cart_bubbles_html)
+    };
+
+    // 5. Przygotuj nagłówki dla HTMX
     let mut headers = HeaderMap::new();
 
     // Ustaw nagłówek HX-Push, aby zaktualizować URL w przeglądarce.
@@ -1471,8 +1485,8 @@ pub async fn create_order_handler(
         HeaderValue::from_str(&trigger_payload.to_string()).unwrap(),
     );
 
-    // 4. Zwróć nagłówki i wyrenderowany kod HTML jako ciało odpowiedzi
-    Ok((headers, thank_you_html))
+    // 6. Zwróć nagłówki i wyrenderowany kod HTML jako ciało odpowiedzi
+    Ok((headers, final_response_html))
 }
 
 pub async fn list_orders_handler(

@@ -4912,3 +4912,29 @@ pub fn render_thank_you_page_maud(
         }
     }
 }
+
+/// Renderuje fragment HTML dla pustego koszyka w panelu bocznym.
+/// Atrybut `hx-swap-oob="true"` mówi HTMX, aby podmienił element o ID `cart-content-target`.
+pub fn render_empty_cart_sidebar_oob_maud() -> Markup {
+    html! {
+        div #cart-content-target hx-swap-oob="true" {
+            p ."text-gray-600 py-6 text-center" { "Twój koszyk jest pusty." }
+        }
+    }
+}
+
+/// Renderuje zaktualizowane "bąbelki" z liczbą produktów w koszyku (tutaj: 0).
+/// Również używa `hx-swap-oob="true"`, aby zaktualizować oba elementy w nagłówku strony.
+pub fn render_cart_bubbles_oob_maud() -> Markup {
+    html! {
+        // Bąbelek dla widoku desktop
+        span #cart-count-bubble hx-swap-oob="true"
+             x-text="0"
+             class="absolute -top-2 -right-2 bg-pink-600 text-white text-xs font-semibold rounded-full w-5 h-5 flex items-center justify-center ring-2 ring-white hidden" {}
+
+        // Bąbelek dla widoku mobilnego
+        span #cart-count-bubble-mobile hx-swap-oob="true"
+             x-text="0"
+             class="absolute -top-1.5 -right-1.5 bg-pink-600 text-white text-[0.6rem] font-semibold rounded-full w-4 h-4 flex items-center justify-center ring-1 ring-white hidden" {}
+    }
+}
