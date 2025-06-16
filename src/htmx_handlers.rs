@@ -303,7 +303,7 @@ pub async fn get_product_detail_htmx_handler(
                                         } @else {
                                             // Logika powrotu do kategorii płci (bez zmian)
                                             @if product.gender == crate::models::ProductGender::Damskie {
-                                                a href="/dla-niej" hx-get="/htmx/dla/niej" hx-target="#content" hx-swap="innerHTML" hx-push-url="/dla-niej" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
+                                                a href="/dla-niej" hx-get="/htmx/dla-niej" hx-target="#content" hx-swap="innerHTML" hx-push-url="/dla-niej" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
                                                     "← Wróć do " (product.gender.to_string())
                                                 }
                                             } @else if product.gender == crate::models::ProductGender::Meskie {
@@ -944,7 +944,7 @@ pub async fn gender_page_handler(
     State(app_state): State<AppState>,
     Path(gender_slug): Path<String>,
 ) -> Result<AppResponse, AppError> {
-    tracing::info!("MAUD: /htmx/dla/{} - ładowanie strony płci", gender_slug);
+    tracing::info!("MAUD: /htmx/dla-{} - ładowanie strony płci", gender_slug);
 
     let (current_gender, current_gender_display_name) = match gender_slug.as_str() {
         "niej" => (ProductGender::Damskie, "Dla niej"),
@@ -1027,7 +1027,7 @@ pub async fn gender_page_handler(
                                     a href="#"
                                        hx-get=(format!("/htmx/products?gender={}", current_gender.to_string()))
                                        hx-target="#product-listing-area" "hx-swap"="innerHTML"
-                                       hx-push-url=(format!("/dla/{}", gender_slug))
+                                       hx-push-url=(format!("/dla-{}", gender_slug))
                                        "@click"="if (window.innerWidth < 768) isCategorySidebarOpen = false"
                                        class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
                                        "_"="on htmx:afterSwap remove .font-bold .text-pink-700 from #category-sidebar a add .font-bold .text-pink-700 to me" {
@@ -1041,7 +1041,7 @@ pub async fn gender_page_handler(
                                         a href="#"
                                            hx-get=(format!("/htmx/products?gender={}&category={}", current_gender.to_string(), category_item.as_ref()))
                                            hx-target="#product-listing-area" "hx-swap"="innerHTML"
-                                           hx-push-url=(format!("/dla/{}/{}", gender_slug, category_param))
+                                           hx-push-url=(format!("/dla-{}/{}", gender_slug, category_param))
                                            "@click"="if (window.innerWidth < 768) { isCategorySidebarOpen = false; }"
                                            class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
                                            "_"="on htmx:afterSwap remove .font-bold .text-pink-700 from #category-sidebar a add .font-bold .text-pink-700 to me" {
@@ -2952,11 +2952,12 @@ pub async fn checkout_page_handler(
                     // --- Kolumna Formularza Danych (Czerwone Pole pod nim - na mobilnych order-2, na lg order-1) ---
                     div ."lg:w-2/3 lg:order-1" {
                         h1 ."text-2xl sm:text-3xl font-bold text-gray-900 mb-6" { "Dane do zamówienia" }
-                        form #checkout-form // ID formularza
+                        form #checkout-form
                              hx-post="/api/orders"
-                             hx-swap="outerHTML"
-                             hx-target="this"
-                             hx-target-422="content"
+                             hx-target="#content"
+                             hx-swap="innerHTML"
+                             hx-push-url="true"
+                             hx-target-422="#content"
                              class="space-y-6" {
 
                             // Ukryte pole na klucz metody dostawy
@@ -4798,6 +4799,114 @@ pub fn render_checkout_error_page_maud(product_name: &str) -> Markup {
                        class="w-full sm:w-auto px-6 py-3 border border-gray-300 rounded-md shadow-sm text-base font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500" {
                         "Wróć do sklepu"
                     }
+                }
+            }
+        }
+    }
+}
+
+/// Renderuje WIDOK (Markup) dla strony z podziękowaniem za zamówienie.
+/// Jest to reużywalna funkcja, która nie wykonuje zapytań do bazy - przyjmuje gotowe dane.
+pub fn render_thank_you_page_maud(
+    order: &Order,
+    items_details: &[OrderItemDetailsPublic],
+) -> Markup {
+    html! {
+        div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12" {
+            div class="bg-white p-6 sm:p-8 rounded-xl shadow-2xl border border-gray-200" {
+                // Nagłówek
+                div class="text-center border-b-2 border-pink-100 pb-6 mb-6" {
+                    div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4" {
+                        // Ikona "check"
+                        svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" {
+                            path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7";
+                        }
+                    }
+                    h1 class="text-3xl sm:text-4xl font-bold text-gray-900" { "Dziękujemy za zamówienie!" }
+                    p class="mt-2 text-md text-gray-600" {
+                        "Twoje zamówienie nr " strong { "#" (&order.id.to_string()[..8]) } " zostało przyjęte do realizacji."
+                    }
+                    p class="text-sm text-gray-500 mt-1" { "Potwierdzenie zostało wysłane na Twój adres e-mail." }
+                }
+
+                // Sekcja: Instrukcje Płatności
+                div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-md mb-6" {
+                    h2 class="text-xl font-semibold text-yellow-800 mb-2" { "Prosimy o dokonanie płatności" }
+                    div class="text-yellow-700 space-y-2" {
+                        @if let Some(payment_method) = &order.payment_method {
+                            @match payment_method {
+                                PaymentMethod::Blik => {
+                                    p { "Wybrana metoda: " strong { "BLIK" } }
+                                    p { "Prosimy o dokonanie płatności na numer telefonu:" }
+                                    p class="text-2xl font-mono bg-white p-3 rounded text-center my-2" { "603 117 793" }
+                                }
+                                PaymentMethod::Transfer => {
+                                    p { "Wybrana metoda: " strong { "Przelew tradycyjny" } }
+                                    p { "Prosimy o dokonanie przelewu na poniższy numer konta:" }
+                                    p class="text-xl font-mono bg-white p-3 rounded text-center my-2" { "PL XX XXXX XXXX XXXX XXXX XXXX XXXX" }
+                                    // TODO: Uzupełnij prawdziwy numer konta
+                                }
+                            }
+                        } @else {
+                            p { "Nie wybrano metody płatności. Skontaktuj się z nami." }
+                        }
+                        p { "W tytule przelewu prosimy wpisać numer zamówienia: " strong { "#" (&order.id.to_string()[..8]) } }
+                        p { "Zamówienie zostanie wysłane po zaksięgowaniu wpłaty." }
+                    }
+                }
+
+                // Sekcja: Podsumowanie Zamówienia
+                div {
+                    h3 class="text-lg font-semibold text-gray-700 mb-3" { "Podsumowanie zamówienia" }
+                    ul class="divide-y divide-gray-200 border rounded-lg" {
+                        @for item in items_details {
+                            li class="p-3 flex items-center space-x-4" {
+                                @if let Some(img) = item.product.images.get(0) {
+                                    img src=(img) class="w-16 h-16 rounded-md object-cover border";
+                                }
+                                div class="flex-grow" {
+                                    p class="text-sm font-medium text-gray-800" { (item.product.name) }
+                                    p class="text-xs text-gray-500" { "Cena: " (format_price_maud(item.price_at_purchase)) }
+                                }
+                                p class="text-sm font-semibold text-gray-900" { (format_price_maud(item.price_at_purchase)) }
+                            }
+                        }
+                    }
+                    // Sumy
+                    div class="mt-4 space-y-2 text-sm text-right" {
+                        @if let Some(shipping_name) = &order.shipping_method_name {
+                             @let shipping_cost = order.total_price - items_details.iter().map(|i| i.price_at_purchase).sum::<i64>();
+                             p { "Produkty: " span class="font-medium w-24 inline-block" { (format_price_maud(items_details.iter().map(|i| i.price_at_purchase).sum())) } }
+                             p { "Dostawa (" (shipping_name) "): " span class="font-medium w-24 inline-block" { (format_price_maud(shipping_cost)) } }
+                        }
+                         p class="text-lg border-t pt-2 mt-2" { "Suma: " span class="font-bold text-pink-600 w-24 inline-block" { (format_price_maud(order.total_price)) } }
+                    }
+                }
+
+                // Sekcja: Adres dostawy
+                div class="mt-6 pt-6 border-t" {
+                     h3 class="text-lg font-semibold text-gray-700 mb-2" { "Dane do wysyłki" }
+                     address class="not-italic text-sm text-gray-600 leading-relaxed" {
+                        (order.shipping_first_name) " " (order.shipping_last_name) br;
+                        (order.shipping_address_line1) br;
+                        @if let Some(line2) = &order.shipping_address_line2 { (line2) br; }
+                        (order.shipping_postal_code) " " (order.shipping_city) br;
+                        (order.shipping_country) br;
+                        "tel: " (order.shipping_phone)
+                     }
+                }
+
+                // Stopka z linkiem do strony głównej
+                div class="text-center mt-8 pt-6 border-t" {
+                    a href="/"
+                       hx-get="/htmx/products?limit=8"
+                       hx-target="#content"
+                       hx-swap="innerHTML"
+                       hx-push-url="/"
+                       class="inline-block bg-pink-600 hover:bg-pink-700 text-white font-medium py-3 px-8 rounded-lg shadow-md hover:shadow-lg transition-all duration-200" {
+                        "Wróć do sklepu"
+                    }
+
                 }
             }
         }

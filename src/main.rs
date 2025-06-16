@@ -2,7 +2,8 @@
 
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
-use axum::response::Html;
+use axum::http::{HeaderMap, header};
+use axum::response::{Html, IntoResponse};
 use axum::routing::{delete, get, post};
 use dotenvy::dotenv;
 use htmx_handlers::*;
@@ -146,7 +147,7 @@ async fn main() {
         .route("/kategoria", get(list_products_htmx_handler))
         .route("/nowosci", get(news_page_htmx_handler))
         .route("/wyprzedaz", get(sale_page_htmx_handler))
-        .route("/dla/{gender_slug}", get(gender_page_handler))
+        .route("/dla-{gender_slug}", get(gender_page_handler))
         .route(
             "/produkty/{product_id}",
             get(get_product_detail_htmx_handler),
@@ -162,7 +163,7 @@ async fn main() {
         )
         .route("/moje-konto/dane", get(my_account_data_htmx_handler))
         .route("/checkout", get(checkout_page_handler))
-        .route("/htmx/dla/{gender_slug}", get(gender_page_handler))
+        .route("/htmx/dla-{gender_slug}", get(gender_page_handler))
         .route(
             "/htmx/cart/add/{product_id}",
             post(add_item_to_cart_htmx_handler),
@@ -229,8 +230,12 @@ async fn main() {
             "/zamowienie/dziekujemy/{order_id}",
             get(payment_finalization_page_handler),
         )
+        .route(
+            "/htmx/zamowienie/dziekujemy/{order_id}",
+            get(payment_finalization_page_handler),
+        )
         .nest_service("/static", ServeDir::new("static"))
-        .fallback(serve_index)
+        .fallback(html_fallback)
         .layer(TraceLayer::new_for_http())
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024))
         .with_state(app_state);
@@ -259,4 +264,27 @@ async fn serve_index() -> Result<Html<String>, StatusCode> {
         Ok(content) => Ok(Html(content)),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
+}
+
+/// Inteligentny fallback, który serwuje index.html tylko dla żądań oczekujących HTML.
+/// Dla innych (np. API, obrazy, skrypty) zwraca 404 Not Found.
+async fn html_fallback(headers: HeaderMap) -> impl IntoResponse {
+    if let Some(accept_header) = headers.get(header::ACCEPT) {
+        if let Ok(accept_str) = accept_header.to_str() {
+            // Jeśli przeglądarka prosi o HTML, serwuj index.html
+            if accept_str.contains("text/html") {
+                return match tokio::fs::read_to_string("static/index.html").await {
+                    Ok(content) => (StatusCode::OK, Html(content)).into_response(),
+                    Err(_) => (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "Błąd serwera: Nie można wczytać pliku index.html.",
+                    )
+                        .into_response(),
+                };
+            }
+        }
+    }
+
+    // Dla wszystkich innych żądań, zwróć 404 Not Found.
+    (StatusCode::NOT_FOUND, "404 Not Found").into_response()
 }

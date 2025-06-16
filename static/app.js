@@ -280,18 +280,6 @@ function initEventListeners() {
   });
 
   /**
-   * Obsługuje pomyślne złożenie zamówienia. Przekierowuje na stronę główną.
-   */
-  document.body.addEventListener("orderPlaced", (event) => {
-    console.log("Zamówienie złożone pomyślnie:", event.detail);
-    if (event.detail.redirectTo) {
-      setTimeout(() => {
-        window.location.replace(event.detail.redirectTo);
-      }, 1500); // Opóźnienie, aby użytkownik zdążył zobaczyć komunikat o sukcesie
-    }
-  });
-
-  /**
    * Czyści wizualnie stan koszyka (używane po złożeniu zamówienia).
    */
   document.body.addEventListener("clearCartDisplay", () => {

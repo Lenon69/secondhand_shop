@@ -27,12 +27,8 @@ pub async fn serve_full_page(content: Markup) -> Result<Html<String>, StatusCode
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Wstaw wyrenderowaną treść w miejsce specjalnego "kotwicy"
-    // Upewnij się, że Twój kontener #content ma teraz również id="main-content-placeholder"
-    let page = shell.replace(
-        r#"<div id="main-content-placeholder" class="min-h-[60vh]"></div>"#,
-        &content.into_string(),
-    );
+    // Używamy teraz naszego nowego, niezawodnego placeholdera w komentarzu
+    let page = shell.replace("", &content.into_string());
 
     Ok(Html(page))
 }

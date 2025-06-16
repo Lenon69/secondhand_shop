@@ -7,6 +7,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
 };
 use axum_extra::TypedHeader;
+use maud::{Markup, html};
 use serde_json::{Value, json};
 use sqlx::{Postgres, QueryBuilder};
 
@@ -15,7 +16,7 @@ use crate::cloudinary::{delete_image_from_cloudinary, extract_public_id_from_url
 use crate::email_service::send_order_confirmation_email;
 use crate::errors::AppError;
 use crate::filters::{ListingParams, OrderListingParams};
-use crate::htmx_handlers::render_checkout_error_page_maud;
+use crate::htmx_handlers::{render_checkout_error_page_maud, render_thank_you_page_maud};
 use crate::middleware::OptionalTokenClaims;
 use crate::models::Product;
 use crate::models::*;
@@ -1168,7 +1169,7 @@ pub async fn create_order_handler(
     OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
     guest_cart_id_header: Option<TypedHeader<XGuestCartId>>,
     Form(payload): Form<CheckoutFormPayload>,
-) -> Result<(HeaderMap, StatusCode), AppError> {
+) -> Result<(HeaderMap, Markup), AppError> {
     if let Err(validation_errors) = payload.validate() {
         tracing::warn!("Błąd walidacji danych checkout: {:?}", validation_errors);
         let mut headers = HeaderMap::new();
@@ -1184,7 +1185,7 @@ pub async fn create_order_handler(
             })?,
         );
         headers.insert("HX-Reswap", HeaderValue::from_static("none"));
-        return Ok((headers, StatusCode::UNPROCESSABLE_ENTITY));
+        return Ok((headers, html! {}));
     }
 
     let mut order_user_id: Option<Uuid> = None;
@@ -1217,7 +1218,7 @@ pub async fn create_order_handler(
             let mut headers = HeaderMap::new();
             headers.insert("HX-Trigger", HeaderValue::from_static(r#"{"showMessage": {"message": "Adres email jest wymagany dla zamówień gości.", "type": "error"}}"#));
             headers.insert("HX-Reswap", HeaderValue::from_static("none"));
-            return Ok((headers, StatusCode::UNPROCESSABLE_ENTITY));
+            return Ok((headers, html! {}));
         }
         order_guest_email = payload
             .guest_checkout_email
@@ -1290,7 +1291,7 @@ pub async fn create_order_handler(
             headers.insert("HX-Trigger", HeaderValue::from_str(r#"{{"showMessage": {{"message": "Proszę wybrać prawidłową metodę dostawy.", "type": "error"}}}}"#)
                 .map_err(|_| AppError::InternalServerError("Failed to create HX-Trigger for shipping method".to_string()))?);
             headers.insert("HX-Reswap", HeaderValue::from_static("none"));
-            return Ok((headers, StatusCode::UNPROCESSABLE_ENTITY));
+            return Ok((headers, html! {}));
         }
     };
 
@@ -1413,24 +1414,25 @@ pub async fn create_order_handler(
 
     tx.commit().await?;
 
-    match fetch_order_details_service(&app_state.db_pool, order_id).await {
-        Ok(details) => {
-            if let Err(e) = send_order_confirmation_email(&app_state, &details).await {
-                tracing::error!(
-                    "Nie udało się wysłać e-maila z potwierdzeniem dla zamówienia {}: {:?}",
-                    order_id,
-                    e
-                );
-            }
-        }
-        Err(e) => {
-            tracing::error!(
-                "Nie udało się pobrać szczegółów zamówienia {} do wysłania e-maila: {:?}",
-                order_id,
-                e
-            );
-        }
-    }
+    // === WYSYŁANIE E-MAIL ===
+    // match fetch_order_details_service(&app_state.db_pool, order_id).await {
+    //     Ok(details) => {
+    //         if let Err(e) = send_order_confirmation_email(&app_state, &details).await {
+    //             tracing::error!(
+    //                 "Nie udało się wysłać e-maila z potwierdzeniem dla zamówienia {}: {:?}",
+    //                 order_id,
+    //                 e
+    //             );
+    //         }
+    //     }
+    //     Err(e) => {
+    //         tracing::error!(
+    //             "Nie udało się pobrać szczegółów zamówienia {} do wysłania e-maila: {:?}",
+    //             order_id,
+    //             e
+    //         );
+    //     }
+    // }
 
     tracing::info!(
         "Utworzono nowe zamówienie ID: {} z metodą dostawy: '{}', koszt dostawy: {} gr, suma końcowa: {} gr",
@@ -1440,26 +1442,37 @@ pub async fn create_order_handler(
         final_total_price
     );
 
+    // 1. Pobierz pełne szczegóły właśnie utworzonego zamówienia
+    // Używamy `fetch_order_details_service`, który już mamy!
+    let order_details = fetch_order_details_service(&app_state.db_pool, order_id).await?;
+
+    // 2. Wyrenderuj widok strony z podziękowaniem, używając naszej nowej funkcji
+    let thank_you_html = render_thank_you_page_maud(&order_details.order, &order_details.items);
+
+    // 3. Przygotuj nagłówki dla HTMX
     let mut headers = HeaderMap::new();
-    let success_payload = json!({
+
+    // Ustaw nagłówek HX-Push, aby zaktualizować URL w przeglądarce.
+    // Atrybut hx-push-url="true" na formularzu go użyje.
+    let final_url = format!("/zamowienie/dziekujemy/{}", order_id);
+    headers.insert("HX-Push", HeaderValue::from_str(&final_url).unwrap());
+
+    // Wyślij zdarzenia do wyczyszczenia licznika koszyka i pokazania toasta.
+    // Nadal używamy HX-Trigger do tych pobocznych zadań.
+    let trigger_payload = json!({
+        "clearCartDisplay": {},
         "showMessage": {
             "message": "Twoje zamowienie zostalo pomyslnie zlozone!",
             "type": "success"
-        },
-        "orderPlaced": {
-            "orderId": order_id.to_string(),
-            "redirectTo": format!("/zamowienie/dziekujemy/{}", order_id)
-        },
-        "clearCartDisplay": {}
+        }
     });
     headers.insert(
         "HX-Trigger",
-        HeaderValue::from_str(&success_payload.to_string()).map_err(|_| {
-            AppError::InternalServerError("Failed to create HX-Trigger header".to_string())
-        })?,
+        HeaderValue::from_str(&trigger_payload.to_string()).unwrap(),
     );
 
-    Ok((headers, StatusCode::OK))
+    // 4. Zwróć nagłówki i wyrenderowany kod HTML jako ciało odpowiedzi
+    Ok((headers, thank_you_html))
 }
 
 pub async fn list_orders_handler(

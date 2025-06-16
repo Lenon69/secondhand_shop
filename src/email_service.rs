@@ -4,7 +4,7 @@ use std::env;
 
 use crate::{
     errors::AppError,
-    models::{OrderDetailsResponse, PaymentMethod},
+    models::{OrderDetailsResponse, PaymentMethod, User},
     state::AppState,
 };
 use maud::{Markup, PreEscaped, html};
@@ -20,17 +20,36 @@ pub async fn send_order_confirmation_email(
     app_state: &AppState,
     order_details: &OrderDetailsResponse,
 ) -> Result<(), AppError> {
-    // Upewnij się, że mamy adres e-mail odbiorcy
-    let recipient_email = order_details
-        .order
-        .guest_email
-        .as_deref()
-        .or_else(|| order_details.order.shipping_first_name.split('@').next()) // Przykładowy fallback
-        .ok_or_else(|| {
-            AppError::InternalServerError(
-                "Brak adresu e-mail do wysyłki potwierdzenia.".to_string(),
-            )
-        })?;
+    let recipient_email: String;
+
+    // === NOWA, POPRAWNA LOGIKA POBIERANIA E-MAILA ===
+    if let Some(guest_email_val) = &order_details.order.guest_email {
+        // Przypadek 1: Zamówienie gościa, e-mail jest w zamówieniu.
+        recipient_email = guest_email_val.clone();
+        tracing::info!("Wysyłka e-maila do gościa na adres: {}", recipient_email);
+    } else if let Some(user_id_val) = order_details.order.user_id {
+        // Przypadek 2: Zamówienie zalogowanego użytkownika, pobierz e-mail z tabeli `users`.
+        let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+            .bind(user_id_val)
+            .fetch_optional(&app_state.db_pool)
+            .await?
+            .ok_or_else(|| AppError::NotFound)?; // Zwróć błąd, jeśli użytkownik nie istnieje
+
+        recipient_email = user.email;
+        tracing::info!(
+            "Wysyłka e-maila do zalogowanego użytkownika na adres: {}",
+            recipient_email
+        );
+    } else {
+        // Przypadek 3: Błąd - zamówienie nie ma ani e-maila gościa, ani ID użytkownika.
+        tracing::error!(
+            "Nie można ustalić adresu e-mail odbiorcy dla zamówienia ID: {}",
+            order_details.order.id
+        );
+        return Err(AppError::InternalServerError(
+            "Brak adresu e-mail do wysyłki potwierdzenia.".to_string(),
+        ));
+    }
 
     // Inicjalizacja klienta Resend
     let resend = Resend::new(&app_state.resend_api_key);
@@ -38,6 +57,7 @@ pub async fn send_order_confirmation_email(
     // Wyrenderuj treść HTML e-maila
     let email_html_content = render_order_confirmation_email_html(order_details);
 
+    // Pobierz e-mail administratora/nadawcy ze zmiennej środowiskowej
     let sender_display_name = "MEG JONI";
     let sender_email_address =
         env::var("ADMIN_EMAIL").unwrap_or_else(|_| "noreply@megjoni.com".to_string());
@@ -48,9 +68,13 @@ pub async fn send_order_confirmation_email(
         &order_details.order.id.to_string()[..8]
     );
 
-    let params =
-        CreateEmailBaseOptions::new(sender_formatted, vec![recipient_email.to_string()], subject);
-    let params = params.with_html(&email_html_content.into_string());
+    // Używamy .builder() do stworzenia zapytania
+    let params = CreateEmailBaseOptions::new(
+        &sender_formatted,
+        vec![recipient_email.clone()], // Używamy sklonowanego e-maila
+        &subject,
+    )
+    .with_html(&email_html_content.into_string());
 
     tracing::info!(
         "Wysyłanie e-maila z potwierdzeniem zamówienia do: {}",
