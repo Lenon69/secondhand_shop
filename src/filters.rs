@@ -1,5 +1,5 @@
 // src/filters.rs
-use crate::models::{Category, OrderStatus, ProductCondition, ProductGender, ProductStatus};
+use crate::models::{Category, OrderStatus, ProductCondition, ProductGender};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, de};
 use std::str::FromStr;
@@ -40,11 +40,8 @@ pub struct ListingParams {
         deserialize_with = "deserialize_optional_enum_from_empty_string"
     )]
     pub condition: Option<ProductCondition>,
-    #[serde(
-        default,
-        deserialize_with = "deserialize_optional_product_status_from_query"
-    )]
-    pub status: Option<ProductStatus>,
+    #[serde(default)]
+    pub status: Option<String>,
     #[serde(default)]
     pub price_min: Option<i64>,
     #[serde(default)]
@@ -87,7 +84,7 @@ impl ListingParams {
     pub fn condition(&self) -> Option<ProductCondition> {
         self.condition.clone()
     }
-    pub fn status(&self) -> Option<ProductStatus> {
+    pub fn status(&self) -> Option<String> {
         self.status.clone()
     }
     pub fn price_min(&self) -> Option<i64> {
@@ -156,7 +153,7 @@ impl ListingParams {
         }
         if !skip_params.contains(&"status") {
             if let Some(val) = &self.status {
-                query_parts.push(format!("status={}", val.as_ref()));
+                query_parts.push(format!("status={}", val));
             }
         }
         if !skip_params.contains(&"price_min") {
@@ -230,7 +227,7 @@ impl ListingParams {
             query_parts.push(format!("condition={}", condition.as_ref()));
         }
         if let Some(status) = &self.status {
-            query_parts.push(format!("status={}", status.as_ref()));
+            query_parts.push(format!("status={}", status));
         }
         if let Some(p_min) = self.price_min {
             query_parts.push(format!("price_min={}", p_min));
@@ -390,41 +387,5 @@ impl OrderListingParams {
             query_parts.push(format!("order={}", val));
         }
         query_parts.join("&")
-    }
-}
-
-// Niestandardowy deserializer dla Option<ProductStatus> używający ProductStatus::from_query_param
-pub fn deserialize_optional_product_status_from_query<'de, D>(
-    deserializer: D,
-) -> Result<Option<ProductStatus>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s = String::deserialize(deserializer)?;
-    tracing::info!(
-        "[deserialize_product_status_query] Próba parsowania statusu produktu: '{}'",
-        s
-    );
-    if s.is_empty() {
-        Ok(None)
-    } else {
-        match ProductStatus::from_query_param(&s) {
-            Ok(status) => {
-                tracing::info!(
-                    "[deserialize_product_status_query] Pomyślnie sparsowano '{}' do: {:?}",
-                    s,
-                    status
-                );
-                Ok(Some(status))
-            }
-            Err(e) => {
-                tracing::error!(
-                    "[deserialize_product_status_query] BŁĄD parsowania '{}': {}",
-                    s,
-                    e
-                );
-                Err(de::Error::custom(e)) // Zwróć błąd Serde
-            }
-        }
     }
 }

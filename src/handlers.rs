@@ -104,12 +104,20 @@ pub async fn list_products(
         count_builder.push("condition = ").push_bind(condition);
     }
 
-    match params.status() {
-        Some(status_val) => {
-            append_where_or_and_count(&mut count_builder);
-            count_builder.push("status = ").push_bind(status_val);
+    // === NOWA, BARDZIEJ ROZBUDOWANA LOGIKA FILTROWANIA STATUSU (dla count_builder) ===
+    match params.status.as_deref() {
+        Some("all") => {
+            // Admin wybrał "Wszystkie" - nie dodajemy żadnego filtra statusu.
+        }
+        Some(status_str) => {
+            // Podano konkretny status, próbujemy go sparsować.
+            if let Ok(status_enum) = ProductStatus::from_str(status_str) {
+                append_where_or_and_count(&mut count_builder);
+                count_builder.push("status = ").push_bind(status_enum);
+            }
         }
         None => {
+            // Domyślne zachowanie dla publicznych widoków.
             append_where_or_and_count(&mut count_builder);
             count_builder
                 .push("status IN (")
@@ -182,12 +190,20 @@ pub async fn list_products(
         data_builder.push("condition = ").push_bind(condition);
     }
 
-    match params.status() {
-        Some(status_val) => {
-            append_where_or_and_data(&mut data_builder);
-            data_builder.push("status = ").push_bind(status_val);
+    // === NOWA, BARDZIEJ ROZBUDOWANA LOGIKA FILTROWANIA STATUSU (dla data_builder) ===
+    match params.status.as_deref() {
+        Some("all") => {
+            // Admin wybrał "Wszystkie" - nie dodajemy żadnego filtra statusu.
+        }
+        Some(status_str) => {
+            // Podano konkretny status, próbujemy go sparsować.
+            if let Ok(status_enum) = ProductStatus::from_str(status_str) {
+                append_where_or_and_data(&mut data_builder);
+                data_builder.push("status = ").push_bind(status_enum);
+            }
         }
         None => {
+            // Domyślne zachowanie dla publicznych widoków.
             append_where_or_and_data(&mut data_builder);
             data_builder
                 .push("status IN (")

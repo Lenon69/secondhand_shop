@@ -963,7 +963,7 @@ pub async fn gender_page_handler(
         gender: Some(current_gender.clone()),
         category: None,
         condition: None,
-        status: Some(ProductStatus::Available),
+        status: Some(ProductStatus::Available.as_ref().to_string()),
         price_min: None,
         price_max: None,
         on_sale: None,
@@ -3551,7 +3551,7 @@ pub async fn admin_dashboard_htmx_handler(
             // Sidebar nawigacyjny admina
             nav ."w-full md:w-64 bg-gray-800 text-white p-4 space-y-2" {
                 h2 ."text-xl font-semibold mb-4" { "Panel Admina" }
-                a href="/htmx/admin/products" hx-get="/htmx/admin/products" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
+                a href="/htmx/admin/products?status=all" hx-get="/htmx/admin/products?status=all" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
                    class="block py-2 px-3 rounded hover:bg-gray-700" { "Zarządzaj produktami" }
                 a href="/htmx/admin/orders" hx-get="/htmx/admin/orders" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
                    class="block py-2 px-3 rounded hover:bg-gray-700" { "Zarządzaj zamówieniami" }
@@ -3658,12 +3658,16 @@ pub async fn admin_products_list_htmx_handler(
                     div {
                         label for="filter_status_admin" ."block text-sm font-medium text-gray-700 mb-1" { "Status:" }
                         select name="status" id="filter_status_admin" class="admin-filter-select" {
-                            option value="" selected[params.status.is_none()] { "Wszystkie" }
-                            @for status_variant in ProductStatus::iter() {
-                                option value=(status_variant.as_ref()) selected[params.status.as_ref() == Some(&status_variant)] { (status_variant.to_string()) }
+                                    // === ZMIANA W LOGICE ZAZNACZANIA ===
+                                    // Opcja "Wszystkie" teraz wysyła value="all"
+                                    option value="all" selected[params.status.as_deref() == Some("all") || params.status.is_none()] { "Wszystkie" }
+
+                                    @for status_variant in ProductStatus::iter() {
+                                        @let status_str = status_variant.as_ref();
+                                        option value=(status_str) selected[params.status.as_deref() == Some(status_str)] { (status_variant.to_string()) }
+                                    }
+                                }
                             }
-                        }
-                    }
                     div ."lg:col-span-1" {
                         label for="search_query_admin" ."block text-sm font-medium text-gray-700 mb-1" { "Szukaj:" }
                         input type="search" name="search" id="search_query_admin" value=[params.search.as_deref()]
@@ -3868,7 +3872,7 @@ fn sort_link(
     // Skopiuj istniejące parametry, aby nie stracić filtrów
     let mut query_params = Vec::new();
     if let Some(s) = &current_params.status {
-        query_params.push(format!("status={}", s.as_ref()));
+        query_params.push(format!("status={}", s));
     }
     if let Some(c) = &current_params.category {
         query_params.push(format!("category={}", c.as_ref()));
@@ -4557,7 +4561,7 @@ pub async fn news_page_htmx_handler(
         sort_by: Some("created_at".to_string()),
         order: Some("desc".to_string()),
         limit: Some(8),
-        status: Some(ProductStatus::Available),
+        status: Some(ProductStatus::Available.as_ref().to_string()),
         ..Default::default()
     };
 
@@ -4573,7 +4577,7 @@ pub async fn sale_page_htmx_handler(
     tracing::info!("MAUD: Obsługa publicznego URL /wyprzedaz");
     let params = ListingParams {
         on_sale: Some(true),
-        status: Some(ProductStatus::Available),
+        status: Some(ProductStatus::Available.as_ref().to_string()),
         limit: Some(8),
         ..Default::default()
     };
