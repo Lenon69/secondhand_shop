@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Odkryj unikalną odzież vintage w MEG JONI. Najlepsze perełki z drugiej ręki dla niej i dla niego."
+      content="Odkryj unikalną odzież vintage w mess - all that vintage. Najlepsze perełki z drugiej ręki dla niej i dla niego."
     />
     <!-- <meta name="htmx-config" content='{"globalIndicator": "#global-loading-spinner"}'> -->
-    <title>MEG JONI - Sklep Vintage Online</title>
+    <title>mess - all that vintage - Sklep Vintage Online</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script
       src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"
@@ -299,11 +299,16 @@
               hx-push-url="/"
               hx-swap="innerHTML"
               @click="isMobileMenuOpen = false; currentMobilePage=''"
-              class="text-2xl font-bold border-2 border-black px-3 py-1 hover:bg-gray-100 transition-colors duration-200"
+              class="block hover:opacity-80 transition-opacity duration-200"
+              aria-label="Strona główna - Mess - all that vintage"
             >
-              MEG JONI
-            </a>
-          </h1>
+              <img
+                src="/static/main-logo.png"
+                alt="Mess - all that vintage"
+                class="h-22 w-auto" 
+              />
+              </a>
+            </h1>
           <div class="hidden lg:flex flex-1 justify-center items-center px-6">
             <form
               hx-get="/htmx/products"
@@ -798,7 +803,7 @@
           </div>
         </div>
         <p class="text-center text-xs text-gray-500 mt-8">
-          &copy; <span x-text="new Date().getFullYear()"></span> Meg Joni.
+          &copy; <span x-text="new Date().getFullYear()"></span> mess - all that vintage.
           Wszelkie prawa zastrzeżone.
         </p>
       </div>

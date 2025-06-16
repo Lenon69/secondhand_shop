@@ -58,9 +58,9 @@ pub async fn send_order_confirmation_email(
     let email_html_content = render_order_confirmation_email_html(order_details);
 
     // Pobierz e-mail administratora/nadawcy ze zmiennej środowiskowej
-    let sender_display_name = "MEG JONI";
+    let sender_display_name = "mess - all that vintage";
     let sender_email_address =
-        env::var("ADMIN_EMAIL").unwrap_or_else(|_| "noreply@megjoni.com".to_string());
+        env::var("ADMIN_EMAIL").unwrap_or_else(|_| "noreply@mess.com".to_string());
     let sender_formatted = format!("{} <{}>", sender_display_name, sender_email_address);
 
     let subject = format!(
@@ -129,7 +129,7 @@ fn render_order_confirmation_email_html(order_details: &OrderDetailsResponse) ->
             body {
                 div class="container" {
                     div class="header" {
-                        h1 { "MEG JONI" }
+                        h1 { "mess - all that vintage" }
                         h2 { "Dziękujemy za Twoje zamówienie!" }
                     }
                     h3 { "Hej, " (order.shipping_first_name) "!" }
@@ -170,7 +170,7 @@ fn render_order_confirmation_email_html(order_details: &OrderDetailsResponse) ->
                     }
 
                     p { "Dziękujemy za zakupy i zapraszamy ponownie!" }
-                    p { "Zespół MEG JONI" }
+                    p { "Zespół mess - all that vintage" }
                 }
             }
         }
