@@ -4,6 +4,7 @@ use axum::{
     response::{IntoResponse, Json, Response},
 };
 
+use maud::Markup;
 use serde_json::json;
 use thiserror::Error;
 use validator::ValidationErrors;
@@ -55,6 +56,9 @@ pub enum AppError {
 
     #[error("Wystąpił konflikt")]
     Conflict(String),
+
+    #[error("Wystąpił błąd z niedostępnm produktem")]
+    UnprocessableEntityWithHtml(Markup),
 }
 
 impl IntoResponse for AppError {
@@ -99,6 +103,9 @@ impl IntoResponse for AppError {
             AppError::BadRequest(message) => (StatusCode::BAD_REQUEST, message),
             AppError::Validation(message) => (StatusCode::UNAUTHORIZED, message),
             AppError::Conflict(message) => (StatusCode::CONFLICT, message),
+            AppError::UnprocessableEntityWithHtml(markup) => {
+                return (StatusCode::UNPROCESSABLE_ENTITY, markup.into_string()).into_response();
+            }
         };
 
         let body = Json(json!({ "error": error_message }));

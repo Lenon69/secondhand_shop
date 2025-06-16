@@ -20,6 +20,7 @@ mod auth;
 mod auth_models;
 mod cart_utils;
 mod cloudinary;
+mod email_service;
 mod errors;
 mod filters;
 mod handlers;
@@ -80,12 +81,16 @@ async fn main() {
         .parse::<i64>()
         .expect("JWT_EXPIRATION_HOURS must be a valid number");
 
+    // --- Konfiguracja Resend ---
+    let resend_api_key = env::var("RESEND_API_KEY").expect("RESEND_API_KEY must be set");
+
     // Definicja AppState
     let app_state = AppState {
         db_pool: pool,
         jwt_secret,
         jwt_expiration_hours,
         cloudinary_config,
+        resend_api_key,
     };
 
     // Definicja routingu aplikacji
@@ -220,6 +225,10 @@ async fn main() {
             get(admin_order_details_htmx_handler),
         )
         .route("/htmx/admin/orders", get(admin_orders_list_htmx_handler))
+        .route(
+            "/zamowienie/dziekujemy/{order_id}",
+            get(payment_finalization_page_handler),
+        )
         .nest_service("/static", ServeDir::new("static"))
         .fallback(serve_index)
         .layer(TraceLayer::new_for_http())

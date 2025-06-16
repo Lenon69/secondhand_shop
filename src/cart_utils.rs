@@ -46,8 +46,6 @@ pub async fn build_cart_details_response(
     let mut current_total_price: i64 = 0;
 
     for row in items_with_products {
-        // Sprawdź, czy produkt nie został np. usunięty lub jego status się nie zmienił
-        // Chociaż JOIN powinien zwrócić tylko istniejące produkty, dodatkowa walidacja statusu może być przydatna
         if row.status != ProductStatus::Available {
             tracing::warn!(
                 "Produkt '{}' (ID: {}) w koszyku (ID koszyka: {}) ma status inny niż 'Available': {:?}. Pomijam.",
@@ -56,9 +54,24 @@ pub async fn build_cart_details_response(
                 cart.id,
                 row.status
             );
-            // Można rozważyć usunięcie tej pozycji z koszyka w tym miejscu, jeśli to pożądane zachowanie
-            // np. sqlx::query("DELETE FROM cart_items WHERE id = $1").bind(row.cart_item_id).execute(&mut *conn).await?;
-            continue;
+            // === KLUCZOWA ZMIANA: AKTYWNE USUWANIE "PRODUKTU-WIDMO" ===
+            // Zamiast tylko pomijać, wykonujemy zapytanie DELETE.
+            sqlx::query("DELETE FROM cart_items WHERE id = $1")
+                .bind(row.cart_item_id)
+                .execute(&mut *conn)
+                .await
+                .map_err(|e| {
+                    tracing::error!(
+                        "Nie udało się usunąć niedostępnej pozycji ({}) z koszyka ({}): {}",
+                        row.cart_item_id,
+                        cart.id,
+                        e
+                    );
+                    // Mimo błędu, kontynuujemy, aby nie zablokować całego widoku koszyka
+                    e
+                })?; // Używamy ? aby propagować błąd, jeśli usunięcie się nie powiedzie.
+
+            continue; // Kontynuujemy pętlę, nie dodając tego produktu do widoku.
         }
 
         current_total_price += row.price;

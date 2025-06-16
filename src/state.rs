@@ -8,6 +8,7 @@ pub struct AppState {
     pub jwt_secret: String,
     pub jwt_expiration_hours: i64,
     pub cloudinary_config: CloudinaryConfig,
+    pub resend_api_key: String,
 }
 
 #[derive(Clone)]

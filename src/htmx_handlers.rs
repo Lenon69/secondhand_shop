@@ -24,7 +24,7 @@ use crate::{
     filters::OrderListingParams,
     models::{
         OrderDetailsResponse, OrderItem, OrderItemDetailsPublic, OrderWithCustomerInfo,
-        ProductCondition, ProductGender, ProductStatus, UserShippingDetails,
+        PaymentMethod, ProductCondition, ProductGender, ProductStatus, UserShippingDetails,
     },
     pagination::PaginatedOrdersResponse,
     response::{AppResponse, build_response},
@@ -2954,7 +2954,9 @@ pub async fn checkout_page_handler(
                         h1 ."text-2xl sm:text-3xl font-bold text-gray-900 mb-6" { "Dane do zamówienia" }
                         form #checkout-form // ID formularza
                              hx-post="/api/orders"
-                             hx-target="this" hx-swap="outerHTML" // Lub inny target dla komunikatów
+                             hx-swap="outerHTML"
+                             hx-target="this"
+                             hx-target-422="content"
                              class="space-y-6" {
 
                             // Ukryte pole na klucz metody dostawy
@@ -4599,4 +4601,201 @@ pub async fn render_product_listing_view(
         &filter_query_string,
         &current_listing_params_qs,
     ))
+}
+
+pub async fn payment_finalization_page_handler(
+    headers: HeaderMap,
+    State(app_state): State<AppState>,
+    Path(order_id): Path<Uuid>,
+) -> Result<AppResponse, AppError> {
+    tracing::info!(
+        "MAUD: Wyświetlanie strony podsumowania płatności dla zamówienia ID {}",
+        order_id
+    );
+
+    // Pobierz szczegóły zamówienia, aby je wyświetlić.
+    // Użyjemy logiki podobnej do get_order_details_handler, ale bez sprawdzania uprawnień,
+    // ponieważ dostęp do tej strony jest "publiczny" dla osoby, która zna link.
+    // W bardziej zaawansowanym systemie można by użyć podpisanego tokenu w URL.
+    let order = sqlx::query_as::<_, Order>("SELECT * FROM orders WHERE id = $1")
+        .bind(order_id)
+        .fetch_one(&app_state.db_pool)
+        .await
+        .map_err(|_| AppError::NotFound)?; // Jeśli zamówienie nie istnieje, zwróć 404
+
+    let order_items_db =
+        sqlx::query_as::<_, OrderItem>("SELECT * FROM order_items WHERE order_id = $1")
+            .bind(order_id)
+            .fetch_all(&app_state.db_pool)
+            .await?;
+
+    let mut items_details: Vec<OrderItemDetailsPublic> = Vec::new();
+    if !order_items_db.is_empty() {
+        let product_ids: Vec<Uuid> = order_items_db.iter().map(|item| item.product_id).collect();
+        let products = sqlx::query_as::<_, Product>("SELECT * FROM products WHERE id = ANY($1)")
+            .bind(&product_ids)
+            .fetch_all(&app_state.db_pool)
+            .await?;
+        let products_map: HashMap<Uuid, Product> =
+            products.into_iter().map(|p| (p.id, p)).collect();
+
+        for item_db in order_items_db {
+            if let Some(product) = products_map.get(&item_db.product_id) {
+                items_details.push(OrderItemDetailsPublic {
+                    order_item_id: item_db.id,
+                    product: product.clone(),
+                    price_at_purchase: item_db.price_at_purchase,
+                });
+            }
+        }
+    }
+
+    let page_content = html! {
+        div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12" {
+            div class="bg-white p-6 sm:p-8 rounded-xl shadow-2xl border border-gray-200" {
+                // Nagłówek
+                div class="text-center border-b-2 border-pink-100 pb-6 mb-6" {
+                    div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4" {
+                        // Ikona "check"
+                        svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" {
+                            path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7";
+                        }
+                    }
+                    h1 class="text-3xl sm:text-4xl font-bold text-gray-900" { "Dziękujemy za zamówienie!" }
+                    p class="mt-2 text-md text-gray-600" {
+                        "Twoje zamówienie nr " strong { "#" (&order.id.to_string()[..8]) } " zostało przyjęte do realizacji."
+                    }
+                    p class="text-sm text-gray-500 mt-1" { "Potwierdzenie zostało wysłane na Twój adres e-mail." }
+                }
+
+                // Sekcja: Instrukcje Płatności
+                div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-md mb-6" {
+                    h2 class="text-xl font-semibold text-yellow-800 mb-2" { "Prosimy o dokonanie płatności" }
+                    div class="text-yellow-700 space-y-2" {
+                        @if let Some(payment_method) = &order.payment_method {
+                            @match payment_method {
+                                PaymentMethod::Blik => {
+                                    p { "Wybrana metoda: " strong { "BLIK" } }
+                                    p { "Prosimy o dokonanie płatności na numer telefonu:" }
+                                    p class="text-2xl font-mono bg-white p-3 rounded text-center my-2" { "603 117 793" }
+                                }
+                                PaymentMethod::Transfer => {
+                                    p { "Wybrana metoda: " strong { "Przelew tradycyjny" } }
+                                    p { "Prosimy o dokonanie przelewu na poniższy numer konta:" }
+                                    p class="text-xl font-mono bg-white p-3 rounded text-center my-2" { "PL XX XXXX XXXX XXXX XXXX XXXX XXXX" }
+                                    // TODO: Uzupełnij prawdziwy numer konta
+                                }
+                            }
+                        } @else {
+                            p { "Nie wybrano metody płatności. Skontaktuj się z nami." }
+                        }
+                        p { "W tytule przelewu prosimy wpisać numer zamówienia: " strong { "#" (&order.id.to_string()[..8]) } }
+                        p { "Zamówienie zostanie wysłane po zaksięgowaniu wpłaty." }
+                    }
+                }
+
+                // Sekcja: Podsumowanie Zamówienia
+                div {
+                    h3 class="text-lg font-semibold text-gray-700 mb-3" { "Podsumowanie zamówienia" }
+                    ul class="divide-y divide-gray-200 border rounded-lg" {
+                        @for item in &items_details {
+                            li class="p-3 flex items-center space-x-4" {
+                                @if let Some(img) = item.product.images.get(0) {
+                                    img src=(img) class="w-16 h-16 rounded-md object-cover border";
+                                }
+                                div class="flex-grow" {
+                                    p class="text-sm font-medium text-gray-800" { (item.product.name) }
+                                    p class="text-xs text-gray-500" { "Cena: " (format_price_maud(item.price_at_purchase)) }
+                                }
+                                p class="text-sm font-semibold text-gray-900" { (format_price_maud(item.price_at_purchase)) }
+                            }
+                        }
+                    }
+                    // Sumy
+                    div class="mt-4 space-y-2 text-sm text-right" {
+                        @if let Some(shipping_name) = &order.shipping_method_name {
+                             @let shipping_cost = order.total_price - items_details.iter().map(|i| i.price_at_purchase).sum::<i64>();
+                             p { "Produkty: " span class="font-medium w-24 inline-block" { (format_price_maud(items_details.iter().map(|i| i.price_at_purchase).sum())) } }
+                             p { "Dostawa (" (shipping_name) "): " span class="font-medium w-24 inline-block" { (format_price_maud(shipping_cost)) } }
+                        }
+                         p class="text-lg border-t pt-2 mt-2" { "Suma: " span class="font-bold text-pink-600 w-24 inline-block" { (format_price_maud(order.total_price)) } }
+                    }
+                }
+
+                // Sekcja: Adres dostawy
+                div class="mt-6 pt-6 border-t" {
+                     h3 class="text-lg font-semibold text-gray-700 mb-2" { "Dane do wysyłki" }
+                     address class="not-italic text-sm text-gray-600 leading-relaxed" {
+                        (order.shipping_first_name) " " (order.shipping_last_name) br;
+                        (order.shipping_address_line1) br;
+                        @if let Some(line2) = &order.shipping_address_line2 { (line2) br; }
+                        (order.shipping_postal_code) " " (order.shipping_city) br;
+                        (order.shipping_country) br;
+                        "tel: " (order.shipping_phone)
+                     }
+                }
+
+                // Stopka z linkiem do strony głównej
+                div class="text-center mt-8 pt-6 border-t" {
+                    a href="/"
+                       hx-get="/htmx/products?limit=8"
+                       hx-target="#content"
+                       hx-swap="innerHTML"
+                       hx-push-url="/"
+                       class="inline-block bg-pink-600 hover:bg-pink-700 text-white font-medium py-3 px-8 rounded-lg shadow-md hover:shadow-lg transition-all duration-200" {
+                        "Wróć do sklepu"
+                    }
+
+                }
+            }
+        }
+    };
+
+    build_response(headers, page_content).await
+}
+
+/// Renderuje stronę błędu, gdy produkt w koszyku jest niedostępny.
+pub fn render_checkout_error_page_maud(product_name: &str) -> Markup {
+    html! {
+        div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center" {
+            div class="bg-white p-8 rounded-xl shadow-lg border border-red-200" {
+                // Ikona błędu
+                div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-5" {
+                    svg class="w-10 h-10 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" {
+                        path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z";
+                    }
+                }
+
+                h1 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-3" { "Wystąpił problem z zamówieniem" }
+
+                // Wyświetlenie konkretnego komunikatu
+                p class="text-md text-gray-700" {
+                    "Produkt '" strong class="text-red-600" { (product_name) } "' w Twoim koszyku jest już niedostępny."
+                }
+                p class="text-md text-gray-600 mt-2" {
+                    "Prawdopodobnie ktoś inny właśnie go zakupił. Prosimy o usunięcie go z koszyka, aby kontynuować."
+                }
+
+                // Przyciski akcji
+                div class="mt-8 flex flex-col sm:flex-row justify-center items-center gap-4" {
+                    // Przycisk "Wróć do koszyka" - otwiera panel boczny
+                    button type="button"
+                           "@click"="if(typeof cartOpen !== 'undefined') cartOpen = true"
+                           class="w-full sm:w-auto px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-colors" {
+                        "Pokaż koszyk, aby usunąć produkt"
+                    }
+
+                    // Przycisk "Wróć do sklepu"
+                    a href="/"
+                       hx-get="/htmx/products?limit=8"
+                       hx-target="#content"
+                       hx-swap="innerHTML"
+                       hx-push-url="/"
+                       class="w-full sm:w-auto px-6 py-3 border border-gray-300 rounded-md shadow-sm text-base font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500" {
+                        "Wróć do sklepu"
+                    }
+                }
+            }
+        }
+    }
 }

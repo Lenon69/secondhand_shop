@@ -12,8 +12,10 @@ use sqlx::{Postgres, QueryBuilder};
 
 use crate::cart_utils::build_cart_details_response;
 use crate::cloudinary::{delete_image_from_cloudinary, extract_public_id_from_url};
+use crate::email_service::send_order_confirmation_email;
 use crate::errors::AppError;
 use crate::filters::{ListingParams, OrderListingParams};
+use crate::htmx_handlers::render_checkout_error_page_maud;
 use crate::middleware::OptionalTokenClaims;
 use crate::models::Product;
 use crate::models::*;
@@ -74,7 +76,6 @@ pub async fn list_products(
 
     let limit = params.limit();
     let offset = params.offset();
-    let status_to_filter = params.status().unwrap_or(ProductStatus::Available);
 
     // --- Budowanie zapytania COUNT ---
     let mut count_builder: QueryBuilder<Postgres> =
@@ -102,12 +103,23 @@ pub async fn list_products(
         append_where_or_and_count(&mut count_builder);
         count_builder.push("condition = ").push_bind(condition);
     }
-    if let Some(_status_val) = params.status() {
-        append_where_or_and_count(&mut count_builder);
-        count_builder
-            .push("status = ")
-            .push_bind(status_to_filter.clone());
+
+    match params.status() {
+        Some(status_val) => {
+            append_where_or_and_count(&mut count_builder);
+            count_builder.push("status = ").push_bind(status_val);
+        }
+        None => {
+            append_where_or_and_count(&mut count_builder);
+            count_builder
+                .push("status IN (")
+                .push_bind(ProductStatus::Available)
+                .push(", ")
+                .push_bind(ProductStatus::Reserved)
+                .push(")");
+        }
     }
+
     if let Some(price_min) = params.price_min() {
         append_where_or_and_count(&mut count_builder);
         count_builder.push("price >= ").push_bind(price_min);
@@ -169,10 +181,23 @@ pub async fn list_products(
         append_where_or_and_data(&mut data_builder);
         data_builder.push("condition = ").push_bind(condition);
     }
-    if let Some(_status_val) = params.status() {
-        append_where_or_and_data(&mut data_builder);
-        data_builder.push("status = ").push_bind(status_to_filter);
+
+    match params.status() {
+        Some(status_val) => {
+            append_where_or_and_data(&mut data_builder);
+            data_builder.push("status = ").push_bind(status_val);
+        }
+        None => {
+            append_where_or_and_data(&mut data_builder);
+            data_builder
+                .push("status IN (")
+                .push_bind(ProductStatus::Available)
+                .push(", ")
+                .push_bind(ProductStatus::Reserved)
+                .push(")");
+        }
     }
+
     if let Some(price_min) = params.price_min() {
         append_where_or_and_data(&mut data_builder);
         data_builder.push("price >= ").push_bind(price_min);
@@ -1278,10 +1303,9 @@ pub async fn create_order_handler(
                         p.id,
                         p.status
                     );
-                    return Err(AppError::UnprocessableEntity(format!(
-                        "Produkt '{}' w Twoim koszyku stał się niedostępny.",
-                        p.name
-                    )));
+                    // === ZMIANA: Zamiast zwracać JSON, zwracamy HTML ===
+                    let error_html = render_checkout_error_page_maud(&p.name);
+                    return Err(AppError::UnprocessableEntityWithHtml(error_html));
                 }
                 order_items_to_create.push((p.id, p.price));
                 total_price_items += p.price;
@@ -1373,6 +1397,25 @@ pub async fn create_order_handler(
 
     tx.commit().await?;
 
+    match fetch_order_details_service(&app_state.db_pool, order_id).await {
+        Ok(details) => {
+            if let Err(e) = send_order_confirmation_email(&app_state, &details).await {
+                tracing::error!(
+                    "Nie udało się wysłać e-maila z potwierdzeniem dla zamówienia {}: {:?}",
+                    order_id,
+                    e
+                );
+            }
+        }
+        Err(e) => {
+            tracing::error!(
+                "Nie udało się pobrać szczegółów zamówienia {} do wysłania e-maila: {:?}",
+                order_id,
+                e
+            );
+        }
+    }
+
     tracing::info!(
         "Utworzono nowe zamówienie ID: {} z metodą dostawy: '{}', koszt dostawy: {} gr, suma końcowa: {} gr",
         order_id,
@@ -1389,7 +1432,7 @@ pub async fn create_order_handler(
         },
         "orderPlaced": {
             "orderId": order_id.to_string(),
-            "redirectTo": "/"
+            "redirectTo": format!("/zamowienie/dziekujemy/{}", order_id)
         },
         "clearCartDisplay": {}
     });
@@ -1578,32 +1621,20 @@ pub async fn list_orders_handler(
     }))
 }
 
+// ZMIANA: Uproszczenie handlera get_order_details_handler
 pub async fn get_order_details_handler(
     State(app_state): State<AppState>,
-    claims: TokenClaims,
+    claims: TokenClaims, // Tutaj claims jest wymagane do autoryzacji
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<OrderDetailsResponse>, AppError> {
     let user_id = claims.sub;
     let user_role = claims.role;
 
-    let order_optional = sqlx::query_as::<_, Order>("SELECT * FROM orders WHERE id = $1")
-        .bind(order_id)
-        .fetch_optional(&app_state.db_pool)
-        .await?;
+    // Krok 1: Użyj nowej funkcji serwisowej do pobrania danych
+    let order_details = fetch_order_details_service(&app_state.db_pool, order_id).await?;
 
-    let order = match order_optional {
-        Some(o) => o,
-        None => {
-            tracing::warn!(
-                "Nie znaleziono zamówienia o ID: {} (żądane przez user_id: {})",
-                order_id,
-                user_id
-            );
-            return Err(AppError::NotFound);
-        }
-    };
-
-    if user_role != Role::Admin && order.user_id != Some(user_id) {
+    // Krok 2: Sprawdź uprawnienia na pobranych danych
+    if user_role != Role::Admin && order_details.order.user_id != Some(user_id) {
         tracing::warn!(
             "Nieautoryzowany dostęp do zamówienia: order_id={}, user_id={}, user_role={:?}",
             order_id,
@@ -1615,54 +1646,12 @@ pub async fn get_order_details_handler(
         ));
     }
 
-    let order_items_db =
-        sqlx::query_as::<_, OrderItem>("SELECT * FROM order_items WHERE order_id = $1")
-            .bind(order_id)
-            .fetch_all(&app_state.db_pool)
-            .await?;
-
-    // ZMIANA: Optymalizacja N+1
-    let mut items_details_public: Vec<OrderItemDetailsPublic> =
-        Vec::with_capacity(order_items_db.len());
-    if !order_items_db.is_empty() {
-        let product_ids: Vec<Uuid> = order_items_db.iter().map(|item| item.product_id).collect();
-        let products = sqlx::query_as::<_, Product>("SELECT * FROM products WHERE id = ANY($1)")
-            .bind(&product_ids)
-            .fetch_all(&app_state.db_pool)
-            .await?;
-
-        let products_map: HashMap<Uuid, Product> =
-            products.into_iter().map(|p| (p.id, p)).collect();
-
-        for item_db in order_items_db {
-            if let Some(product) = products_map.get(&item_db.product_id) {
-                items_details_public.push(OrderItemDetailsPublic {
-                    order_item_id: item_db.id,
-                    product: product.clone(),
-                    price_at_purchase: item_db.price_at_purchase,
-                });
-            } else {
-                tracing::error!(
-                    "Krytyczny błąd: Produkt (ID: {}) dla pozycji zamówienia (ID: {}) nie został znaleziony. OrderID: {}.",
-                    item_db.product_id,
-                    item_db.id,
-                    order_id
-                );
-                // W produkcji można pominąć ten item lub zwrócić błąd 500
-            }
-        }
-    }
-
-    let response = OrderDetailsResponse {
-        order,
-        items: items_details_public,
-    };
     tracing::info!(
         "Pobrano szczegóły zamówienia: order_id={}, user_id={}",
         order_id,
         user_id
     );
-    Ok(Json(response))
+    Ok(Json(order_details))
 }
 
 pub async fn update_order_status_handler(
@@ -2400,4 +2389,62 @@ pub async fn permanent_delete_order_handler(
 
     // Zwróć pustą odpowiedź z kodem 200 OK. HTMX usunie wiersz z tabeli.
     Ok((StatusCode::OK, headers))
+}
+
+// =========================================================================
+// NOWA FUNKCJA SERWISOWA (REUŻYWALNA)
+// =========================================================================
+/// Pobiera pełne szczegóły zamówienia (zamówienie + pozycje z produktami).
+/// Ta funkcja nie sprawdza uprawnień, robi to handler, który ją wywołuje.
+pub async fn fetch_order_details_service(
+    pool: &sqlx::PgPool,
+    order_id: Uuid,
+) -> Result<OrderDetailsResponse, AppError> {
+    let order = sqlx::query_as::<_, Order>("SELECT * FROM orders WHERE id = $1")
+        .bind(order_id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or(AppError::NotFound)?; // Jeśli nie ma zamówienia, zwracamy błąd
+
+    let order_items_db =
+        sqlx::query_as::<_, OrderItem>("SELECT * FROM order_items WHERE order_id = $1")
+            .bind(order_id)
+            .fetch_all(pool)
+            .await?;
+
+    let mut items_details_public: Vec<OrderItemDetailsPublic> =
+        Vec::with_capacity(order_items_db.len());
+
+    if !order_items_db.is_empty() {
+        let product_ids: Vec<Uuid> = order_items_db.iter().map(|item| item.product_id).collect();
+        let products = sqlx::query_as::<_, Product>("SELECT * FROM products WHERE id = ANY($1)")
+            .bind(&product_ids)
+            .fetch_all(pool)
+            .await?;
+
+        let products_map: HashMap<Uuid, Product> =
+            products.into_iter().map(|p| (p.id, p)).collect();
+
+        for item_db in order_items_db {
+            if let Some(product) = products_map.get(&item_db.product_id) {
+                items_details_public.push(OrderItemDetailsPublic {
+                    order_item_id: item_db.id,
+                    product: product.clone(),
+                    price_at_purchase: item_db.price_at_purchase,
+                });
+            } else {
+                tracing::error!(
+                    "Krytyczny błąd spójności danych: Produkt (ID: {}) dla pozycji zamówienia (ID: {}) nie został znaleziony. OrderID: {}.",
+                    item_db.product_id,
+                    item_db.id,
+                    order_id
+                );
+            }
+        }
+    }
+
+    Ok(OrderDetailsResponse {
+        order,
+        items: items_details_public,
+    })
 }
