@@ -38,20 +38,33 @@ document.addEventListener("DOMContentLoaded", function () {
   document.body.addEventListener("htmx:sendError", hideSpinner);
   document.body.addEventListener("htmx:responseError", hideSpinner);
 
-  // Specjalna obsługa przycisku "Wstecz", która polega na odświeżeniu
-  // strony z pamięci podręcznej przeglądarki (bfcache).
-  window.addEventListener("pageshow", function (event) {
-    // Właściwość `persisted` ma wartość `true`, gdy strona jest przywracana z bfcache.
-    if (event.persisted) {
+  (function () {
+    let isReloading = false;
+
+    const forceReload = (sourceEvent) => {
+      if (isReloading) {
+        return;
+      }
+      isReloading = true;
       console.log(
-        "Strona przywrócona z bfcache. Wymuszam pełne odświeżenie...",
+        `Wykryto nawigację "Wstecz" przez "${sourceEvent}". Wymuszam przeładowanie...`,
       );
-      // Używamy opóźnienia, aby zapewnić płynność i uniknąć problemów w niektórych przeglądarkach.
-      setTimeout(function () {
+
+      setTimeout(() => {
         window.location.reload();
-      }, 100); // Opóźnienie 100ms zgodnie z Twoją prośbą.
-    }
-  });
+      }, 20);
+    };
+
+    window.addEventListener("pageshow", function (event) {
+      if (event.persisted) {
+        forceReload("pageshow - event.persisted");
+      }
+    });
+
+    document.body.addEventListener("htmx:historyRestore", function () {
+      forceReload("htmx:historyRestore");
+    });
+  })();
 });
 
 initEventListeners();
