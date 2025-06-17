@@ -1078,7 +1078,7 @@ pub async fn about_us_page_handler(headers: HeaderMap) -> Result<Response, AppEr
             // Baner lub główny nagłówek strony
             div ."text-center mb-12" {
                 h1 ."text-4xl sm:text-5xl font-bold tracking-tight text-gray-900" { "Nasza Pasja, Twój Styl" }
-                p ."mt-4 text-xl text-gray-600" { "Poznaj historię i filozofię MEG JONI." }
+                p ."mt-4 text-xl text-gray-600" { "Poznaj historię i filozofię mess - all that vintage." }
             }
 
             // Sekcja wprowadzająca
@@ -1087,7 +1087,7 @@ pub async fn about_us_page_handler(headers: HeaderMap) -> Result<Response, AppEr
                 // space-y-6 dla odstępów między paragrafami
 
                 p ."text-xl font-semibold text-pink-600" { // Lekkie wyróżnienie pierwszego zdania
-                    "Witaj w świecie MEG JONI!"
+                    "Witaj w świecie mess - all that vintage!"
                 }
                 p {
                     "Jesteśmy grupą prawdziwych entuzjastów mody, dla których ubrania to coś znacznie więcej niż tylko okrycie. To forma sztuki, sposób na wyrażenie siebie i opowieść, którą każde z nas pisze na nowo każdego dnia."
@@ -1097,7 +1097,7 @@ pub async fn about_us_page_handler(headers: HeaderMap) -> Result<Response, AppEr
                 // Dla przykładu, placeholder na zdjęcie:
                 /*
                 div ."my-8 rounded-lg shadow-xl overflow-hidden aspect-w-16 aspect-h-9" {
-                    img src="/static/images/team_placeholder.jpg" alt="Zespół MEG JONI lub inspiracja modowa" class="object-cover w-full h-full";
+                    img src="/static/images/team_placeholder.jpg" alt="Zespół mess - all that vintage lub inspiracja modowa" class="object-cover w-full h-full";
                 }
                 */
 
@@ -1109,16 +1109,16 @@ pub async fn about_us_page_handler(headers: HeaderMap) -> Result<Response, AppEr
                 }
 
                 h2 ."text-2xl sm:text-3xl font-semibold text-gray-800 mt-10 mb-4 border-b-2 border-pink-500 pb-2" {
-                    "Misja MEG JONI"
+                    "Misja mess - all that vintage"
                 }
                 p {
-                    "MEG JONI narodziło się z pragnienia dzielenia się tymi odkryciami. Chcemy stworzyć miejsce, gdzie każda i każdy z Was znajdzie coś wyjątkowego – ubrania, które nie tylko świetnie wyglądają, ale też mają charakter i pozwalają wyróżnić się z tłumu. Selekcjonujemy nasze kolekcje z największą starannością, dbając o jakość, unikalność i autentyczny styl."
+                    "mess - all that vintage narodziło się z pragnienia dzielenia się tymi odkryciami. Chcemy stworzyć miejsce, gdzie każda i każdy z Was znajdzie coś wyjątkowego – ubrania, które nie tylko świetnie wyglądają, ale też mają charakter i pozwalają wyróżnić się z tłumu. Selekcjonujemy nasze kolekcje z największą starannością, dbając o jakość, unikalność i autentyczny styl."
                 }
 
                 // Sekcja z wyróżnionym cytatem lub wartościami
                 div ."my-10 p-6 bg-pink-50 rounded-xl shadow-md border-l-4 border-pink-500" {
                     p ."text-lg italic text-pink-700 leading-relaxed" {
-                        "„Moda przemija, styl pozostaje. W MEG JONI celebrujemy ten ponadczasowy styl, dając drugie życie wyjątkowym ubraniom.”"
+                        "„Moda przemija, styl pozostaje. W mess - all that vintage celebrujemy ten ponadczasowy styl, dając drugie życie wyjątkowym ubraniom.”"
                     }
                 }
 
@@ -1148,9 +1148,9 @@ pub async fn about_us_page_handler(headers: HeaderMap) -> Result<Response, AppEr
 
 pub async fn privacy_policy_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
     let effective_date = "25 maja 2025";
-    let shop_name = "MEG JONI";
-    let shop_url = "www.megjoni.com";
-    let company_full_name = "MEG JONI Jan Kowalski";
+    let shop_name = "mess - all that vintage";
+    let shop_url = "www.messvintage.com";
+    let company_full_name = "mess - all that vintage Jan Kowalski";
     let company_address = "ul. Modna 1, 00-001 Warszawa";
     let company_nip = "123-456-78-90";
     let company_regon = "123456789";
@@ -1338,9 +1338,9 @@ pub async fn privacy_policy_page_handler(headers: HeaderMap) -> Result<Response,
 
 pub async fn terms_of_service_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
     let effective_date = "25 maja 2025";
-    let shop_name = "MEG JONI";
-    let shop_url = "www.megjoni.com";
-    let company_full_name = "Meg Joni Sp. z o.o.";
+    let shop_name = "mess - all that vintage";
+    let shop_url = "www.messvintage.com";
+    let company_full_name = "mess - all that vintage Sp. z o.o.";
     let company_address = "ul. Przykładowa 1, 00-001 Miasto";
     let company_nip = "123-456-78-90";
     let company_regon = "123456789";
@@ -1665,10 +1665,10 @@ pub async fn terms_of_service_page_handler(headers: HeaderMap) -> Result<Respons
 
 pub async fn contact_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
     // Dane kontaktowe - UZUPEŁNIJ WŁASNYMI DANYMI!
-    let shop_name = "MEG JONI";
+    let shop_name = "mess - all that vintage";
     let contact_email = "kontakt@megjoni.com";
     let contact_phone = Some("+48 603 117 793");
-    let company_full_name = "MEG JONI Piotrek Owczarzak";
+    let company_full_name = "mess - all that vintage";
     let company_address_line1 = "ul. Modna 1";
     let company_address_line2 = "00-001 Warszawa";
     // Możesz dodać linki do mediów społecznościowych
@@ -1787,7 +1787,7 @@ pub async fn faq_page_handler(headers: HeaderMap) -> Result<Response, AppError> 
     let faq_items = vec![
         FaqItem {
             question: "Jakie są dostępne metody płatności?".to_string(),
-            answer: "W naszym sklepie MEG JONI akceptujemy następujące metody płatności: szybkie przelewy online (Przelewy24, BLIK) oraz przelew tradycyjny. Wszystkie transakcje są bezpieczne i szyfrowane.".to_string(),
+            answer: "W naszym sklepie mess - all that vintage akceptujemy następujące metody płatności: szybkie przelewy online (Przelewy24, BLIK) oraz przelew tradycyjny. Wszystkie transakcje są bezpieczne i szyfrowane.".to_string(),
         },
         FaqItem {
             question: "Jaki jest czas realizacji zamówienia?".to_string(),
@@ -1803,7 +1803,7 @@ pub async fn faq_page_handler(headers: HeaderMap) -> Result<Response, AppError> 
         },
         FaqItem {
             question: "W jakim stanie są oferowane ubrania?".to_string(),
-            answer: "W MEG JONI specjalizujemy się w odzieży vintage i używanej w doskonałym lub bardzo dobrym stanie. Każdy produkt jest starannie sprawdzany, a jego stan (wraz z ewentualnymi minimalnymi śladami użytkowania, które dodają charakteru) jest dokładnie opisany na karcie produktu. Stawiamy na jakość i unikatowość.".to_string(),
+            answer: "W mess - all that vintage specjalizujemy się w odzieży vintage i używanej w doskonałym lub bardzo dobrym stanie. Każdy produkt jest starannie sprawdzany, a jego stan (wraz z ewentualnymi minimalnymi śladami użytkowania, które dodają charakteru) jest dokładnie opisany na karcie produktu. Stawiamy na jakość i unikatowość.".to_string(),
         },
         FaqItem {
             question: "Jak dbać o odzież vintage?".to_string(),
@@ -1811,7 +1811,7 @@ pub async fn faq_page_handler(headers: HeaderMap) -> Result<Response, AppError> 
         },
         FaqItem {
             question: "Czy produkty są unikatowe?".to_string(),
-            answer: "Tak, większość naszej oferty to pojedyncze, unikatowe egzemplarze. To właśnie czyni zakupy w MEG JONI wyjątkowym doświadczeniem - masz szansę zdobyć coś, czego nie będzie miał nikt inny!".to_string(),
+            answer: "Tak, większość naszej oferty to pojedyncze, unikatowe egzemplarze. To właśnie czyni zakupy w mess - all that vintage wyjątkowym doświadczeniem - masz szansę zdobyć coś, czego nie będzie miał nikt inny!".to_string(),
         },
         FaqItem {
             question: "Czy mogę zwrócić zakupiony produkt?".to_string(),
@@ -1874,12 +1874,12 @@ pub async fn faq_page_handler(headers: HeaderMap) -> Result<Response, AppError> 
 }
 
 pub async fn shipping_returns_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
-    let shop_name = "MEG JONI";
+    let shop_name = "mess - all that vintage";
     let processing_time = "1-2 dni robocze";
     let delivery_time = "1-2 dni robocze";
     let free_shipping_threshold = "300 zł";
-    let contact_email_returns = "zwroty@megjoni.com";
-    let return_address_line1 = "MEG JONI - Zwroty";
+    let contact_email_returns = "zwroty@messvintage.com";
+    let return_address_line1 = "mess - all that vintage - Zwroty";
     let return_address_line2 = "ul. Magazynowa 5";
     let return_address_line3 = "00-002 Miasto";
     let link_to_terms = "/htmx/page/regulamin";
@@ -1941,7 +1941,7 @@ pub async fn shipping_returns_page_handler(headers: HeaderMap) -> Result<Respons
     let non_returnable_text = "Ze względu na charakter naszych produktów (odzież używana/vintage), większość z nich podlega standardowej procedurze zwrotu. Wyjątki mogą dotyczyć np. bielizny ze względów higienicznych, jeśli została rozpakowana z zapieczętowanego opakowania – o takich sytuacjach zawsze informujemy w opisie produktu.".to_string();
 
     let complaints_section_title = "Reklamacje";
-    let complaints_text_part1 = "W MEG JONI przykładamy ogromną wagę do jakości i dokładności opisów naszych unikatowych produktów. \
+    let complaints_text_part1 = "W mess - all that vintage przykładamy ogromną wagę do jakości i dokładności opisów naszych unikatowych produktów. \
         Jeśli jednak zdarzy się, że otrzymany towar posiada wadę, która nie została ujawniona w opisie, lub jest \
         niezgodny z zamówieniem, masz pełne prawo do złożenia reklamacji. Szczegółowe informacje dotyczące procedury \
         reklamacyjnej, Twoich praw oraz naszych obowiązków znajdziesz w §6 naszego Regulaminu Sklepu, dostępnego tutaj: ";
