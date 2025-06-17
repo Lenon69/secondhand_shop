@@ -41,10 +41,15 @@ document.addEventListener("DOMContentLoaded", function () {
   // Specjalna obsługa przycisku "Wstecz", która polega na odświeżeniu
   // strony z pamięci podręcznej przeglądarki (bfcache).
   window.addEventListener("pageshow", function (event) {
+    // Właściwość `persisted` ma wartość `true`, gdy strona jest przywracana z bfcache.
     if (event.persisted) {
-      // Jeśli strona jest przywracana z bfcache, spinner mógł zostać "zamrożony".
-      // Chowamy go z minimalnym opóźnieniem, aby zapewnić płynność.
-      setTimeout(hideSpinner, 100); // Możesz dostosować opóźnienie
+      console.log(
+        "Strona przywrócona z bfcache. Wymuszam pełne odświeżenie...",
+      );
+      // Używamy opóźnienia, aby zapewnić płynność i uniknąć problemów w niektórych przeglądarkach.
+      setTimeout(function () {
+        window.location.reload();
+      }, 100); // Opóźnienie 100ms zgodnie z Twoją prośbą.
     }
   });
 });
