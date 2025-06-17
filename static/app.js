@@ -52,7 +52,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
       setTimeout(() => {
         window.location.reload();
-      }, 20);
+      }, 100);
     };
 
     window.addEventListener("pageshow", function (event) {
