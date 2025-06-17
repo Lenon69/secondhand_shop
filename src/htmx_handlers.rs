@@ -3050,66 +3050,66 @@ pub async fn checkout_page_handler(
                             } // koniec fieldset dane dostawy
 
                             // Sekcja faktury (pozostaje bez zmian - użytkownik wypełnia lub checkbox)
-                            fieldset ."bg-white p-6 rounded-lg shadow-sm border border-gray-200 mt-6" {
-                                legend ."text-lg font-semibold text-gray-800 px-2" { "Dane do faktury" }
-                                div ."flex items-center mb-4" {
-                                    input type="checkbox" id="billing_same_as_shipping" name="billing_same_as_shipping" checked
-                                           class="h-4 w-4 text-pink-600 focus:ring-pink-500 border-gray-300 rounded"
-                                           "@click"="document.getElementById('billing-fields').classList.toggle('hidden')";
-                                    label for="billing_same_as_shipping" class="ml-2 block text-sm text-gray-700" {
-                                        "Takie same jak dane dostawy"
-                                    }
-                                }
-                                div #billing-fields class="hidden space-y-4" { // Dodano space-y-4 dla odstępów
-                                    div ."grid grid-cols-1 sm:grid-cols-2 gap-4" { // Usunięto mt-4, bo jest space-y
-                                        div {
-                                            label for="billing_first_name" class="block text-sm font-medium text-gray-700 mb-1" { "Imię" }
-                                            input type="text" id="billing_first_name" name="billing_first_name"
-                                                   class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
-                                        }
-                                        div {
-                                            label for="billing_last_name" class="block text-sm font-medium text-gray-700 mb-1" { "Nazwisko" }
-                                            input type="text" id="billing_last_name" name="billing_last_name"
-                                                   class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
-                                        }
-                                    }
-                                    div { // Usunięto mt-4
-                                        label for="billing_address_line1" class="block text-sm font-medium text-gray-700 mb-1" { "Adres (ulica i numer)" }
-                                        input type="text" id="billing_address_line1" name="billing_address_line1"
-                                               class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
-                                    }
-                                    div { // Usunięto mt-4
-                                        label for="billing_address_line2" class="block text-sm font-medium text-gray-700 mb-1" { "Adres cd. (opcjonalnie)" }
-                                        input type="text" id="billing_address_line2" name="billing_address_line2"
-                                               class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
-                                    }
-                                    div ."grid grid-cols-1 sm:grid-cols-3 gap-4" { // Usunięto mt-4
-                                        div {
-                                            label for="billing_city" class="block text-sm font-medium text-gray-700 mb-1" { "Miasto" }
-                                            input type="text" id="billing_city" name="billing_city"
-                                                   class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
-                                        }
-                                        div {
-                                            label for="billing_postal_code" class="block text-sm font-medium text-gray-700 mb-1" { "Kod pocztowy" }
-                                            input type="text" id="billing_postal_code" name="billing_postal_code"
-                                                   class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
-                                        }
-                                        div {
-                                            label for="billing_country" class="block text-sm font-medium text-gray-700 mb-1" { "Kraj" }
-                                            select id="billing_country" name="billing_country"
-                                                    class="w-full px-4 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500" {
-                                                @for country_name_str_slice in &countries { // Używamy tej samej listy krajów
-                                                    option value=(country_name_str_slice) selected[country_name_str_slice == &"Polska"] { // Domyślnie Polska
-                                                        (country_name_str_slice)
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                } // koniec div#billing-fields
-                            } // koniec fieldset dane do faktury
+                            // fieldset ."bg-white p-6 rounded-lg shadow-sm border border-gray-200 mt-6" {
+                            //     legend ."text-lg font-semibold text-gray-800 px-2" { "Dane do faktury" }
+                            //     div ."flex items-center mb-4" {
+                            //         input type="checkbox" id="billing_same_as_shipping" name="billing_same_as_shipping" checked
+                            //                class="h-4 w-4 text-pink-600 focus:ring-pink-500 border-gray-300 rounded"
+                            //                "@click"="document.getElementById('billing-fields').classList.toggle('hidden')";
+                            //         label for="billing_same_as_shipping" class="ml-2 block text-sm text-gray-700" {
+                            //             "Takie same jak dane dostawy"
+                            //         }
+                            //     }
+                            //     div #billing-fields class="hidden space-y-4" { // Dodano space-y-4 dla odstępów
+                            //         div ."grid grid-cols-1 sm:grid-cols-2 gap-4" { // Usunięto mt-4, bo jest space-y
+                            //             div {
+                            //                 label for="billing_first_name" class="block text-sm font-medium text-gray-700 mb-1" { "Imię" }
+                            //                 input type="text" id="billing_first_name" name="billing_first_name"
+                            //                        class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                            //             }
+                            //             div {
+                            //                 label for="billing_last_name" class="block text-sm font-medium text-gray-700 mb-1" { "Nazwisko" }
+                            //                 input type="text" id="billing_last_name" name="billing_last_name"
+                            //                        class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                            //             }
+                            //         }
+                            //         div { // Usunięto mt-4
+                            //             label for="billing_address_line1" class="block text-sm font-medium text-gray-700 mb-1" { "Adres (ulica i numer)" }
+                            //             input type="text" id="billing_address_line1" name="billing_address_line1"
+                            //                    class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                            //         }
+                            //         div { // Usunięto mt-4
+                            //             label for="billing_address_line2" class="block text-sm font-medium text-gray-700 mb-1" { "Adres cd. (opcjonalnie)" }
+                            //             input type="text" id="billing_address_line2" name="billing_address_line2"
+                            //                    class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                            //         }
+                            //         div ."grid grid-cols-1 sm:grid-cols-3 gap-4" { // Usunięto mt-4
+                            //             div {
+                            //                 label for="billing_city" class="block text-sm font-medium text-gray-700 mb-1" { "Miasto" }
+                            //                 input type="text" id="billing_city" name="billing_city"
+                            //                        class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                            //             }
+                            //             div {
+                            //                 label for="billing_postal_code" class="block text-sm font-medium text-gray-700 mb-1" { "Kod pocztowy" }
+                            //                 input type="text" id="billing_postal_code" name="billing_postal_code"
+                            //                        class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                            //             }
+                            //             div {
+                            //                 label for="billing_country" class="block text-sm font-medium text-gray-700 mb-1" { "Kraj" }
+                            //                 select id="billing_country" name="billing_country"
+                            //                         class="w-full px-4 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500" {
+                            //                     @for country_name_str_slice in &countries { // Używamy tej samej listy krajów
+                            //                         option value=(country_name_str_slice) selected[country_name_str_slice == &"Polska"] { // Domyślnie Polska
+                            //                             (country_name_str_slice)
+                            //                         }
+                            //                     }
+                            //                 }
+                            //             }
+                            //         }
+                            //     } // koniec div#billing-fields
+                            // } // koniec fieldset dane do faktury
 
-                            // Sekcja płatności (pozostaje jak była)
+                            // Sekcja płatności
                             fieldset ."bg-white p-6 rounded-lg shadow-sm border border-gray-200 mt-6" {
                                 legend ."text-lg font-semibold text-gray-800 px-2" { "Metoda płatności" }
                                 div ."space-y-4 mt-4" {
