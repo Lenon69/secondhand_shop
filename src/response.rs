@@ -8,12 +8,6 @@ use tokio_util::bytes::Bytes;
 
 use crate::errors::AppError;
 
-// Nasz nowy, uniwersalny typ odpowiedzi
-pub enum AppResponse {
-    Full(Html<String>),
-    Partial(Markup),
-}
-
 // Implementacja, która mówi Axum, jak zamienić AppResponse na odpowiedź HTTP
 impl IntoResponse for AppResponse {
     fn into_response(self) -> Response {
@@ -28,7 +22,6 @@ impl IntoResponse for AppResponse {
 /// Wstawia dynamiczną treść i usuwa atrybuty HTMX inicjujące ładowanie,
 /// aby zapobiec konfliktom przy renderowaniu po stronie serwera.
 async fn serve_full_page(content_markup: Markup) -> Result<Response, AppError> {
-    // Wczytaj główny szablon HTML
     let shell_content = match fs::read("static/index.html").await {
         Ok(bytes) => Bytes::from(bytes),
         Err(e) => {
@@ -42,34 +35,43 @@ async fn serve_full_page(content_markup: Markup) -> Result<Response, AppError> {
     let content_string = content_markup.into_string();
     let mut response_body = Vec::new();
 
-    // Utwórz nowy 'rewriter' HTML
     let mut rewriter = HtmlRewriter::new(
         Settings {
-            element_content_handlers: vec![
-                // Handler dla naszego placeholdera
-                element!("#content", |el| {
-                    // Wstawia dynamiczną treść HTML w miejsce placeholdera el.set_inner_content(&content_string, lol_html::html_content::ContentType::Html);
-                    // Usuwa atrybuty, aby HTMX nie nadpisał treści po załadowaniu strony
-                    el.remove_attribute("hx-trigger");
-                    el.remove_attribute("hx-get");
-                    Ok(())
-                }),
-            ],
+            element_content_handlers: vec![element!("#content", |el| {
+                el.set_inner_content(&content_string, lol_html::html_content::ContentType::Html);
+                el.remove_attribute("hx-trigger");
+                el.remove_attribute("hx-get");
+                Ok(())
+            })],
             ..Settings::default()
         },
-        |c: &[u8]| response_body.extend_from_slice(c), // Zapisuje przetworzony HTML
+        |c: &[u8]| response_body.extend_from_slice(c),
     );
 
-    // Przetwarzaj szablon
-    rewriter.write(&shell_content);
-    rewriter.end();
+    // Używamy 'if let Err' do obsługi błędów z rewritera
+    if let Err(e) = rewriter.write(&shell_content) {
+        tracing::error!("Błąd podczas przetwarzania HTML (write): {}", e);
+        return Err(AppError::InternalServerError(
+            "Błąd renderowania strony".to_string(),
+        ));
+    }
+    if let Err(e) = rewriter.end() {
+        tracing::error!("Błąd podczas przetwarzania HTML (end): {}", e);
+        return Err(AppError::InternalServerError(
+            "Błąd renderowania strony".to_string(),
+        ));
+    }
 
-    // Zwróć pełną odpowiedź HTTP
-    Ok(Response::builder()
+    // Bezpieczne budowanie odpowiedzi bez .unwrap()
+    Response::builder()
         .status(StatusCode::OK)
         .header("Content-Type", "text/html; charset=utf-8")
         .body(Body::from(response_body))
-        .unwrap())
+        .map_err(|e| {
+            // Konwertujemy potencjalny błąd budowania odpowiedzi na nasz AppError
+            tracing::error!("Nie udało się zbudować odpowiedzi HTTP: {}", e);
+            AppError::InternalServerError("Błąd serwera podczas tworzenia odpowiedzi".to_string())
+        })
 }
 
 // Zmodyfikuj build_response, aby poprawnie obsługiwał nową odpowiedź
