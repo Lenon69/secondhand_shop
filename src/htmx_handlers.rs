@@ -1787,7 +1787,7 @@ pub async fn faq_page_handler(headers: HeaderMap) -> Result<Response, AppError> 
     let faq_items = vec![
         FaqItem {
             question: "Jakie są dostępne metody płatności?".to_string(),
-            answer: "W naszym sklepie mess - all that vintage akceptujemy następujące metody płatności: szybkie przelewy online (Przelewy24, BLIK) oraz przelew tradycyjny. Wszystkie transakcje są bezpieczne i szyfrowane.".to_string(),
+            answer: "W naszym sklepie mess - all that vintage akceptujemy następujące metody płatności: szybkie przelewy online BLIK oraz przelew tradycyjny. Wszystkie transakcje są bezpieczne i szyfrowane.".to_string(),
         },
         FaqItem {
             question: "Jaki jest czas realizacji zamówienia?".to_string(),
@@ -1795,7 +1795,7 @@ pub async fn faq_page_handler(headers: HeaderMap) -> Result<Response, AppError> 
         },
         FaqItem {
             question: "Jakie są koszty i opcje dostawy?".to_string(),
-            answer: "Oferujemy dostawę za pośrednictwem Paczkomatów InPost oraz Poczta Polska. Koszt dostawy jest widoczny podczas składania zamówienia i zależy od wybranej opcji. Dla zamówień powyżej [np. 300 zł] dostawa jest darmowa!".to_string(),
+            answer: "Oferujemy dostawę za pośrednictwem Paczkomatów InPost oraz Poczta Polska. Koszt dostawy jest widoczny podczas składania zamówienia i zależy od wybranej opcji. Dla zamówień powyżej 300 zł dostawa jest darmowa!".to_string(),
         },
         FaqItem {
             question: "Czy wysyłacie za granicę?".to_string(),
@@ -1878,7 +1878,7 @@ pub async fn shipping_returns_page_handler(headers: HeaderMap) -> Result<Respons
     let processing_time = "1-2 dni robocze";
     let delivery_time = "1-2 dni robocze";
     let free_shipping_threshold = "300 zł";
-    let contact_email_returns = "zwroty@messvintage.com";
+    let contact_email_returns = "sklep@messvintage.com";
     let return_address_line1 = "mess - all that vintage - Zwroty";
     let return_address_line2 = "ul. Magazynowa 5";
     let return_address_line3 = "00-002 Miasto";
@@ -2796,64 +2796,62 @@ pub async fn checkout_page_handler(
                     // --- Kolumna Podsumowania Zamówienia (Zielone Pole - na mobilnych order-1, na lg order-2) ---
                     div ."lg:w-1/3 lg:order-2" {
                         div x-data={(format!( // Formatowanie całego obiektu x-data jako string Rusta
-                            r#"{{
+                            r#"
+                            {{
                                 subtotal: {}, 
                                 selectedShippingCost: 0,
-                                selectedShippingKeyInternal: '', // Wewnętrzny stan Alpine dla klucza metody
+                                selectedShippingKeyInternal: '',
+                                FREE_SHIPPING_THRESHOLD: 30000,
+
                                 shippingOptions: [
                                     {{ id: 'inpost', name: 'Paczkomat InPost 24/7', cost: 1199, displayCost: '11,99 zł' }},
-                                    {{ id: 'poczta', name: 'Poczta Polska S.A.', cost: 1799, displayCost: '17,99 zł' }}
+                                    {{ id: 'poczta', name: 'Poczta Polska S.A.', cost: 1799, displayCost: '17,99 zł' }},
+                                    {{ id: 'darmowa', name: 'Darmowa dostawa (od 300,00 zł)', cost: 0, displayCost: '0,00 zł' }}
                                 ],
+
+                                isFreeShippingEligible() {{
+                                    return this.subtotal >= this.FREE_SHIPPING_THRESHOLD;
+                                }},
+
                                 initComponent() {{
-                                    console.log('Alpine Checkout Summary: initComponent started.');
-                                    const hiddenInput = document.getElementById('selected_shipping_method_key_input');
-                                    if (!hiddenInput) {{
-                                        console.error('Alpine BŁĄD KRYTYCZNY: Ukryte pole #selected_shipping_method_key_input nie istnieje w DOM!');
-                                        return;
-                                    }}
-                                    // Domyślnie ustaw pierwszą opcję, jeśli koszyk nie jest pusty i nic nie jest wybrane (ukryte pole jest puste)
-                                    if (this.subtotal > 0 && this.shippingOptions.length > 0 && !hiddenInput.value) {{
-                                        console.log('Alpine initComponent: Ustawianie domyślnej metody dostawy (pierwsza z listy).');
-                                        this.selectShippingOption(this.shippingOptions[0]);
-                                    }} else if (hiddenInput.value) {{
-                                        // Synchronizuj z wartością ukrytego pola, jeśli już istnieje (np. po przeładowaniu z błędem walidacji)
-                                        const initialOption = this.shippingOptions.find(opt => opt.id === hiddenInput.value);
-                                        if (initialOption) {{
-                                            this.selectedShippingCost = initialOption.cost;
-                                            this.selectedShippingKeyInternal = initialOption.id;
-                                            const radio = document.getElementById(initialOption.id + '_shipping_option');
-                                            if (radio) {{ this.$nextTick(() => {{ radio.checked = true; }}); }}
-                                            console.log('Alpine initComponent: Zsynchronizowano z wartością ukrytego pola:', initialOption.id);
-                                        }} else {{ // Wartość z HTML nie pasuje - wyczyść lub ustaw pierwszą
-                                             console.warn('Alpine initComponent: Wartość w ukrytym polu (' + hiddenInput.value + ') nie pasuje. Resetuję.');
-                                             if (this.shippingOptions.length > 0) {{ this.selectShippingOption(this.shippingOptions[0]); }}
-                                             else {{ hiddenInput.value = ''; this.selectedShippingCost = 0; this.selectedShippingKeyInternal = '';}}
+                                    this.$watch('subtotal', () => {{
+                                        if (!this.isFreeShippingEligible() && this.selectedShippingKeyInternal === 'darmowa') {{
+                                            this.selectShippingOption(this.shippingOptions[0]);
+                                            const firstPaidRadio = document.getElementById(this.shippingOptions[0].id + '_shipping_option');
+                                            if(firstPaidRadio) firstPaidRadio.checked = true;
                                         }}
+                                    }});
+                
+                                    if (this.isFreeShippingEligible()) {{
+                                        // POPRAWKA: Poprawna nazwa to 'shippingOptions'
+                                        const freeOption = this.shippingOptions.find(opt => opt.id === 'darmowa');
+                                        this.selectShippingOption(freeOption);
+                                    }} else {{
+                                        this.selectShippingOption(this.shippingOptions[0]);
                                     }}
                                 }},
+
                                 selectShippingOption(option) {{
-                                    console.log('Alpine: selectShippingOption wywołane z opcją:', JSON.stringify(option));
                                     if (!option || typeof option.cost === 'undefined' || typeof option.id === 'undefined') {{
-                                         console.error('Alpine BŁĄD: Nieprawidłowy obiekt opcji w selectShippingOption:', option);
-                                         return;
+                                        return;
                                     }}
                                     this.selectedShippingCost = option.cost;
                                     this.selectedShippingKeyInternal = option.id;
                                     const hiddenInputKeyElem = document.getElementById('selected_shipping_method_key_input');
                                     if (hiddenInputKeyElem) {{
                                         hiddenInputKeyElem.value = option.id;
-                                        console.log('Alpine: Ustawiono #selected_shipping_method_key_input na:', hiddenInputKeyElem.value);
-                                    }} else {{
-                                        console.error('Alpine BŁĄD: Nie znaleziono #selected_shipping_method_key_input w selectShippingOption!');
                                     }}
                                 }},
+            
                                 get grandTotal() {{ return this.subtotal + this.selectedShippingCost; }},
+
                                 formatPrice(priceInGrosz) {{
                                     if (typeof priceInGrosz !== 'number' || isNaN(priceInGrosz)) return '0,00 zł';
                                     return (priceInGrosz / 100).toFixed(2).replace('.', ',') + ' zł';
                                 }}
-                            }}"#,
-                            total_price_items // Wstawienie wartości subtotal z Rusta
+                            }}
+                            "#,
+                            total_price_items
                         ))}
                         x-init="initComponent()"
                         class="bg-white p-6 rounded-lg shadow-md border border-gray-200 sticky top-20 md:top-40" { // Zmieniono top dla lepszego dopasowania
@@ -2900,12 +2898,11 @@ pub async fn checkout_page_handler(
                                     legend class="sr-only" { "Wybierz metodę dostawy" }
                                     div class="space-y-2" {
                                         template x-for="option in shippingOptions" x-bind:key="option.id" {
-                                            div class="flex items-center" {
-                                                input x-bind:id="option.id + '_shipping_option'"
+                                            div class="flex items-center" x-show="option.id !== 'darmowa' || isFreeShippingEligible()" {                                                input x-bind:id="option.id + '_shipping_option'"
                                                        name="shipping_method_visual_selector" // Dla grupowania wizualnego radio
                                                        type="radio"
                                                        x-on:click="selectShippingOption(option)" // Wywołaj nową funkcję
-                                                       x-bind:checked="selectedShippingKeyInternal === option.id" // Synchronizacja zaznaczenia
+                                                       x-bind:checked="selectedShippingKeyInternal === option.id"
                                                        class="h-4 w-4 text-pink-600 border-gray-300 focus:ring-pink-500";
                                                 label x-bind:for="option.id + '_shipping_option'" class="ml-3 block text-sm text-gray-700 hover:cursor-pointer" {
                                                     span x-text="option.name" {};

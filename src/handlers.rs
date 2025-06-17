@@ -1272,33 +1272,6 @@ pub async fn create_order_handler(
         ));
     }
 
-    // REFAKTORYZACJA: Przeniesienie stałych do bardziej elastycznej konfiguracji.
-    // Na razie zostawiamy je tutaj, ale z komentarzem.
-    // TODO: Przenieść mapowanie kluczy metod dostawy na koszty i nazwy do konfiguracji lub bazy danych.
-    const SHIPPING_INPOST_COST: i64 = 1199;
-    const SHIPPING_INPOST_NAME: &str = "Paczkomat InPost 24/7";
-    const SHIPPING_POCZTA_COST: i64 = 1799;
-    const SHIPPING_POCZTA_NAME: &str = "Poczta Polska S.A.";
-
-    let (derived_shipping_cost, shipping_method_name_to_store): (i64, String) = match payload
-        .shipping_method_key
-        .as_str()
-    {
-        "inpost" => (SHIPPING_INPOST_COST, SHIPPING_INPOST_NAME.to_string()),
-        "poczta" => (SHIPPING_POCZTA_COST, SHIPPING_POCZTA_NAME.to_string()),
-        _ => {
-            tracing::warn!(
-                "Nieprawidłowy lub brakujący klucz metody dostawy: '{}'",
-                payload.shipping_method_key
-            );
-            let mut headers = HeaderMap::new();
-            headers.insert("HX-Trigger", HeaderValue::from_str(r#"{{"showMessage": {{"message": "Proszę wybrać prawidłową metodę dostawy.", "type": "error"}}}}"#)
-                .map_err(|_| AppError::InternalServerError("Failed to create HX-Trigger for shipping method".to_string()))?);
-            headers.insert("HX-Reswap", HeaderValue::from_static("none"));
-            return Ok((headers, html! {}));
-        }
-    };
-
     // ZMIANA: Optymalizacja N+1 - pobieranie wszystkich produktów jednym zapytaniem.
     let product_ids: Vec<Uuid> = cart_items_db.iter().map(|item| item.product_id).collect();
     let products_in_cart =
@@ -1324,7 +1297,6 @@ pub async fn create_order_handler(
                         p.id,
                         p.status
                     );
-                    // === ZMIANA: Zamiast zwracać JSON, zwracamy HTML ===
                     let error_html = render_checkout_error_page_maud(&p.name);
                     return Err(AppError::UnprocessableEntityWithHtml(error_html));
                 }
@@ -1343,6 +1315,51 @@ pub async fn create_order_handler(
             }
         }
     }
+
+    // REFAKTORYZACJA: Przeniesienie stałych do bardziej elastycznej konfiguracji.
+    // Na razie zostawiamy je tutaj, ale z komentarzem.
+    // TODO: Przenieść mapowanie kluczy metod dostawy na koszty i nazwy do konfiguracji lub bazy danych.
+    const SHIPPING_INPOST_COST: i64 = 1199;
+    const SHIPPING_INPOST_NAME: &str = "Paczkomat InPost 24/7";
+    const SHIPPING_POCZTA_COST: i64 = 1799;
+    const SHIPPING_POCZTA_NAME: &str = "Poczta Polska S.A.";
+    const SHIPPING_FREE_NAME: &str = "Darmowa dostawa";
+    const FREE_SHIPPING_THRESHOLD: i64 = 30000;
+
+    let (derived_shipping_cost, shipping_method_name_to_store): (i64, String) = match payload
+        .shipping_method_key
+        .as_str()
+    {
+        "inpost" => (SHIPPING_INPOST_COST, SHIPPING_INPOST_NAME.to_string()),
+        "poczta" => (SHIPPING_POCZTA_COST, SHIPPING_POCZTA_NAME.to_string()),
+        "darmowa" => {
+            // WAŻNA WALIDACJA: Sprawdź, czy serwer zgadza się, że dostawa jest darmowa.
+            if total_price_items >= FREE_SHIPPING_THRESHOLD {
+                (0, SHIPPING_FREE_NAME.to_string())
+            } else {
+                // Jeśli ktoś spróbuje oszukać i wysłać "darmowa" przy zbyt małym zamówieniu
+                tracing::warn!(
+                    "Próba użycia darmowej dostawy dla zamówienia poniżej progu: {}",
+                    total_price_items
+                );
+                // Zwracamy błąd lub przypisujemy domyślną, płatną metodę
+                return Err(AppError::BadRequest(
+                    "Nie kwalifikujesz się do darmowej dostawy.".to_string(),
+                ));
+            }
+        }
+        _ => {
+            tracing::warn!(
+                "Nieprawidłowy lub brakujący klucz metody dostawy: '{}'",
+                payload.shipping_method_key
+            );
+            let mut headers = HeaderMap::new();
+            headers.insert("HX-Trigger", HeaderValue::from_str(r#"{{"showMessage": {{"message": "Proszę wybrać prawidłową metodę dostawy.", "type": "error"}}}}"#)
+                .map_err(|_| AppError::InternalServerError("Failed to create HX-Trigger for shipping method".to_string()))?);
+            headers.insert("HX-Reswap", HeaderValue::from_static("none"));
+            return Ok((headers, html! {}));
+        }
+    };
 
     let payment_method_enum = PaymentMethod::from_str(&payload.payment_method)
         .map_err(|_| AppError::Validation("Nieprawidłowa metoda płatności.".to_string()))?;
