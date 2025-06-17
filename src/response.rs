@@ -8,6 +8,11 @@ use tokio_util::bytes::Bytes;
 
 use crate::errors::AppError;
 
+pub enum AppResponse {
+    Full(Html<String>),
+    Partial(Markup),
+}
+
 // Implementacja, która mówi Axum, jak zamienić AppResponse na odpowiedź HTTP
 impl IntoResponse for AppResponse {
     fn into_response(self) -> Response {
