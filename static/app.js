@@ -314,14 +314,27 @@ function initEventListeners() {
   /**
    * Czyści wizualnie stan koszyka (używane po złożeniu zamówienia).
    */
+  // NOWA, POPRAWIONA WERSJA w app.js
   document.body.addEventListener("clearCartDisplay", () => {
-    console.log("Czyszczenie wyświetlania koszyka po zamówieniu.");
+    console.log(
+      "Czyszczenie i automatyczne odświeżanie koszyka po zamówieniu.",
+    );
+
+    // Krok 1: Zaktualizuj stan licznika w Alpine.js (bez zmian)
     window.dispatchEvent(
       new CustomEvent("js-update-cart", {
         detail: { newCount: 0, newCartTotalPrice: 0 },
         bubbles: true,
       }),
     );
+
+    // KROK 2: BEZPOŚREDNIE ŻĄDANIE ODŚWIEŻENIA KOSZYKA
+    // Używamy htmx.ajax, aby natychmiast pobrać nowy (pusty) widok koszyka
+    // z serwera i wstawić go do panelu bocznego w tle.
+    htmx.ajax("GET", "/htmx/cart/details", {
+      target: "#cart-content-target",
+      swap: "innerHTML",
+    });
   });
 
   /**
