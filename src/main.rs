@@ -235,7 +235,7 @@ async fn main() {
             get(payment_finalization_page_handler),
         )
         .nest_service("/static", ServeDir::new("static"))
-        .fallback(html_fallback)
+        .fallback(handler_404)
         .layer(TraceLayer::new_for_http())
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024))
         .with_state(app_state);
@@ -264,27 +264,4 @@ async fn serve_index() -> Result<Html<String>, StatusCode> {
         Ok(content) => Ok(Html(content)),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
-}
-
-/// Inteligentny fallback, który serwuje index.html tylko dla żądań oczekujących HTML.
-/// Dla innych (np. API, obrazy, skrypty) zwraca 404 Not Found.
-async fn html_fallback(headers: HeaderMap) -> impl IntoResponse {
-    if let Some(accept_header) = headers.get(header::ACCEPT) {
-        if let Ok(accept_str) = accept_header.to_str() {
-            // Jeśli przeglądarka prosi o HTML, serwuj index.html
-            if accept_str.contains("text/html") {
-                return match tokio::fs::read_to_string("static/index.html").await {
-                    Ok(content) => (StatusCode::OK, Html(content)).into_response(),
-                    Err(_) => (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        "Błąd serwera: Nie można wczytać pliku index.html.",
-                    )
-                        .into_response(),
-                };
-            }
-        }
-    }
-
-    // Dla wszystkich innych żądań, zwróć 404 Not Found.
-    (StatusCode::NOT_FOUND, "404 Not Found").into_response()
 }

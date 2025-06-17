@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use axum::response::Response;
 #[allow(unused_imports)]
 use axum::{
     extract::{Path, Query, State},
@@ -27,7 +28,7 @@ use crate::{
         PaymentMethod, ProductCondition, ProductGender, ProductStatus, UserShippingDetails,
     },
     pagination::PaginatedOrdersResponse,
-    response::{AppResponse, build_response},
+    response::build_response,
 };
 #[allow(unused_imports)]
 use crate::{
@@ -130,7 +131,7 @@ pub async fn get_product_detail_htmx_handler(
     State(app_state): State<AppState>,
     Path(product_id): Path<Uuid>,
     Query(query_params): Query<DetailViewParams>,
-) -> Result<AppResponse, AppError> {
+) -> Result<Response, AppError> {
     tracing::info!(
         "MAUD: /htmx/product/{} z parametrami: {:?}",
         product_id,
@@ -934,7 +935,7 @@ pub async fn list_products_htmx_handler(
     headers: HeaderMap,
     State(app_state): State<AppState>,
     Query(params): Query<ListingParams>,
-) -> Result<AppResponse, AppError> {
+) -> Result<Response, AppError> {
     let page_content = render_product_listing_view(app_state, params).await?;
     build_response(headers, page_content).await
 }
@@ -943,7 +944,7 @@ pub async fn gender_page_handler(
     headers: HeaderMap,
     State(app_state): State<AppState>,
     Path(gender_slug): Path<String>,
-) -> Result<AppResponse, AppError> {
+) -> Result<Response, AppError> {
     tracing::info!("MAUD: /htmx/dla-{} - ładowanie strony płci", gender_slug);
 
     let (current_gender, current_gender_display_name) = match gender_slug.as_str() {
@@ -1071,7 +1072,7 @@ pub async fn gender_page_handler(
     build_response(headers, page_content).await
 }
 
-pub async fn about_us_page_handler(headers: HeaderMap) -> Result<AppResponse, AppError> {
+pub async fn about_us_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
     let page_content = html! {
         div ."max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16" {
             // Baner lub główny nagłówek strony
@@ -1145,7 +1146,7 @@ pub async fn about_us_page_handler(headers: HeaderMap) -> Result<AppResponse, Ap
     build_response(headers, page_content).await
 }
 
-pub async fn privacy_policy_page_handler(headers: HeaderMap) -> Result<AppResponse, AppError> {
+pub async fn privacy_policy_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
     let effective_date = "25 maja 2025";
     let shop_name = "MEG JONI";
     let shop_url = "www.megjoni.com";
@@ -1335,7 +1336,7 @@ pub async fn privacy_policy_page_handler(headers: HeaderMap) -> Result<AppRespon
     build_response(headers, page_content).await
 }
 
-pub async fn terms_of_service_page_handler(headers: HeaderMap) -> Result<AppResponse, AppError> {
+pub async fn terms_of_service_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
     let effective_date = "25 maja 2025";
     let shop_name = "MEG JONI";
     let shop_url = "www.megjoni.com";
@@ -1662,7 +1663,7 @@ pub async fn terms_of_service_page_handler(headers: HeaderMap) -> Result<AppResp
     build_response(headers, page_content).await
 }
 
-pub async fn contact_page_handler(headers: HeaderMap) -> Result<AppResponse, AppError> {
+pub async fn contact_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
     // Dane kontaktowe - UZUPEŁNIJ WŁASNYMI DANYMI!
     let shop_name = "MEG JONI";
     let contact_email = "kontakt@megjoni.com";
@@ -1782,7 +1783,7 @@ struct FaqItem {
     answer: String,
 }
 
-pub async fn faq_page_handler(headers: HeaderMap) -> Result<AppResponse, AppError> {
+pub async fn faq_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
     let faq_items = vec![
         FaqItem {
             question: "Jakie są dostępne metody płatności?".to_string(),
@@ -1872,7 +1873,7 @@ pub async fn faq_page_handler(headers: HeaderMap) -> Result<AppResponse, AppErro
     build_response(headers, page_content).await
 }
 
-pub async fn shipping_returns_page_handler(headers: HeaderMap) -> Result<AppResponse, AppError> {
+pub async fn shipping_returns_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
     let shop_name = "MEG JONI";
     let processing_time = "1-2 dni robocze";
     let delivery_time = "1-2 dni robocze";
@@ -2049,7 +2050,7 @@ pub async fn shipping_returns_page_handler(headers: HeaderMap) -> Result<AppResp
 pub async fn my_account_page_handler(
     headers: HeaderMap,
     claims: TokenClaims,
-) -> Result<AppResponse, AppError> {
+) -> Result<Response, AppError> {
     tracing::info!(
         "MAUD: Użytkownik ID {} wszedł na stronę Moje Konto",
         claims.sub
@@ -2350,7 +2351,7 @@ fn render_product_form_maud(product_opt: Option<&Product>) -> Result<Markup, App
 pub async fn admin_product_new_form_htmx_handler(
     headers: HeaderMap,
     claims: TokenClaims,
-) -> Result<AppResponse, AppError> {
+) -> Result<Response, AppError> {
     if claims.role != Role::Admin {
         return Err(AppError::UnauthorizedAccess(
             "Brak uprawnień administratora.".to_string(),
@@ -2369,7 +2370,7 @@ pub async fn admin_product_edit_form_htmx_handler(
     State(app_state): State<AppState>,
     claims: TokenClaims,
     Path(product_id): Path<Uuid>,
-) -> Result<AppResponse, AppError> {
+) -> Result<Response, AppError> {
     if claims.role != Role::Admin {
         return Err(AppError::UnauthorizedAccess(
             "Brak uprawnień administratora.".to_string(),
@@ -2394,7 +2395,7 @@ pub async fn admin_product_edit_form_htmx_handler(
     build_response(headers, page_content).await
 }
 
-pub async fn login_page_htmx_handler(headers: HeaderMap) -> Result<AppResponse, AppError> {
+pub async fn login_page_htmx_handler(headers: HeaderMap) -> Result<Response, AppError> {
     tracing::info!("MAUD: Żądanie strony logowania HTMX");
 
     let page_title = "Logowanie";
@@ -2474,7 +2475,7 @@ pub async fn login_page_htmx_handler(headers: HeaderMap) -> Result<AppResponse, 
     build_response(headers, page_content).await
 }
 
-pub async fn registration_page_htmx_handler(headers: HeaderMap) -> Result<AppResponse, AppError> {
+pub async fn registration_page_htmx_handler(headers: HeaderMap) -> Result<Response, AppError> {
     tracing::info!("MAUD: Żądanie strony rejestracji HTMX");
 
     let page_title = "Załóż konto";
@@ -2568,7 +2569,7 @@ pub async fn my_orders_htmx_handler(
     headers: HeaderMap,
     State(app_state): State<AppState>,
     claims: TokenClaims, // Wymagane zalogowanie
-) -> Result<AppResponse, AppError> {
+) -> Result<Response, AppError> {
     let user_id = claims.sub;
     tracing::info!("MAUD: Użytkownik ID {} żąda listy swoich zamówień", user_id);
 
@@ -2678,7 +2679,7 @@ pub async fn checkout_page_handler(
     State(app_state): State<AppState>,
     user_claims_result: Result<TokenClaims, AppError>, // Wynik ekstrakcji JWT
     guest_cart_id_header: Option<TypedHeader<XGuestCartId>>,
-) -> Result<(HeaderMap, AppResponse), AppError> {
+) -> Result<(HeaderMap, Response), AppError> {
     tracing::info!("MAUD: /htmx/checkout - żądanie strony kasy");
 
     // --- Sekcja 1: Pobieranie danych i inicjalizacja ---
@@ -3156,7 +3157,7 @@ pub async fn my_account_data_htmx_handler(
     headers: HeaderMap,
     State(app_state): State<AppState>,
     claims: TokenClaims,
-) -> Result<AppResponse, AppError> {
+) -> Result<Response, AppError> {
     let user_id = claims.sub;
     tracing::info!("MAUD: Użytkownik ID {} żąda sekcji 'Moje dane'", user_id);
 
@@ -3305,7 +3306,7 @@ pub async fn my_order_details_htmx_handler(
     State(app_state): State<AppState>,
     claims: TokenClaims,
     Path(order_id): Path<Uuid>,
-) -> Result<AppResponse, AppError> {
+) -> Result<Response, AppError> {
     let user_id = claims.sub;
     let user_role = claims.role;
 
@@ -3539,7 +3540,7 @@ pub async fn my_order_details_htmx_handler(
 pub async fn admin_dashboard_htmx_handler(
     headers: HeaderMap,
     claims: TokenClaims,
-) -> Result<AppResponse, AppError> {
+) -> Result<Response, AppError> {
     if claims.role != Role::Admin {
         return Err(AppError::UnauthorizedAccess(
             "Brak uprawnień administratora.".to_string(),
@@ -3591,7 +3592,7 @@ pub async fn admin_products_list_htmx_handler(
     State(app_state): State<AppState>,
     claims: TokenClaims,
     Query(mut params): Query<ListingParams>,
-) -> Result<AppResponse, AppError> {
+) -> Result<Response, AppError> {
     if claims.role != Role::Admin {
         return Err(AppError::UnauthorizedAccess(
             "Brak uprawnień administratora.".to_string(),
@@ -4080,7 +4081,7 @@ pub async fn admin_orders_list_htmx_handler(
     State(app_state): State<AppState>,
     claims: TokenClaims,
     Query(params): Query<OrderListingParams>,
-) -> Result<AppResponse, AppError> {
+) -> Result<Response, AppError> {
     if claims.role != Role::Admin {
         return Err(AppError::UnauthorizedAccess(
             "Brak uprawnień administratora.".to_string(),
@@ -4366,7 +4367,7 @@ pub async fn admin_order_details_htmx_handler(
     Path(order_id): Path<Uuid>,
     // Opcjonalnie: Query(params) jeśli chcesz przekazać parametry powrotu do listy
     Query(list_params): Query<OrderListingParams>, // Aby zbudować link "Wróć do listy"
-) -> Result<AppResponse, AppError> {
+) -> Result<Response, AppError> {
     if claims.role != Role::Admin {
         return Err(AppError::UnauthorizedAccess(
             "Brak uprawnień administratora.".to_string(),
@@ -4556,7 +4557,7 @@ fn get_order_status_badge_classes(status: OrderStatus) -> &'static str {
 pub async fn news_page_htmx_handler(
     headers: HeaderMap,
     State(app_state): State<AppState>,
-) -> Result<AppResponse, AppError> {
+) -> Result<Response, AppError> {
     tracing::info!("MAUD: Obsługa publicznego URL /nowosci");
     let params = ListingParams {
         sort_by: Some("created_at".to_string()),
@@ -4574,7 +4575,7 @@ pub async fn news_page_htmx_handler(
 pub async fn sale_page_htmx_handler(
     headers: HeaderMap,
     State(app_state): State<AppState>,
-) -> Result<AppResponse, AppError> {
+) -> Result<Response, AppError> {
     tracing::info!("MAUD: Obsługa publicznego URL /wyprzedaz");
     let params = ListingParams {
         on_sale: Some(true),
@@ -4612,7 +4613,7 @@ pub async fn payment_finalization_page_handler(
     headers: HeaderMap,
     State(app_state): State<AppState>,
     Path(order_id): Path<Uuid>,
-) -> Result<AppResponse, AppError> {
+) -> Result<Response, AppError> {
     tracing::info!(
         "MAUD: Wyświetlanie strony podsumowania płatności dla zamówienia ID {}",
         order_id
@@ -4937,4 +4938,44 @@ pub fn render_cart_bubbles_oob_maud() -> Markup {
              x-text="0"
              class="absolute -top-1.5 -right-1.5 bg-pink-600 text-white text-[0.6rem] font-semibold rounded-full w-4 h-4 flex items-center justify-center ring-1 ring-white hidden" {}
     }
+}
+
+/// Handler, który renderuje stronę błędu 404.
+pub async fn handler_404(headers: HeaderMap) -> impl IntoResponse {
+    let page_content = html! {
+        div ."min-h-[60vh] flex flex-col items-center justify-center text-center p-4" {
+            div {
+                // Duży, stylizowany napis "404"
+                p ."text-8xl sm:text-9xl font-black text-pink-200" { "404" }
+
+                // Główny komunikat
+                h1 ."mt-2 text-3xl sm:text-4xl font-bold text-gray-800 tracking-tight" {
+                    "Strona nie została znaleziona"
+                }
+
+                // Dodatkowy opis
+                p ."mt-4 text-base text-gray-600" {
+                    "Przepraszamy, nie mogliśmy znaleźć strony, której szukasz."
+                }
+
+                // Przycisk powrotu na stronę główną
+                div ."mt-8" {
+                    a href="/"
+                       hx-get="/htmx/products?limit=8" // Ładuje domyślne produkty
+                       hx-target="#content"
+                       hx-swap="innerHTML"
+                       hx-push-url="/"
+                       class="inline-block px-6 py-3 bg-pink-600 text-white font-semibold rounded-lg shadow-md hover:bg-pink-700 transition-all duration-200 ease-in-out" {
+                        "Powrót na stronę główną"
+                    }
+                }
+            }
+        }
+    };
+
+    // Zbuduj odpowiedź (pełną stronę lub fragment) i ustaw status na 404 NOT FOUND
+    let response = build_response(headers, page_content)
+        .await
+        .unwrap_or_else(|err| err.into_response());
+    (StatusCode::NOT_FOUND, response)
 }
