@@ -5,13 +5,15 @@ use axum::extract::DefaultBodyLimit;
 use axum::http::{HeaderMap, header};
 use axum::response::{Html, IntoResponse};
 use axum::routing::{delete, get, post};
+use axum_server::tls_rustls::RustlsConfig;
 use dotenvy::dotenv;
 use htmx_handlers::*;
 use reqwest::StatusCode;
+use rustls::crypto::CryptoProvider;
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 use std::net::SocketAddr;
-use tokio::net::TcpListener;
+use std::path::PathBuf;
 use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -48,6 +50,15 @@ async fn main() {
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
+
+    let provider = rustls::crypto::aws_lc_rs::default_provider();
+    if let Err(e) = provider.install_default() {
+        tracing::error!(
+            "Błąd podczas instalacji domyślnego dostawcy kryptograficznego: {:?}",
+            e
+        );
+        std::process::exit(1);
+    }
 
     tracing::info!("Inicjalizacja serwera...");
 
@@ -244,19 +255,40 @@ async fn main() {
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000)); // Nasłuchuj na wszystkich interfejsach na porcie 3000
     tracing::info!("Serwer nasłuchuje na {}", addr);
 
-    // Utworzenie listenera TCP
-    let listener = match TcpListener::bind(addr).await {
-        Ok(listener) => listener,
+    // Konfiguracja TLS
+    let config = match RustlsConfig::from_pem_file(
+        PathBuf::from("localhost+2.pem"),     // Ścieżka do pliku certyfikatu
+        PathBuf::from("localhost+2-key.pem"), // Ścieżka do pliku klucza
+    )
+    .await
+    {
+        Ok(config) => config,
         Err(e) => {
-            tracing::error!("Nie można powiązać adresu {}: {}", addr, e);
-            return; // Zakończ, jeśli nie można uruchomić serwera
+            tracing::error!("Błąd podczas ładowania certyfikatów TLS: {:?}", e);
+            std::process::exit(1);
         }
     };
 
-    // Uruchomienie serwera Axum
-    if let Err(e) = axum::serve(listener, app.into_make_service()).await {
+    if let Err(e) = axum_server::bind_rustls(addr, config)
+        .serve(app.into_make_service())
+        .await
+    {
         tracing::error!("Błąd serwera: {}", e);
     }
+
+    // Utworzenie listenera TCP
+    // let listener = match TcpListener::bind(addr).await {
+    //     Ok(listener) => listener,
+    //     Err(e) => {
+    //         tracing::error!("Nie można powiązać adresu {}: {}", addr, e);
+    //         return; // Zakończ, jeśli nie można uruchomić serwera
+    //     }
+    // };
+
+    // Uruchomienie serwera Axum
+    // if let Err(e) = axum::serve(listener, app.into_make_service()).await {
+    //     tracing::error!("Błąd serwera: {}", e);
+    // }
 }
 
 async fn serve_index() -> Result<Html<String>, StatusCode> {
