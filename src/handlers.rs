@@ -1205,6 +1205,48 @@ pub async fn create_order_handler(
             "SELECT * FROM shopping_carts WHERE user_id = $1 FOR UPDATE".to_string();
         tracing::info!("Zalogowany użytkownik {} składa zamówienie.", user_id);
     } else if let Some(TypedHeader(XGuestCartId(guest_id))) = guest_cart_id_header {
+        // Sprawdzamy, czy gość podał e-mail i czy ten e-mail istnieje już w bazie użytkowników.
+        if let Some(email_to_check) = payload.guest_checkout_email.as_deref() {
+            if !email_to_check.trim().is_empty() {
+                // Wykonujemy zapytanie do bazy PRZED rozpoczęciem transakcji.
+                let user_exists: Option<i32> =
+                    sqlx::query_scalar("SELECT 1 FROM users WHERE email = $1")
+                        .bind(email_to_check)
+                        .fetch_optional(&app_state.db_pool)
+                        .await?;
+
+                if user_exists.is_some() {
+                    // E-mail istnieje! Blokujemy zamówienie i wysyłamy błąd.
+                    tracing::warn!(
+                        "Gość (sesja: {}) próbował złożyć zamówienie na zarejestrowany adres e-mail: {}",
+                        guest_id,
+                        email_to_check
+                    );
+
+                    let mut headers = HeaderMap::new();
+                    let trigger_payload = json!({
+                        "showMessage": {
+                            "message": "Ten adres e-mail jest juz zarejestrowany. Zaloguj sie, aby kontynuowac.",
+                            "type": "error"
+                        }
+                    });
+
+                    // Używamy .unwrap(), ponieważ wiemy, że nasz JSON jest poprawny
+                    headers.insert(
+                        "HX-Trigger",
+                        HeaderValue::from_str(&trigger_payload.to_string()).unwrap(),
+                    );
+                    headers.insert("HX-Reswap", HeaderValue::from_static("none")); // Nie podmieniaj widoku!
+
+                    // Zwracamy nasz nowy, niestandardowy błąd z nagłówkami.
+                    return Err(AppError::ConflictWithHeaders(
+                        "Email jest już zarejestrowany.".to_string(),
+                        headers,
+                    ));
+                }
+            }
+        }
+
         order_guest_session_id = Some(guest_id);
         cart_query_id = guest_id;
         cart_selector_sql =
