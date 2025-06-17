@@ -485,32 +485,12 @@ pub async fn update_product_partial_handler(
     }
     tracing::info!(
         "Obsłużono zapytanie PATCH /api/products/{} - aktualizacja (multipart)",
-        product_id,
+        product_id
     );
 
-    // REFAKTORYZACJA: Użycie transakcji jest kluczowe dla spójności danych
-    let mut tx = app_state
-        .db_pool
-        .begin()
-        .await
-        .map_err(AppError::SqlxError)?;
+    // --- POCZĄTEK REFAKTORYZACJI ---
 
-    let mut existing_product =
-        sqlx::query_as::<_, Product>("SELECT * FROM products WHERE id = $1 FOR UPDATE")
-            .bind(product_id)
-            .fetch_one(&mut *tx) // ZMIANA: Używamy transakcji
-            .await
-            .map_err(|err| match err {
-                sqlx::Error::RowNotFound => {
-                    tracing::warn!("PATCH: Nie znaleziono produktu o ID: {}", product_id);
-                    AppError::NotFound
-                }
-                _ => {
-                    tracing::error!("PATCH: Błąd bazy danych (pobieranie): {}", err);
-                    AppError::SqlxError(err)
-                }
-            })?;
-
+    // KROK 1: Przetwarzamy dane z formularza i wgrywamy pliki W PAMIĘCI, bez otwierania transakcji.
     let mut text_fields: HashMap<String, String> = HashMap::new();
     let mut new_image_uploads: Vec<(String, Vec<u8>)> = Vec::new();
     let mut urls_to_delete_json_opt: Option<String> = None;
@@ -525,107 +505,51 @@ pub async fn update_product_partial_handler(
                 let bytes = field.bytes().await.map_err(AppError::from)?;
                 if !bytes.is_empty() {
                     new_image_uploads.push((filename.clone(), bytes.into()));
-                    tracing::info!("Dodano nowy plik do wgrania: {}", filename);
                 }
             }
         } else if field_name == "urls_to_delete" {
             urls_to_delete_json_opt = Some(field.text().await.map_err(AppError::from)?);
-            tracing::info!(
-                "Odebrano listę URLi do usunięcia: {:?}",
-                urls_to_delete_json_opt
-            );
         } else {
             text_fields.insert(field_name, field.text().await.map_err(AppError::from)?);
         }
     }
 
-    if let Some(name) = text_fields.get("name") {
-        existing_product.name = name.clone();
-    }
-    if let Some(description) = text_fields.get("description") {
-        existing_product.description = description.clone();
-    }
-    if let Some(price_str) = text_fields.get("price") {
-        existing_product.price = price_str
-            .parse()
-            .map_err(|_| AppError::UnprocessableEntity("Nieprawidłowy format ceny".to_string()))?;
-    }
-    if let Some(gender_str) = text_fields.get("gender") {
-        existing_product.gender = ProductGender::from_str(gender_str)
-            .map_err(|e| AppError::UnprocessableEntity(format!("Nieprawidłowa płeć: {}", e)))?;
-    }
-    if let Some(condition_str) = text_fields.get("condition") {
-        existing_product.condition = ProductCondition::from_str(condition_str)
-            .map_err(|e| AppError::UnprocessableEntity(format!("Nieprawidłowy stan: {}", e)))?;
-    }
-    if let Some(category_str) = text_fields.get("category") {
-        existing_product.category = Category::from_str(category_str).map_err(|e| {
-            AppError::UnprocessableEntity(format!("Nieprawidłowa kategoria: {}", e))
-        })?;
-    }
-    if let Some(status_str) = text_fields.get("status") {
-        existing_product.status = ProductStatus::from_str(status_str)
-            .map_err(|e| AppError::UnprocessableEntity(format!("Nieprawidłowy status: {}", e)))?;
-    }
-    existing_product.on_sale = text_fields
-        .get("on_sale")
-        .map_or(false, |s| s.eq_ignore_ascii_case("true") || s == "on");
-
-    let mut final_image_urls = existing_product.images.clone();
-
-    if let Some(json_str) = urls_to_delete_json_opt {
+    // KROK 2: Wykonujemy operacje na Cloudinary (usuwanie) - nadal BEZ transakcji.
+    let urls_to_delete: Vec<String> = if let Some(json_str) = urls_to_delete_json_opt {
         if !json_str.is_empty() && json_str != "[]" {
-            match serde_json::from_str::<Vec<String>>(&json_str) {
-                Ok(urls_to_delete) => {
-                    if !urls_to_delete.is_empty() {
-                        tracing::info!("Oznaczono do usunięcia z Cloudinary: {:?}", urls_to_delete);
-                        let mut delete_futures = Vec::new();
-                        for url_to_delete in &urls_to_delete {
-                            if let Some(public_id) = extract_public_id_from_url(
-                                url_to_delete,
-                                &app_state.cloudinary_config.cloud_name,
-                            ) {
-                                let config_clone = app_state.cloudinary_config.clone();
-                                delete_futures.push(async move {
-                                    delete_image_from_cloudinary(&public_id, &config_clone).await
-                                });
-                            } else {
-                                tracing::warn!(
-                                    "Nie udało się wyekstrahować public_id z URL: {}",
-                                    url_to_delete
-                                );
-                            }
-                        }
-                        if !delete_futures.is_empty() {
-                            if let Err(e) = try_join_all(delete_futures).await {
-                                tracing::error!(
-                                    "Błędy podczas usuwania z Cloudinary: {:?}. Wycofuję transakcję.",
-                                    e
-                                );
-                                tx.rollback().await.ok(); // ZMIANA: Wycofaj transakcję przy błędzie Cloudinary
-                                return Err(AppError::from(e));
-                            }
-                            tracing::info!("Pomyślnie usunięto obrazki z Cloudinary.");
-                        }
-                        final_image_urls.retain(|url| !urls_to_delete.contains(url));
-                    }
-                }
-                Err(e) => {
-                    tracing::error!(
-                        "Błąd parsowania JSON dla urls_to_delete: '{}'. Treść JSON: '{}'",
-                        e,
-                        json_str
-                    );
-                    return Err(AppError::UnprocessableEntity(
-                        "Nieprawidłowy format listy URLi do usunięcia.".to_string(),
-                    ));
-                }
+            serde_json::from_str(&json_str).map_err(|e| {
+                tracing::error!("Błąd parsowania JSON dla urls_to_delete: '{}'", e);
+                AppError::UnprocessableEntity(
+                    "Nieprawidłowy format listy URLi do usunięcia.".to_string(),
+                )
+            })?
+        } else {
+            vec![]
+        }
+    } else {
+        vec![]
+    };
+
+    if !urls_to_delete.is_empty() {
+        let mut delete_futures = Vec::new();
+        for url_to_delete in &urls_to_delete {
+            if let Some(public_id) =
+                extract_public_id_from_url(url_to_delete, &app_state.cloudinary_config.cloud_name)
+            {
+                let config_clone = app_state.cloudinary_config.clone();
+                delete_futures.push(async move {
+                    delete_image_from_cloudinary(&public_id, &config_clone).await
+                });
             }
+        }
+        if let Err(e) = try_join_all(delete_futures).await {
+            return Err(AppError::from(e));
         }
     }
 
+    // KROK 3: Wykonujemy operacje na Cloudinary (upload) - nadal BEZ transakcji.
+    let mut uploaded_urls: Vec<String> = Vec::new();
     if !new_image_uploads.is_empty() {
-        tracing::info!("Wgrywanie {} nowych obrazków...", new_image_uploads.len());
         let mut upload_futures = Vec::new();
         for (filename, bytes) in new_image_uploads {
             let config_clone = app_state.cloudinary_config.clone();
@@ -633,27 +557,64 @@ pub async fn update_product_partial_handler(
                 upload_image_to_cloudinary(bytes, filename, &config_clone).await
             });
         }
-        match try_join_all(upload_futures).await {
-            Ok(new_urls) => {
-                tracing::info!("Pomyślnie wgrano nowe obrazki. URL-e: {:?}", new_urls);
-                final_image_urls.extend(new_urls);
-            }
-            Err(e) => {
-                tracing::error!("Krytyczny błąd podczas wgrywania nowych obrazków: {:?}", e);
-                tx.rollback().await.ok(); // ZMIANA: Wycofaj transakcję
-                return Err(AppError::from(e));
-            }
-        }
+        uploaded_urls = try_join_all(upload_futures).await?;
     }
 
-    if final_image_urls.is_empty() {
-        tx.rollback().await.ok(); // ZMIANA: Wycofaj transakcję
+    // KROK 4: DOPIERO TERAZ, gdy wszystkie operacje zewnętrzne się powiodły, otwieramy krótką transakcję.
+    let mut tx = app_state.db_pool.begin().await?;
+
+    let mut existing_product =
+        sqlx::query_as::<_, Product>("SELECT * FROM products WHERE id = $1 FOR UPDATE")
+            .bind(product_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::NotFound)?;
+
+    // Aktualizujemy pola produktu w pamięci
+    if let Some(name) = text_fields.get("name") {
+        existing_product.name = name.clone();
+    }
+    if let Some(desc) = text_fields.get("description") {
+        existing_product.description = desc.clone();
+    }
+    if let Some(price) = text_fields.get("price") {
+        existing_product.price = price
+            .parse()
+            .map_err(|_| AppError::UnprocessableEntity("Zły format ceny".into()))?;
+    }
+    if let Some(gender) = text_fields.get("gender") {
+        existing_product.gender = ProductGender::from_str(gender)
+            .map_err(|_| AppError::UnprocessableEntity("Zła płeć".into()))?;
+    }
+    if let Some(cond) = text_fields.get("condition") {
+        existing_product.condition = ProductCondition::from_str(cond)
+            .map_err(|_| AppError::UnprocessableEntity("Zły stan".into()))?;
+    }
+    if let Some(cat) = text_fields.get("category") {
+        existing_product.category = Category::from_str(cat)
+            .map_err(|_| AppError::UnprocessableEntity("Zła kategoria".into()))?;
+    }
+    if let Some(stat) = text_fields.get("status") {
+        existing_product.status = ProductStatus::from_str(stat)
+            .map_err(|_| AppError::UnprocessableEntity("Zły status".into()))?;
+    }
+    existing_product.on_sale = text_fields
+        .get("on_sale")
+        .map_or(false, |s| s.eq_ignore_ascii_case("true") || s == "on");
+
+    // Aktualizujemy listę obrazków
+    existing_product
+        .images
+        .retain(|url| !urls_to_delete.contains(url));
+    existing_product.images.extend(uploaded_urls);
+
+    if existing_product.images.is_empty() {
         return Err(AppError::UnprocessableEntity(
-            "Produkt musi mieć przynajmniej jeden obrazek.".to_string(),
+            "Produkt musi mieć co najmniej jeden obrazek.".to_string(),
         ));
     }
-    existing_product.images = final_image_urls;
 
+    // KROK 5: Wykonujemy JEDNO zapytanie UPDATE w naszej krótkiej transakcji.
     let updated_product_db = sqlx::query_as::<_, Product>(
         r#"
             UPDATE products
@@ -672,13 +633,11 @@ pub async fn update_product_partial_handler(
     .bind(&existing_product.images)
     .bind(existing_product.on_sale)
     .bind(product_id)
-    .fetch_one(&mut *tx) // ZMIANA: Używamy transakcji
-    .await.map_err(|e| {
-        tracing::error!("Błąd aktualizacji produktu w DB: {}", e);
-        AppError::SqlxError(e) // rollback nastąpi automatycznie, gdy tx wyjdzie z zasięgu
-    })?;
+    .fetch_one(&mut *tx)
+    .await?;
 
-    tx.commit().await.map_err(AppError::SqlxError)?; // ZMIANA: Zatwierdź transakcję
+    // KROK 6: Zamykamy transakcję. Całość trwała ułamki sekund.
+    tx.commit().await?;
 
     tracing::info!("Pomyślnie zaktualizowano produkt o ID: {}", product_id);
     Ok(Json(updated_product_db))
