@@ -1,6 +1,6 @@
 use axum::{
     extract::multipart::MultipartError,
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Json, Response},
 };
 
@@ -59,6 +59,9 @@ pub enum AppError {
 
     #[error("Wystąpił błąd z niedostępnm produktem")]
     UnprocessableEntityWithHtml(Markup),
+
+    #[error("Konflikt: {0}")]
+    ConflictWithHeaders(String, HeaderMap),
 }
 
 impl IntoResponse for AppError {
@@ -105,6 +108,12 @@ impl IntoResponse for AppError {
             AppError::Conflict(message) => (StatusCode::CONFLICT, message),
             AppError::UnprocessableEntityWithHtml(markup) => {
                 return (StatusCode::UNPROCESSABLE_ENTITY, markup.into_string()).into_response();
+            }
+            AppError::ConflictWithHeaders(message, headers) => {
+                let mut response =
+                    (StatusCode::CONFLICT, Json(json!({ "error": message}))).into_response();
+                response.headers_mut().extend(headers);
+                return response;
             }
         };
 

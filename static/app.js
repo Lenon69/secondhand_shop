@@ -34,7 +34,30 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   // Schowaj spinner po każdym zakończonym żądaniu (sukces lub błąd)
-  document.body.addEventListener("htmx:afterRequest", hideSpinner);
+  document.body.addEventListener("htmx:afterRequest", function (event) {
+    // Sprawdzamy, czy żądanie zakończyło się sukcesem (status 2xx)
+    if (!event.detail.successful) {
+      return;
+    }
+
+    // Pobieramy ścieżkę żądania
+    const requestPath = event.detail.requestConfig.path;
+
+    // Sprawdzamy, czy to było żądanie dodania do koszyka
+    const isAddToCartRequest = requestPath.startsWith("/htmx/cart/add/");
+
+    // Sprawdzamy, czy to było żądanie przywrócenia historii
+    const isHistoryRestore =
+      event.detail.requestConfig.headers["HX-History-Restore-Request"];
+
+    // Przewijaj do góry tylko, jeśli to NIE jest nawigacja z historii ORAZ NIE jest to dodanie do koszyka.
+    if (!isHistoryRestore && !isAddToCartRequest) {
+      setTimeout(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      }, 0);
+    }
+    hideSpinner();
+  });
   document.body.addEventListener("htmx:sendError", hideSpinner);
   document.body.addEventListener("htmx:responseError", hideSpinner);
 
@@ -95,16 +118,7 @@ function initEventListeners() {
    * Odpowiada za przewijanie strony do góry i czyszczenie komunikatów.
    */
   document.body.addEventListener("htmx:afterSwap", (event) => {
-    // 1. Niezawodne przewijanie do góry (top: 0)
-    if (!event.detail.requestConfig.headers["HX-History-Restore-Request"]) {
-      // setTimeout z opóźnieniem 0 daje przeglądarce czas na dokończenie
-      // renderowania, co gwarantuje, że przewinięcie zadziała poprawnie.
-      setTimeout(() => {
-        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-      }, 0);
-    }
-
-    // 2. Czyszczenie starych komunikatów z formularzy logowania/rejestracji
+    // Czyszczenie starych komunikatów z formularzy logowania/rejestracji
     const isContentSwap =
       event.detail.target.id === "content" ||
       event.detail.target.closest("#content");
