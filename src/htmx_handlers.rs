@@ -3550,7 +3550,7 @@ pub async fn admin_dashboard_htmx_handler(
             // Sidebar nawigacyjny admina
             nav ."w-full md:w-64 bg-gray-800 text-white p-4 space-y-2" {
                 h2 ."text-xl font-semibold mb-4" { "Panel Admina" }
-                a href="/htmx/admin/products?status=all" hx-get="/htmx/admin/products?status=all" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
+                a href="/htmx/admin/products?status=all&limit=25" hx-get="/htmx/admin/products?status=all&limit=25" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
                    class="block py-2 px-3 rounded hover:bg-gray-700" { "Zarządzaj produktami" }
                 a href="/htmx/admin/orders" hx-get="/htmx/admin/orders" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
                    class="block py-2 px-3 rounded hover:bg-gray-700" { "Zarządzaj zamówieniami" }
@@ -3602,7 +3602,7 @@ pub async fn admin_products_list_htmx_handler(
     );
 
     if params.limit.is_none() {
-        params.limit = Some(10);
+        params.limit = Some(25);
     }
     let current_limit = params.limit();
 
@@ -3777,6 +3777,22 @@ pub async fn admin_products_list_htmx_handler(
             // Paginacja - Z NOWĄ LOGIKĄ RENDEROWANIA
             @if paginated_response.total_pages > 1 {
                 nav class="mt-6 flex flex-col sm:flex-row justify-between items-center text-sm" aria-label="Paginacja produktów" {
+
+                    div {
+                        label for="limit_select" ."block text-sm font-medium text-gray-700 mb-1" { "Pokaż na stronie:" }
+                        select name="limit" id="limit_select" class="admin-filter-select"
+                               hx-trigger="change"
+                               hx-get="/htmx/admin/products"
+                               hx-target="#admin-product-list-container"
+                               hx-swap="outerHTML"
+                               hx-push-url="true"
+                        {
+                            // Opcje do wyboru. Sprawdzamy, która jest aktualnie wybrana.
+                            option value="10" selected[current_limit == 10] { "10" }
+                            option value="25" selected[current_limit == 25] { "25" }
+                            option value="50" selected[current_limit == 50] { "50" }
+                        }
+                    }
                     div class="text-gray-600 mb-2 sm:mb-0" {
                         "Strona " strong { (paginated_response.current_page) }
                         " z " strong { (paginated_response.total_pages) }
