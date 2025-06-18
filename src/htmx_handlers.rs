@@ -1,6 +1,6 @@
 // src/htmx_handlers.rs
 
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 use axum::response::Response;
 #[allow(unused_imports)]
@@ -25,7 +25,8 @@ use crate::{
     filters::OrderListingParams,
     models::{
         OrderDetailsResponse, OrderItem, OrderItemDetailsPublic, OrderWithCustomerInfo,
-        PaymentMethod, ProductCondition, ProductGender, ProductStatus, UserShippingDetails,
+        PasswordResetToken, PaymentMethod, ProductCondition, ProductGender, ProductStatus,
+        UserShippingDetails,
     },
     pagination::PaginatedOrdersResponse,
     response::build_response,
@@ -1154,7 +1155,7 @@ pub async fn privacy_policy_page_handler(headers: HeaderMap) -> Result<Response,
     let company_address = "ul. Modna 1, 00-001 Warszawa";
     let company_nip = "123-456-78-90";
     let company_regon = "123456789";
-    let contact_email_privacy = "prywatnosc@megjoni.com";
+    let contact_email_privacy = "contact@messvintage.com";
     let link_do_polityki_cookies = "/htmx/page/polityka-cookies";
 
     // Definicje tekstów jako zmienne Rusta
@@ -1344,7 +1345,7 @@ pub async fn terms_of_service_page_handler(headers: HeaderMap) -> Result<Respons
     let company_address = "ul. Przykładowa 1, 00-001 Miasto";
     let company_nip = "123-456-78-90";
     let company_regon = "123456789";
-    let contact_email = "kontakt@megjoni.com";
+    let contact_email = "contact@messvintage.com";
     let complaint_address = "ul. Przykładowa 1, 00-001 Miasto (Dział Reklamacji)";
     let bank_account_for_returns = "[NUMER KONTA BANKOWEGO DO ZWROTÓW]";
 
@@ -1666,14 +1667,14 @@ pub async fn terms_of_service_page_handler(headers: HeaderMap) -> Result<Respons
 pub async fn contact_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
     // Dane kontaktowe - UZUPEŁNIJ WŁASNYMI DANYMI!
     let shop_name = "mess - all that vintage";
-    let contact_email = "kontakt@megjoni.com";
+    let contact_email = "contact@messvintage.com";
     let contact_phone = Some("+48 603 117 793");
     let company_full_name = "mess - all that vintage";
-    let company_address_line1 = "ul. Modna 1";
-    let company_address_line2 = "00-001 Warszawa";
+    let company_address_line1 = "ul. Piotrkowska 104";
+    let company_address_line2 = "90-001 Łódź";
     // Możesz dodać linki do mediów społecznościowych
-    let social_facebook_url = Some("https://www.facebook.com/megjoni"); // Opcjonalnie
-    let social_instagram_url = Some("https://www.instagram.com/meg.joni"); // Opcjonalnie
+    let social_facebook_url = Some("https://www.facebook.com/megjoni");
+    let social_instagram_url = Some("https://www.instagram.com/meg.joni");
 
     // --- Definicje tekstów jako zmienne Rusta ---
     let heading_main_text = "Skontaktuj się z nami";
@@ -1731,18 +1732,18 @@ pub async fn contact_page_handler(headers: HeaderMap) -> Result<Response, AppErr
                     }
                 }
 
-                // Sekcja Adres Korespondencyjny
-                section ."p-6 bg-white rounded-lg shadow-lg border border-gray-200" {
-                    h2 ."text-2xl font-semibold text-pink-600 mb-3" { (address_heading_text) }
-                    p ."text-gray-700 leading-relaxed" {
-                        (company_full_name) br;
-                        (company_address_line1) br;
-                        (company_address_line2)
-                    }
-                    // @if let Some(note) = address_note_text {
-                    //     p ."text-sm text-gray-500 mt-2" { (note) }
-                    // }
-                }
+                // // Sekcja Adres Korespondencyjny
+                // section ."p-6 bg-white rounded-lg shadow-lg border border-gray-200" {
+                //     h2 ."text-2xl font-semibold text-pink-600 mb-3" { (address_heading_text) }
+                //     p ."text-gray-700 leading-relaxed" {
+                //         (company_full_name) br;
+                //         (company_address_line1) br;
+                //         (company_address_line2)
+                //     }
+                //     // @if let Some(note) = address_note_text {
+                //     //     p ."text-sm text-gray-500 mt-2" { (note) }
+                //     // }
+                // }
 
                 // Sekcja Media Społecznościowe (opcjonalna)
                 @if social_facebook_url.is_some() || social_instagram_url.is_some() {
@@ -2406,64 +2407,74 @@ pub async fn login_page_htmx_handler(headers: HeaderMap) -> Result<Response, App
     let registration_url = "/rejestracja";
 
     let page_content = html! {
-        div ."min-h-[calc(100vh-var(--header-height,10rem))] w-full flex items-center justify-center p-4 bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-100" {
-            div ."w-full max-w-md" { // Ten div centruje kartę
-                div ."bg-white/80 backdrop-blur-md py-8 px-6 sm:px-10 shadow-2xl rounded-xl border border-gray-200" {
-                    div ."mb-8 text-center" {
-                        h2 ."text-3xl font-bold text-gray-900" { (page_title) }
-                    }
-
-                    div #(messages_id) ."mb-4 text-sm min-h-[1.25em]"; // min-h-[1.25em] aby uniknąć skoku layoutu
-
-                    form #(form_id)
-                        hx-post=(api_login_endpoint)
-                        hx-ext="json-enc"
-                        hx-target=(format!("#{}", messages_id))
-                        hx-swap="innerHTML"
-                        class="space-y-6" {
-
-                        div {
-                            label for="email" ."block text-sm font-medium text-gray-700" { "Adres e-mail" }
-                            div ."mt-1" {
-                                input #email name="email" type="email" autocomplete="email" required
-                                       class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400
-                                              focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 
-                                              transition duration-150 ease-in-out sm:text-sm";
-                            }
+            div ."min-h-[calc(100vh-var(--header-height,10rem))] w-full flex items-center justify-center p-4 bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-100" {
+                div ."w-full max-w-md" { // Ten div centruje kartę
+                    div ."bg-white/80 backdrop-blur-md py-8 px-6 sm:px-10 shadow-2xl rounded-xl border border-gray-200" {
+                        div ."mb-8 text-center" {
+                            h2 ."text-3xl font-bold text-gray-900" { (page_title) }
                         }
 
-                        div {
-                            label for="password" ."block text-sm font-medium text-gray-700" { "Hasło" }
-                            div ."mt-1" {
-                                input #password name="password" type="password" autocomplete="current-password" required
-                                       class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400
+                        div #(messages_id) ."mb-4 text-sm min-h-[1.25em]"; // min-h-[1.25em] aby uniknąć skoku layoutu
+
+                        form #(form_id)
+                            hx-post=(api_login_endpoint)
+                            hx-ext="json-enc"
+                            hx-target=(format!("#{}", messages_id))
+                            hx-swap="innerHTML"
+                            class="space-y-6" {
+
+                            div {
+                                label for="email" ."block text-sm font-medium text-gray-700" { "Adres e-mail" }
+                                div ."mt-1" {
+                                    input #email name="email" type="email" autocomplete="email" required
+                                           class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400
                                               focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 
                                               transition duration-150 ease-in-out sm:text-sm";
+                                }
                             }
-                        }
 
-                        div {
-                            button type="submit"
-                                   class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white
+                            div {
+                                label for="password" ."block text-sm font-medium text-gray-700" { "Hasło" }
+                                div ."mt-1" {
+                                    input #password name="password" type="password" autocomplete="current-password" required
+                                           class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400
+                                              focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 
+                                              transition duration-150 ease-in-out sm:text-sm";
+                                }
+                            }
+
+                            div {
+                                button type="submit"
+                                       class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white
                                           bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 
                                           transition-all duration-150 ease-in-out transform hover:scale-105" {
-                                "Zaloguj się"
+                                    "Zaloguj się"
+                                }
                             }
                         }
-                    }
 
-                    div ."mt-6 pt-6 border-t border-gray-200" {
-                        div ."text-center" {
-                            p ."text-sm text-gray-600" {
-                                "Nie masz jeszcze konta? "
-                                a href=(registration_url)
-                                   hx-get=(registration_htmx_endpoint)
-                                   hx-target="#content"
-                                   hx-swap="innerHTML"
-                                   hx-push-url=(registration_url)
-                                   class="font-medium text-pink-600 hover:text-pink-500 hover:underline" {
-                                    "Zarejestruj się"
+                        div ."mt-6 pt-6 border-t border-gray-200" {
+                            div ."text-center" {
+                                p ."text-sm text-gray-600" {
+                                    "Nie masz jeszcze konta? "
+                                    a href=(registration_url)
+                                       hx-get=(registration_htmx_endpoint)
+                                       hx-target="#content"
+                                       hx-swap="innerHTML"
+                                       hx-push-url=(registration_url)
+                                       class="font-medium text-pink-600 hover:text-pink-500 hover:underline" {
+                                        "Zarejestruj się"
+                                    }
                                 }
+                            }
+                        div ."text-center" {
+                            a href="/zapomnialem-hasla"
+                               hx-get="/zapomnialem-hasla"
+                               hx-target="#content"
+                               hx-swap="innerHTML"
+                               hx-push-url="/zapomnialem-hasla"
+                               class="text-xs text-gray-500 hover:text-pink-600 hover:underline" {
+                                "Zapomniałeś hasła?"
                             }
                         }
                     }
@@ -3703,72 +3714,8 @@ pub async fn admin_products_list_htmx_handler(
                         }
                         @for product in &paginated_response.data {
                             tr ."hover:bg-pink-50/30 transition-colors duration-150 ease-in-out" {
-                                td class="admin-td-image" {
-                                     a href=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
-                                       hx-get=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
-                                       hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
-                                       title="Edytuj produkt" class="block w-12 h-12" {
-                                        @if let Some(image_url) = product.images.get(0) {
-                                            img src=(image_url) alt=(product.name) class="h-full w-full rounded-md object-cover shadow-sm hover:shadow-md transition-shadow";
-                                        } @else {
-                                            div class="h-full w-full rounded-md bg-gray-200 flex items-center justify-center text-xs text-gray-400" { "N/A" }
-                                        }
-                                    }
-                                }
-                                td class="admin-td font-medium text-gray-900" {
-                                    a href=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
-                                       hx-get=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
-                                       hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
-                                       class="hover:text-pink-700 hover:underline" {
-                                        (product.name)
-                                    }
-                                }
-                                td class="admin-td text-gray-700" { (format_price_maud(product.price)) }
-                                td class="admin-td" {
-                                    span class=(get_status_badge_classes(product.status.clone())) { (product.status.to_string()) }
-                                }
-                                td class="admin-td text-gray-600" { (product.category.to_string()) }
-                                td class="admin-td text-gray-500 text-xs" { (product.created_at.format("%Y-%m-%d %H:%M").to_string()) }
-                                td class="admin-td text-right space-x-2 whitespace-nowrap" {
-                                    @if product.status != ProductStatus::Archived {
-                                        // Akcje dla produktów, które nie są zarchiwizowane
-
-                                        // Przycisk EDYTUJ (bez zmian)
-                                        a href=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
-                                           hx-get=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
-                                           hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
-                                           class="admin-action-button text-indigo-600 hover:text-indigo-800" title="Edytuj" {
-                                            svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5" {
-                                                path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" {}
-                                            }
-                                        }
-
-                                        // Przycisk ARCHIWIZUJ
-                                        button hx-delete=(format!("/api/products/{}", product.id)) // Używa soft delete
-                                               hx-confirm="Czy na pewno chcesz zarchiwizować ten produkt? Zniknie on ze sklepu, ale pozostanie w systemie."
-                                               hx-target="closest tr" hx-swap="outerHTML" // Usunie wiersz z widoku
-                                               class="admin-action-button text-gray-500 hover:text-gray-800" title="Archiwizuj" {
-                                            // Ikona archiwizacji (pudełko)
-                                            svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5" {
-                                                path d="M3.5 3.75a.75.75 0 00-1.5 0v1.5c0 .414.336.75.75.75h13.5a.75.75 0 00.75-.75v-1.5a.75.75 0 00-1.5 0V5H4V3.75z" {}
-                                                path "fill-rule"="evenodd" d="M5.5 6.4v1.528A2.249 2.249 0 007.75 10h4.5A2.25 2.25 0 0014.5 7.928V6.4H5.5zm1.25 1.528a.75.75 0 01.75-.75h4.5a.75.75 0 01.75.75v5.322a.75.75 0 01-.75.75h-4.5a.75.75 0 01-.75-.75V7.928z" "clip-rule"="evenodd" {}
-                                            }
-                                        }
-
-                                    } @else {
-                                        // Akcje dla produktów, które SĄ zarchiwizowane
-
-                                        // Przycisk USUŃ TRWALE
-                                        button hx-delete=(format!("/api/products/{}/permanent", product.id)) // Nowy endpoint
-                                               hx-confirm="UWAGA! Czy na pewno chcesz TRWALE usunąć ten produkt? Operacji nie można cofnąć."
-                                               hx-target="closest tr" hx-swap="outerHTML"
-                                               class="admin-action-button text-red-600 hover:text-red-800" title="Usuń trwale" {
-                                            svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5" {
-                                                path "fill-rule"="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" "clip-rule"="evenodd" {}
-                                            }
-                                        }
-                                    }
-                                }                            }
+                                (render_admin_product_list_row_maud(product, &params))
+                            }
                         }
                     }
                 }
@@ -4576,7 +4523,7 @@ pub async fn news_page_htmx_handler(
         sort_by: Some("created_at".to_string()),
         order: Some("desc".to_string()),
         limit: Some(8),
-        status: Some(ProductStatus::Available.as_ref().to_string()),
+        status: None,
         ..Default::default()
     };
 
@@ -4965,4 +4912,165 @@ pub async fn handler_404(headers: HeaderMap) -> impl IntoResponse {
         .await
         .unwrap_or_else(|err| err.into_response());
     (StatusCode::NOT_FOUND, response)
+}
+
+pub async fn forgot_password_form_handler(headers: HeaderMap) -> Result<Response, AppError> {
+    tracing::info!("MAUD: Żądanie strony 'Zapomniałem hasła'");
+    let page_content = html! {
+        div ."min-h-[60vh] flex items-center justify-center p-4 bg-gray-100" {
+            div ."w-full max-w-md bg-white p-8 rounded-xl shadow-lg border border-gray-200" {
+                div ."text-center mb-6" {
+                    h2 ."text-2xl font-bold text-gray-800" { "Resetowanie hasła" }
+                    p ."text-sm text-gray-500 mt-2" { "Podaj adres e-mail powiązany z Twoim kontem, a wyślemy Ci link do zresetowania hasła." }
+                }
+
+                div #forgot-password-messages ."mb-4 text-sm min-h-[1.25em]";
+
+                form #forgot-password-form
+                    hx-post="/api/auth/forgot-password"
+                    hx-target="#forgot-password-messages"
+                    hx-swap="innerHTML"
+                    class="space-y-6" {
+
+                    div {
+                        label for="email" ."block text-sm font-medium text-gray-700" { "Adres e-mail" }
+                        input #email name="email" type="email" autocomplete="email" required
+                               class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-pink-500";
+                    }
+                    div {
+                        button type="submit"
+                               class="w-full flex justify-center py-3 px-4 border rounded-lg text-sm font-medium text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-transform hover:scale-105" {
+                            "Wyślij link do resetu hasła"
+                        }
+                    }
+                }
+            }
+        }
+    };
+    build_response(headers, page_content).await
+}
+
+#[derive(Deserialize)]
+pub struct ResetTokenQuery {
+    pub token: String,
+}
+
+pub async fn reset_password_form_handler(
+    headers: HeaderMap,
+    State(app_state): State<AppState>,
+    Query(query): Query<ResetTokenQuery>,
+) -> Result<Response, AppError> {
+    let token_uuid = match Uuid::from_str(&query.token) {
+        Ok(uuid) => uuid,
+        Err(_) => {
+            return Err(AppError::InvalidToken(
+                "Format tokenu jest nieprawidłowy".into(),
+            ));
+        }
+    };
+
+    // Walidacja tokenu
+    match sqlx::query_as::<_, PasswordResetToken>("SELECT * FROM password_resets WHERE token = $1")
+        .bind(token_uuid)
+        .fetch_optional(&app_state.db_pool)
+        .await?
+    {
+        Some(token_data) if token_data.expires_at > Utc::now() => {
+            // Token jest poprawny i nie wygasł - renderuj formularz
+            let page_content = html! {
+                div ."min-h-[60vh] flex items-center justify-center p-4 bg-gray-100" {
+                    div ."w-full max-w-md bg-white p-8 rounded-xl shadow-lg" {
+                        h2 ."text-2xl font-bold text-center mb-6" { "Ustaw nowe hasło" }
+                        div #reset-password-messages ."mb-4 text-sm min-h-[1.25em]";
+                        form #reset-password-form
+                            hx-post="/api/auth/reset-password"
+                            hx-target="#reset-password-messages"
+                            hx-swap="innerHTML" {
+                            input type="hidden" name="token" value=(query.token);
+                            div class="space-y-4" {
+                                div {
+                                    label for="new_password" ."block text-sm font-medium" { "Nowe hasło" }
+                                    input #new_password name="new_password" type="password" required minlength="8" class="mt-1 block w-full px-3 py-2 border rounded-md";
+                                }
+                                div {
+                                    label for="confirm_password" ."block text-sm font-medium" { "Potwierdź nowe hasło" }
+                                    input #confirm_password name="confirm_password" type="password" required class="mt-1 block w-full px-3 py-2 border rounded-md";
+                                }
+                                button type="submit" class="w-full py-3 px-4 border rounded-lg text-white bg-pink-600 hover:bg-pink-700" { "Zmień hasło" }
+                            }
+                        }
+                    }
+                }
+            };
+            build_response(headers, page_content).await
+        }
+        _ => {
+            // Token nie istnieje lub wygasł
+            let error_content = html! {
+                p class="text-red-600 text-center" { "Ten link do resetowania hasła jest nieprawidłowy lub wygasł. Poproś o nowy." }
+            };
+            build_response(headers, error_content).await
+        }
+    }
+}
+
+pub fn render_admin_product_list_row_maud(
+    product: &Product,
+    params: &ListingParams, // Potrzebne do zbudowania poprawnych linków edycji
+) -> Markup {
+    let params_for_edit_links = params.to_query_string_with_skips(&["offset"]);
+    html! {
+        // Cały kod dla `<tr>` jest teraz tutaj
+        tr id=(format!("product-row-{}", product.id)) ."hover:bg-pink-50/30 transition-colors duration-150 ease-in-out" {
+            td class="admin-td-image" {
+                a href=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
+                   hx-get=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
+                   hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
+                   title="Edytuj produkt" class="block w-12 h-12" {
+                    @if let Some(image_url) = product.images.get(0) {
+                        img src=(image_url) alt=(product.name) class="h-full w-full rounded-md object-cover shadow-sm hover:shadow-md transition-shadow";
+                    } @else {
+                        div class="h-full w-full rounded-md bg-gray-200 flex items-center justify-center text-xs text-gray-400" { "N/A" }
+                    }
+                }
+            }
+            td class="admin-td font-medium text-gray-900" {
+                a href=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
+                   hx-get=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
+                   hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
+                   class="hover:text-pink-700 hover:underline" {
+                    (product.name)
+                }
+            }
+            td class="admin-td text-gray-700" { (format_price_maud(product.price)) }
+            td class="admin-td" {
+                span class=(get_status_badge_classes(product.status.clone())) { (product.status.to_string()) }
+            }
+            td class="admin-td text-gray-600" { (product.category.to_string()) }
+            td class="admin-td text-gray-500 text-xs" { (product.created_at.format("%Y-%m-%d %H:%M").to_string()) }
+            td class="admin-td text-right space-x-2 whitespace-nowrap" {
+                @if product.status != ProductStatus::Archived {
+                    a href=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
+                        hx-get=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
+                        hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
+                        class="admin-action-button text-indigo-600 hover:text-indigo-800" title="Edytuj" {
+                            svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5" { path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z"; }
+                    }
+                    button hx-delete=(format!("/api/products/{}", product.id))
+                           hx-confirm="Czy na pewno chcesz zarchiwizować ten produkt? Zniknie on ze sklepu, ale pozostanie w systemie."
+                           hx-target="closest tr" hx-swap="outerHTML"
+                           class="admin-action-button text-gray-500 hover:text-gray-800" title="Archiwizuj" {
+                        svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5" { path d="M3.5 3.75a.75.75 0 00-1.5 0v1.5c0 .414.336.75.75.75h13.5a.75.75 0 00.75-.75v-1.5a.75.75 0 00-1.5 0V5H4V3.75z"; path fill-rule="evenodd" d="M5.5 6.4v1.528A2.249 2.249 0 007.75 10h4.5A2.25 2.25 0 0014.5 7.928V6.4H5.5zm1.25 1.528a.75.75 0 01.75-.75h4.5a.75.75 0 01.75.75v5.322a.75.75 0 01-.75.75h-4.5a.75.75 0 01-.75-.75V7.928z" clip-rule="evenodd"; }
+                    }
+                } @else {
+                    button hx-delete=(format!("/api/products/{}/permanent", product.id))
+                           hx-confirm="UWAGA! Czy na pewno chcesz TRWALE usunąć ten produkt? Operacji nie można cofnąć."
+                           hx-target="closest tr" hx-swap="outerHTML"
+                           class="admin-action-button text-red-600 hover:text-red-800" title="Usuń trwale" {
+                        svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5" { path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clip-rule="evenodd"; }
+                    }
+                }
+            }
+        }
+    }
 }

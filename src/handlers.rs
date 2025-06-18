@@ -7,16 +7,19 @@ use axum::{
     http::{HeaderMap, StatusCode},
 };
 use axum_extra::TypedHeader;
+use chrono::{Duration, Utc};
 use maud::{Markup, html};
 use serde_json::{Value, json};
 use sqlx::{Postgres, QueryBuilder};
 
 use crate::cart_utils::build_cart_details_response;
 use crate::cloudinary::{delete_image_from_cloudinary, extract_public_id_from_url};
-use crate::email_service::send_order_confirmation_email;
+use crate::email_service::{send_order_confirmation_email, send_password_reset_email};
 use crate::errors::AppError;
 use crate::filters::{ListingParams, OrderListingParams};
-use crate::htmx_handlers::{render_checkout_error_page_maud, render_thank_you_page_maud};
+use crate::htmx_handlers::{
+    render_admin_product_list_row_maud, render_checkout_error_page_maud, render_thank_you_page_maud,
+};
 use crate::middleware::OptionalTokenClaims;
 use crate::models::Product;
 use crate::models::*;
@@ -245,7 +248,10 @@ pub async fn list_products(
     };
     let order_direction = params.order();
 
-    data_builder.push(format!(" ORDER BY {} {}", sort_by_column, order_direction));
+    data_builder.push(format!(
+        " ORDER BY {} {}, id ASC",
+        sort_by_column, order_direction
+    ));
     data_builder.push(" LIMIT ").push_bind(limit);
     data_builder.push(" OFFSET ").push_bind(offset);
 
@@ -644,8 +650,12 @@ pub async fn archivize_product_handler(
     State(app_state): State<AppState>,
     Path(product_id): Path<Uuid>,
     claims: TokenClaims,
-) -> Result<(StatusCode, HeaderMap), AppError> {
-    tracing::info!("Obsłużono żądanie SOFT DELETE /api/products/{}", product_id);
+    Query(params): Query<ListingParams>,
+) -> Result<Markup, AppError> {
+    tracing::info!(
+        "Obsłużono żądanie SOFT DELETE / ARCHIVIZE /api/products/{}",
+        product_id
+    );
 
     if claims.role != Role::Admin {
         return Err(AppError::UnauthorizedAccess(
@@ -653,59 +663,35 @@ pub async fn archivize_product_handler(
         ));
     }
 
-    // ZMIANA: Zamiast usuwać, aktualizujemy status na "Archived"
-    let result = sqlx::query(
-        r#"
-            UPDATE products
-            SET status = $1, updated_at = NOW()
-            WHERE id = $2
-        "#,
-    )
-    .bind(ProductStatus::Archived) // Nowy status
-    .bind(product_id)
-    .execute(&app_state.db_pool)
-    .await;
+    // Aktualizujemy status na "Archived"
+    let update_result =
+        sqlx::query("UPDATE products SET status = $1, updated_at = NOW() WHERE id = $2")
+            .bind(ProductStatus::Archived)
+            .bind(product_id)
+            .execute(&app_state.db_pool)
+            .await?;
 
-    match result {
-        Ok(query_result) => {
-            if query_result.rows_affected() == 0 {
-                tracing::warn!(
-                    "ARCHIVIZE: Nie znaleziono produktu do archiwizacji o ID {}",
-                    product_id
-                );
-                // Mimo to zwracamy sukces, aby UI się odświeżyło
-            } else {
-                tracing::info!("Zarchiwizowano produkt o ID: {}", product_id);
-            }
-
-            let mut headers = HeaderMap::new();
-            // Zawsze wysyłaj trigger do przeładowania listy
-            headers.insert(
-                "HX-Trigger",
-                HeaderValue::from_static("reloadAdminProductList"),
-            );
-
-            let toast_payload = json!({
-                "showMessage": {
-                    "message": "Produkt zostal pomyslnie zarchiwizowany.", // Zmieniony komunikat
-                    "type": "success"
-                }
-            });
-            if let Ok(val) = HeaderValue::from_str(&toast_payload.to_string()) {
-                headers.insert("HX-Trigger", val);
-            }
-            Ok((StatusCode::OK, headers))
-        }
-        Err(err) => {
-            // Ten błąd teraz jest mało prawdopodobny, chyba że ID jest złe, ale na wszelki wypadek.
-            tracing::error!(
-                "ARCHIVIZE: Błąd bazy danych podczas archiwizacji produktu {}: {:?}",
-                product_id,
-                err
-            );
-            Err(AppError::SqlxError(err))
-        }
+    if update_result.rows_affected() == 0 {
+        tracing::warn!(
+            "ARCHIVIZE: Nie znaleziono produktu o ID {} do zarchiwizowania",
+            product_id
+        );
+        return Err(AppError::NotFound); // Zwracamy błąd, jeśli produkt nie istnieje
     }
+
+    // Pobieramy zaktualizowany produkt z bazy, aby mieć świeże dane
+    let updated_product = sqlx::query_as::<_, Product>("SELECT * FROM products WHERE id = $1")
+        .bind(product_id)
+        .fetch_one(&app_state.db_pool)
+        .await?;
+
+    tracing::info!("Zarchiwizowano produkt o ID: {}", product_id);
+
+    // Renderujemy i zwracamy HTML dla zaktualizowanego wiersza
+    Ok(render_admin_product_list_row_maud(
+        &updated_product,
+        &params,
+    ))
 }
 
 // ZMIANA: Nowa funkcja do trwałego usuwania produktów
@@ -2495,4 +2481,112 @@ pub async fn fetch_order_details_service(
         order,
         items: items_details_public,
     })
+}
+
+pub async fn forgot_password_handler(
+    State(app_state): State<AppState>,
+    Form(payload): Form<ForgotPasswordPayload>,
+) -> Result<Markup, AppError> {
+    // Zawsze zwracamy ten sam komunikat, aby nie ujawniać, czy e-mail istnieje w bazie.
+    let success_message = "Jeśli konto powiązane z tym adresem e-mail istnieje, wysłaliśmy na nie link do zresetowania hasła.";
+
+    if let Some(user) = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
+        .bind(&payload.email)
+        .fetch_optional(&app_state.db_pool)
+        .await?
+    {
+        // Użytkownik istnieje, kontynuujemy logikę
+        let mut tx = app_state.db_pool.begin().await?;
+
+        // Usuń stare tokeny tego użytkownika, aby uniknąć bałaganu
+        sqlx::query("DELETE FROM password_resets WHERE user_id = $1")
+            .bind(user.id)
+            .execute(&mut *tx)
+            .await?;
+
+        // Wygeneruj nowy token
+        let token = Uuid::new_v4();
+        let expires_at = Utc::now() + Duration::minutes(30);
+
+        sqlx::query("INSERT INTO password_resets (token, user_id, expires_at) VALUES ($1, $2, $3)")
+            .bind(token)
+            .bind(user.id)
+            .bind(expires_at)
+            .execute(&mut *tx)
+            .await?;
+
+        tx.commit().await?;
+
+        // Wyślij e-mail
+        if let Err(e) = send_password_reset_email(&app_state, &user.email, &token.to_string()).await
+        {
+            tracing::error!(
+                "Nie udało się wysłać e-maila z resetem hasła do {}: {:?}",
+                user.email,
+                e
+            );
+        }
+    }
+
+    // Niezależnie od tego, czy użytkownik istniał, zwracamy ten sam komunikat
+    Ok(html! {
+        p class="text-green-700" { (success_message) }
+    })
+}
+
+pub async fn reset_password_handler(
+    State(app_state): State<AppState>,
+    Form(payload): Form<ResetPasswordPayload>,
+) -> Result<(HeaderMap, Markup), AppError> {
+    payload.validate()?; // Walidacja czy hasła pasują i mają min. 6 znaków
+
+    let token_uuid = Uuid::from_str(&payload.token)
+        .map_err(|_| AppError::InvalidToken("Format tokenu jest nieprawidłowy.".into()))?;
+
+    let mut tx = app_state.db_pool.begin().await?;
+
+    // Znajdź token i upewnij się, że jest ważny
+    let token_data = sqlx::query_as::<_, PasswordResetToken>(
+        "SELECT * FROM password_resets WHERE token = $1 FOR UPDATE",
+    )
+    .bind(token_uuid)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::InvalidToken("Token nie istnieje.".into()))?;
+
+    if token_data.expires_at <= Utc::now() {
+        return Err(AppError::TokenExpired);
+    }
+
+    // Zmień hasło
+    let new_password_hash = hash_password(&payload.new_password)?;
+    sqlx::query("UPDATE users SET password_hash = $1 WHERE id = $2")
+        .bind(new_password_hash)
+        .bind(token_data.user_id)
+        .execute(&mut *tx)
+        .await?;
+
+    // Usuń zużyty token
+    sqlx::query("DELETE FROM password_resets WHERE token = $1")
+        .bind(token_uuid)
+        .execute(&mut *tx)
+        .await?;
+
+    tx.commit().await?;
+
+    // Sukces! Przekieruj na logowanie z komunikatem.
+    let mut headers = HeaderMap::new();
+    let trigger_payload = json!({
+        "showMessage": {
+            "message": "Hasło zostało pomyślnie zmienione! Możesz się teraz zalogować.",
+            "type": "success"
+        }
+    });
+    headers.insert(
+        "HX-Trigger",
+        HeaderValue::from_str(&trigger_payload.to_string()).unwrap(),
+    );
+    headers.insert("HX-Location", HeaderValue::from_static("/htmx/logowanie"));
+
+    Ok((headers, html! {}))
 }

@@ -176,3 +176,39 @@ fn render_order_confirmation_email_html(order_details: &OrderDetailsResponse) ->
         }
     }
 }
+
+pub async fn send_password_reset_email(
+    app_state: &AppState,
+    recipient_email: &str,
+    reset_token: &str,
+) -> Result<(), AppError> {
+    let reset_link = format!("https://localhost:3000/resetuj-haslo?token={}", reset_token); // WAŻNE: Na produkcji zmień localhost:3000 na swój prawdziwy adres URL!
+
+    let email_html_content = html! {
+        // ... (tutaj umieść ładny szablon HTML e-maila) ...
+        h1 { "Resetowanie hasła w mess - all that vintage" }
+        p { "Otrzymaliśmy prośbę o zresetowanie hasła dla Twojego konta." }
+        p { "Jeśli to nie Ty, zignoruj tę wiadomość." }
+        p { "Aby ustawić nowe hasło, kliknij w poniższy link. Link jest ważny przez 30 minut:" }
+        a href=(reset_link) { "Ustaw nowe hasło" }
+    };
+
+    let resend = Resend::new(&app_state.resend_api_key);
+    let sender_formatted = format!(
+        "mess - all that vintage <{}>",
+        env::var("ADMIN_EMAIL").unwrap()
+    );
+    let params = CreateEmailBaseOptions::new(
+        &sender_formatted,
+        vec![recipient_email.to_string()],
+        "Resetowanie hasła - mess - all that vintage",
+    )
+    .with_html(&email_html_content.into_string());
+
+    resend.emails.send(params).await.map_err(|e| {
+        tracing::error!("Błąd API Resend przy resecie hasła: {:?}", e);
+        AppError::InternalServerError("Błąd wysyłki e-maila".to_string())
+    })?;
+
+    Ok(())
+}

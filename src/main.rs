@@ -245,6 +245,11 @@ async fn main() {
             "/htmx/zamowienie/dziekujemy/{order_id}",
             get(payment_finalization_page_handler),
         )
+        .route("/api/auth/forgot-password", post(forgot_password_handler))
+        .route("/api/auth/reset-password", post(reset_password_handler))
+        .route("/zapomnialem-hasla", get(forgot_password_form_handler))
+        .route("/htmx/zapomnialem-hasla", get(forgot_password_form_handler))
+        .route("/resetuj-haslo", get(reset_password_form_handler))
         .nest_service("/static", ServeDir::new("static"))
         .fallback(handler_404)
         .layer(TraceLayer::new_for_http())

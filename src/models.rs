@@ -543,3 +543,24 @@ where
     }
     deserializer.deserialize_any(I64Visitor)
 }
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct PasswordResetToken {
+    pub token: Uuid,
+    pub user_id: Uuid,
+    pub expires_at: DateTime<Utc>,
+}
+
+#[derive(Deserialize)]
+pub struct ForgotPasswordPayload {
+    pub email: String,
+}
+
+#[derive(Deserialize, Validate)]
+pub struct ResetPasswordPayload {
+    pub token: String,
+    #[validate(length(min = 6, message = "Hasło musi mieć co najmniej 6 znaków."))]
+    pub new_password: String,
+    #[validate(must_match(other = "new_password", message = "Hasła muszą być takie same."))]
+    pub confirm_password: String,
+}
