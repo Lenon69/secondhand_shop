@@ -216,6 +216,10 @@ async fn main() {
             "/htmx/moje-konto/zamowienie-szczegoly/{order_id}",
             get(my_order_details_htmx_handler),
         )
+        .route(
+            "/moje-konto/zamowienie-szczegoly/{order_id}",
+            get(my_order_details_htmx_handler),
+        )
         .route("/admin", get(admin_dashboard_htmx_handler))
         .route("/htmx/admin", get(admin_dashboard_htmx_handler))
         .route(

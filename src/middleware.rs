@@ -12,23 +12,41 @@ impl FromRequestParts<AppState> for TokenClaims {
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
         // Wyciągnij TypedHeader<Authorization<Bearer>>
-        // To automatycznie sprawdzi, czy nagłówek istnieje i czy jest poprawnym Bearer tokenem.
-        let TypedHeader(Authorization(bearer)) = parts
-            .extract::<TypedHeader<Authorization<Bearer>>>()
-            .await
-            .map_err(|e| {
-                // `axum_extra::extract::typed_header::TypedHeaderRejection` ma różne warianty
-                // Możemy je zmapować na bardziej szczegółowe błędy AppError
-                tracing::warn!("Failed to extract Bearer token header: {:?}", e);
-                AppError::MissingToken("Brak lub niepoprawny nagłówek Authorization".into())
-            })?;
+        let bearer_result = parts.extract::<TypedHeader<Authorization<Bearer>>>().await;
+
+        let bearer = match bearer_result {
+            Ok(TypedHeader(Authorization(bearer))) => bearer,
+            Err(e) => {
+                // Błąd ekstrakcji nagłówka - to tutaj dodamy naszą logikę
+                tracing::warn!("Nie udało się wyekstrahować nagłówka Bearer: {:?}", e);
+
+                // Sprawdź, czy przeglądarka oczekuje strony HTML
+                if let Some(accept_header) = parts.headers.get(axum::http::header::ACCEPT) {
+                    if let Ok(accept_str) = accept_header.to_str() {
+                        if accept_str.contains("text/html") {
+                            // TAK, to jest pełne żądanie strony. Przekieruj na logowanie.
+                            tracing::info!(
+                                "Wykryto żądanie HTML bez tokenu. Przekierowuję na /logowanie."
+                            );
+                            return Err(AppError::RedirectToLogin);
+                        }
+                    }
+                }
+
+                // Jeśli to nie jest żądanie HTML (np. API, HTMX), zwróć standardowy błąd JSON.
+                return Err(AppError::MissingToken(
+                    "Brak lub niepoprawny nagłówek Authorization".into(),
+                ));
+            }
+        };
 
         let token = bearer.token();
 
-        // Zweryfikuj token
-        // verify_jwt powinno przyjmować sekret JWT z AppState
+        // Weryfikacja tokenu pozostaje bez zmian
         let claims = verify_jwt(token, &state.jwt_secret).map_err(|e| {
-            tracing::error!("Invalid token: {:?}", e);
+            tracing::error!("Nieprawidłowy token: {:?}", e);
+            // Tutaj również moglibyśmy dodać logikę przekierowania dla wygasłych tokenów
+            // jeśli zażądanoby strony HTML, ale na razie zostawmy to prostsze.
             AppError::InvalidToken("Token jest nieprawidłowy lub wygasł".into())
         })?;
 
@@ -40,9 +58,6 @@ impl FromRequestParts<AppState> for TokenClaims {
 pub struct OptionalTokenClaims(pub Option<TokenClaims>);
 
 impl FromRequestParts<AppState> for OptionalTokenClaims {
-    // Dla opcjonalnego ekstraktora, odrzucenie (Rejection) zazwyczaj nie powinno się zdarzyć,
-    // chyba że wystąpi jakiś wewnętrzny błąd. Jeśli token jest nieobecny lub nieprawidłowy,
-    // po prostu zwracamy Ok(OptionalTokenClaims(None)).
     type Rejection = AppError; // Można też użyć Infallible, jeśli nie ma ścieżki błędu
 
     async fn from_request_parts(

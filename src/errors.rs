@@ -1,6 +1,6 @@
 use axum::{
     extract::multipart::MultipartError,
-    http::{HeaderMap, StatusCode},
+    http::{HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Json, Response},
 };
 
@@ -62,6 +62,9 @@ pub enum AppError {
 
     #[error("Konflikt: {0}")]
     ConflictWithHeaders(String, HeaderMap),
+
+    #[error("Użytkownik nie jest zalogowany, przekierowanie")]
+    RedirectToLogin,
 }
 
 impl IntoResponse for AppError {
@@ -114,6 +117,11 @@ impl IntoResponse for AppError {
                     (StatusCode::CONFLICT, Json(json!({ "error": message}))).into_response();
                 response.headers_mut().extend(headers);
                 return response;
+            }
+            AppError::RedirectToLogin => {
+                let mut headers = HeaderMap::new();
+                headers.insert("Location", HeaderValue::from_static("/"));
+                return (StatusCode::SEE_OTHER, headers).into_response();
             }
         };
 

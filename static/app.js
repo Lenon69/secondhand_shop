@@ -40,18 +40,20 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
 
-    // Pobieramy ścieżkę żądania
-    const requestPath = event.detail.requestConfig.path;
-
-    // Sprawdzamy, czy to było żądanie dodania do koszyka
-    const isAddToCartRequest = requestPath.startsWith("/htmx/cart/add/");
-
-    // Sprawdzamy, czy to było żądanie przywrócenia historii
+    // KROK 1: Pobieramy dane o żądaniu, w tym metodę (verb)
+    const requestConfig = event.detail.requestConfig;
+    const requestPath = requestConfig.path;
+    const requestVerb = requestConfig.verb.toLowerCase(); // np. "get", "post", "delete"
     const isHistoryRestore =
-      event.detail.requestConfig.headers["HX-History-Restore-Request"];
+      requestConfig.headers["HX-History-Restore-Request"];
 
-    // Przewijaj do góry tylko, jeśli to NIE jest nawigacja z historii ORAZ NIE jest to dodanie do koszyka.
-    if (!isHistoryRestore && !isAddToCartRequest) {
+    const isAddToCartRequest = requestPath.startsWith("/htmx/cart/add/");
+    const isOrderDeleteRequest =
+      requestVerb === "delete" &&
+      requestPath.startsWith("/api/orders/") &&
+      requestPath.endsWith("/permanent");
+
+    if (!isHistoryRestore && !isAddToCartRequest && !isOrderDeleteRequest) {
       setTimeout(() => {
         window.scrollTo({ top: 0, left: 0, behavior: "auto" });
       }, 0);

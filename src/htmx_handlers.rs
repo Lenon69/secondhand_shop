@@ -3626,7 +3626,7 @@ pub async fn admin_products_list_htmx_handler(
         crate::handlers::list_products(State(app_state.clone()), Query(params.clone())).await?;
     let paginated_response: PaginatedProductsResponse = paginated_response_json.0;
 
-    let params_for_edit_links = params.to_query_string_with_skips(&["offset"]);
+    let _params_for_edit_links = params.to_query_string_with_skips(&["offset"]);
 
     let page_content = html! {
         div #admin-product-list-container ."p-1"
