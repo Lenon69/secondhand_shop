@@ -121,6 +121,8 @@ pub struct DetailViewParams {
     pub return_url: Option<String>,
     #[serde(default)]
     pub return_text: Option<String>,
+    #[serde(default)]
+    pub return_target: Option<String>,
 }
 
 fn format_price_maud(price: i64) -> String {
@@ -278,44 +280,44 @@ pub async fn get_product_detail_htmx_handler(
                             }
                         }
                         // --- Logika linku powrotnego ---
-                            div ."mt-4 text-center sm:text-left" {
-                                // KROK 1: Sprawdź, czy przekazano nowe, precyzyjne parametry powrotu
-                                @if let (Some(url), Some(text)) = (&query_params.return_url, &query_params.return_text) {
-                                    a href=(url.replace("/htmx", "")) // Tworzymy "ładny" URL dla paska adresu
-                                       hx-get=(url)                   // Używamy pełnego URL-a HTMX do żądania
-                                       hx-target="#admin-content"     // WAŻNE: Wracamy do kontenera admina
+                        div ."mt-4 text-center sm:text-left" {
+                            // --- GŁÓWNY, PRECYZYJNY LINK POWROTNY ---
+                            // Ten link jest generowany, gdy przechodzimy np. ze szczegółów zamówienia.
+                            @if let (Some(url), Some(text)) = (&query_params.return_url, &query_params.return_text) {
+                                a href=(url.replace("/htmx", ""))
+                                   hx-get=(url)
+                                   hx-target=(query_params.return_target.as_deref().unwrap_or("#content"))
+                                   hx-swap="innerHTML"
+                                   hx-push-url=(url.replace("/htmx", ""))
+                                   class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
+                                    "← " (text)
+                                }
+                            }
+                            // --- FALLBACK (LOGIKA ZASTĘPCZA), GDY NIE MA PRECYZYJNEGO LINKU ---
+                            @else {
+                                // PRIORYTET 1: Powrót do widoku z zachowanymi filtrami.
+                                // Sprawdzamy, czy `return_params` istnieje i nie jest pustym stringiem.
+                                @if let Some(qs_val) = return_query_params_str_rust.as_deref().filter(|s| !s.is_empty()) {
+                                    a href=(format!("/kategoria?{}", qs_val))
+                                       hx-get=(format!("/htmx/products?{}", qs_val))
+                                       hx-target="#content"
                                        hx-swap="innerHTML"
-                                       hx-push-url=(url.replace("/htmx", ""))
+                                       hx-push-url=(format!("/kategoria?{}", qs_val))
                                        class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
-                                        "← " (text)
+                                        "← Wróć do poprzedniego widoku"
                                     }
                                 }
-                                // KROK 2: Jeśli nie, użyj starej logiki (fallback)
+                                // PRIORYTET 2: Jeśli nie ma filtrów, wróć do ogólnej kategorii płci produktu.
+                                // Ten blok wykona się, jeśli `return_params` to `None` lub `Some("")`.
                                 @else {
-                                    @if let Some(qs_val) = &return_query_params_str_rust {
-                                        @if !qs_val.is_empty() {
-                                            // Logika powrotu do listy produktów (bez zmian)
-                                            a href=(format!("/kategoria?{}", qs_val))
-                                               hx-get=(format!("/htmx/products?{}", qs_val))
-                                               hx-target="#content" hx-swap="innerHTML"
-                                               hx-push-url=(format!("/kategoria?{}", qs_val))
-                                               class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
-                                                "← Wróć do poprzedniego widoku"
-                                            }
-                                        } @else {
-                                            // Logika powrotu do kategorii płci (bez zmian)
-                                            @if product.gender == crate::models::ProductGender::Damskie {
-                                                a href="/dla-niej" hx-get="/htmx/dla-niej" hx-target="#content" hx-swap="innerHTML" hx-push-url="/dla-niej" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
-                                                    "← Wróć do " (product.gender.to_string())
-                                                }
-                                            } @else if product.gender == crate::models::ProductGender::Meskie {
-                                                // ... itd.
-                                            }
+                                    @if product.gender == crate::models::ProductGender::Damskie {
+                                        a href="/dla-niej" hx-get="/htmx/dla-niej" hx-target="#content" hx-swap="innerHTML" hx-push-url="/dla-niej" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
+                                            "← Wróć do " (product.gender.to_string())
                                         }
-                                    } @else {
-                                        // Logika powrotu do kategorii płci (bez zmian)
-                                        @if product.gender == crate::models::ProductGender::Damskie {
-                                            // ... itd.
+                                    } @else if product.gender == crate::models::ProductGender::Meskie {
+                                        // UZUPEŁNIONA LOGIKA DLA MĘSKICH PRODUKTÓW
+                                        a href="/dla-niego" hx-get="/htmx/dla-niego" hx-target="#content" hx-swap="innerHTML" hx-push-url="/dla-niego" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
+                                            "← Wróć do " (product.gender.to_string())
                                         }
                                     }
                                 }
@@ -324,7 +326,9 @@ pub async fn get_product_detail_htmx_handler(
                     }
                 }
             }
-        };
+        }
+    };
+
     build_response(headers, page_content).await
 }
 
@@ -1669,9 +1673,9 @@ pub async fn contact_page_handler(headers: HeaderMap) -> Result<Response, AppErr
     let shop_name = "mess - all that vintage";
     let contact_email = "contact@messvintage.com";
     let contact_phone = Some("+48 603 117 793");
-    let company_full_name = "mess - all that vintage";
-    let company_address_line1 = "ul. Piotrkowska 104";
-    let company_address_line2 = "90-001 Łódź";
+    // let company_full_name = "mess - all that vintage";
+    // let company_address_line1 = "ul. Piotrkowska 104";
+    // let company_address_line2 = "90-001 Łódź";
     // Możesz dodać linki do mediów społecznościowych
     let social_facebook_url = Some("https://www.facebook.com/megjoni");
     let social_instagram_url = Some("https://www.instagram.com/meg.joni");
@@ -1697,8 +1701,8 @@ pub async fn contact_page_handler(headers: HeaderMap) -> Result<Response, AppErr
     };
     let phone_hours_text = "Poniedziałek - Sobota w godzinach 10:00 - 23:00"; // Przykładowe godziny
 
-    let address_heading_text = "Adres korespondencyjny";
-    // let address_note_text = "(Uwaga: nie prowadzimy sprzedaży stacjonarnej pod tym adresem)"; // Jeśli dotyczy
+    // let address_heading_text = "Adres korespondencyjny";
+    // // let address_note_text = "(Uwaga: nie prowadzimy sprzedaży stacjonarnej pod tym adresem)"; // Jeśli dotyczy
 
     let social_media_heading_text = "Znajdź nas w sieci";
 
@@ -3325,29 +3329,9 @@ pub async fn my_order_details_htmx_handler(
     );
 
     // 1. Pobierz zamówienie z bazy danych
-    // Upewnij się, że SELECT zawiera wszystkie pola zdefiniowane w strukturze Order
     let order_opt = sqlx::query_as::<_, Order>(
         r#"
-            SELECT
-                id,
-                user_id,
-                order_date,
-                status,
-                total_price,
-                shipping_first_name,
-                shipping_last_name,
-                shipping_address_line1,
-                shipping_address_line2,
-                shipping_city,
-                shipping_postal_code,
-                shipping_country,
-                shipping_phone,
-                shipping_method_name,
-                payment_method,
-                guest_email,
-                guest_session_id,
-                created_at,
-                updated_at
+            SELECT *
             FROM orders
             WHERE id = $1
         "#,
@@ -3516,25 +3500,44 @@ pub async fn my_order_details_htmx_handler(
             } @else {
                 ul role="list" ."divide-y divide-gray-200 border-b border-gray-200" {
                     @for item_detail in &items_details_public {
+                        // Przygotowujemy parametry dla linku powrotnego, tak jak w panelu admina
+                        @let return_url_unencoded = format!("/htmx/moje-konto/zamowienie-szczegoly/{}", order_id);
+                        @let return_url_encoded = urlencoding::encode(&return_url_unencoded);
+                        @let return_text_encoded = urlencoding::encode("Wróć do szczegółów zamówienia");
+
                         li ."py-4 flex items-center" {
-                            @if !item_detail.product.images.is_empty() {
-                                img src=(item_detail.product.images[0]) alt=(item_detail.product.name)
-                                     class="h-16 w-16 sm:h-20 sm:w-20 flex-shrink-0 rounded-md border border-gray-200 object-cover mr-4";
-                            } @else {
-                                div class="h-16 w-16 sm:h-20 sm:w-20 flex-shrink-0 rounded-md border border-gray-200 bg-gray-100 flex items-center justify-center text-xs text-gray-400 mr-4" {
-                                    "Brak zdjęcia"
+                            // KROK 1: Opakowujemy obrazek w klikalny link
+                            a href=(format!("/produkty/{}", item_detail.product.id))
+                               hx-get=(format!("/htmx/produkt/{}?return_url={}&return_text={}&return_target=%23content", item_detail.product.id, return_url_encoded, return_text_encoded))
+                               hx-target="#content" // Celujemy w główny kontener strony klienta
+                               hx-swap="innerHTML"
+                               hx-push-url=(format!("/produkty/{}", item_detail.product.id))
+                               class="block group" {
+                                @if !item_detail.product.images.is_empty() {
+                                    img src=(item_detail.product.images[0]) alt=(item_detail.product.name)
+                                         class="h-16 w-16 sm:h-20 sm:w-20 flex-shrink-0 rounded-md border border-gray-200 object-cover mr-4 group-hover:opacity-85 transition-opacity";
+                                } @else {
+                                    div class="h-16 w-16 sm:h-20 sm:w-20 flex-shrink-0 rounded-md border border-gray-200 bg-gray-100 flex items-center justify-center text-xs text-gray-400 mr-4 group-hover:opacity-85 transition-opacity" {
+                                        "Brak zdjęcia"
+                                    }
                                 }
                             }
-                            div ."flex-grow min-w-0" { // min-w-0 dla poprawnego truncate
-                                p ."text-sm font-medium text-gray-900 truncate" { (item_detail.product.name) }
+
+                            div ."flex-grow min-w-0" {
+                                // KROK 2: Opakowujemy nazwę produktu w klikalny link
+                                a href=(format!("/produkty/{}", item_detail.product.id))
+                                   hx-get=(format!("/htmx/produkt/{}?return_url={}&return_text={}&return_target=%23content", item_detail.product.id, return_url_encoded, return_text_encoded))
+                                   hx-target="#content"
+                                   hx-swap="innerHTML"
+                                   hx-push-url=(format!("/produkty/{}", item_detail.product.id))
+                                   class="text-sm font-medium text-pink-600 hover:text-pink-700 hover:underline block truncate" {
+                                    (item_detail.product.name)
+                                }
                                 p ."text-xs text-gray-500" { "Kategoria: " (item_detail.product.category.to_string()) }
-                                // Można dodać więcej informacji o produkcie, np. stan w momencie zakupu
+                                p ."text-xs text-gray-500" { "Stan: " (item_detail.product.condition.to_string()) }
                             }
                             div ."ml-4 text-right" {
-                                p ."text-sm text-gray-700" { "Cena: " (format_price_maud(item_detail.price_at_purchase)) }
-                                // Jeśli masz ilość (quantity), tutaj byłoby:
-                                // p ."text-xs text-gray-500" { "Ilość: " (item_detail.quantity) }
-                                // p ."text-sm font-semibold text-gray-900" { "Suma: " (format_price_maud(item_detail.price_at_purchase * item_detail.quantity)) }
+                                p ."text-sm text-gray-700" { "Cena (zakup): " strong{ (format_price_maud(item_detail.price_at_purchase)) } }
                             }
                         }
                     }
@@ -4476,7 +4479,7 @@ pub async fn admin_order_details_htmx_handler(
                                 }
                                 div ."flex-grow min-w-0" {
                                     a href=(format!("/produkty/{}", item_detail.product.id))
-                                       hx-get=(format!("/htmx/produkt/{}?return_url={}&return_text={}", item_detail.product.id, return_url_encoded, return_text_encoded))
+                                       hx-get=(format!("/htmx/produkt/{}?return_url={}&return_text={}&return_target=%23admin-content", item_detail.product.id, return_url_encoded, return_text_encoded))
                                        hx-target="#admin-content"
                                        hx-swap="innerHTML"
                                        hx-push-url=(format!("/produkty/{}", item_detail.product.id))
