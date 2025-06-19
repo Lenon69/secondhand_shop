@@ -176,6 +176,14 @@ async fn main() {
         .route("/checkout", get(checkout_page_handler))
         .route("/htmx/dla-{gender_slug}", get(gender_page_handler))
         .route(
+            "/dla-{gender_slug}/{category_slug}",
+            get(gender_with_category_page_handler),
+        )
+        .route(
+            "/htmx/dla-{gender_slug}/{category_slug}",
+            get(gender_with_category_page_handler),
+        )
+        .route(
             "/htmx/cart/add/{product_id}",
             post(add_item_to_cart_htmx_handler),
         )

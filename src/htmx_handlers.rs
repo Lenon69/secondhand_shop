@@ -1106,6 +1106,126 @@ pub async fn gender_page_handler(
     build_response(headers, page_content).await
 }
 
+// NOWA FUNKCJA do obsługi widoku płci z wybraną kategorią
+pub async fn gender_with_category_page_handler(
+    headers: HeaderMap,
+    State(app_state): State<AppState>,
+    Path((gender_slug, category_slug)): Path<(String, String)>,
+    Query(params): Query<ListingParams>,
+) -> Result<Response, AppError> {
+    tracing::info!(
+        "MAUD: /dla-{}/{} - ładowanie strony płci z wybraną kategorią",
+        gender_slug,
+        category_slug
+    );
+
+    let (current_gender, current_gender_display_name) = match gender_slug.as_str() {
+        "niej" => (ProductGender::Damskie, "Dla niej"),
+        "niego" => (ProductGender::Meskie, "Dla niego"),
+        _ => return Err(AppError::NotFound),
+    };
+
+    let current_category = Category::from_str(&category_slug).map_err(|_| AppError::NotFound)?;
+
+    // Tworzymy parametry do zapytania, ustawiając płeć i kategorię z URL
+    let final_params = ListingParams {
+        gender: Some(current_gender.clone()),
+        category: Some(current_category),
+        limit: params.limit.or(Some(8)),
+        status: None, // Używamy domyślnego filtra (Available, Reserved)
+        // Zachowujemy inne parametry (sortowanie, offset), jeśli przyszły w URL
+        sort_by: params.sort_by,
+        order: params.order,
+        offset: params.offset,
+        ..Default::default()
+    };
+
+    // Reszta funkcji jest identyczna jak w `gender_page_handler`
+    let paginated_response_json =
+        crate::handlers::list_products(State(app_state.clone()), Query(final_params.clone()))
+            .await?;
+    let paginated_response: PaginatedProductsResponse = paginated_response_json.0;
+
+    let categories: Vec<Category> = Category::iter().collect();
+    let filter_query_string_for_initial_grid = build_filter_only_query_string(&final_params);
+    let current_listing_params_qs_for_initial_grid =
+        build_full_query_string_from_params(&final_params);
+
+    let page_content = html! {
+        div ."flex flex-col md:flex-row gap-6" {
+            // --- Przycisk do rozwijania/zwijania kategorii na mobile ---
+            div ."md:hidden p-4 border-b border-gray-200 bg-gray-50" {
+                button type="button"
+                       "@click"="isCategorySidebarOpen = !isCategorySidebarOpen"
+                       class="w-full flex justify-between items-center px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 focus:outline-none font-semibold" {
+                    span { (current_gender_display_name) ": Kategorie" }
+                    svg "x-show"="!isCategorySidebarOpen" class="w-5 h-5 transform transition-transform duration-200" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
+                        path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
+                    }
+                    svg "x-show"="isCategorySidebarOpen" "x-cloak" class="w-5 h-5 transform transition-transform duration-200 rotate-180" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
+                        path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
+                    }
+                }
+            }
+
+            // --- Panel boczny z kategoriami ---
+            aside #category-sidebar
+                  class="w-full md:w-1/4 lg:w-1/5 bg-gray-50 md:p-4 md:border md:border-gray-200 md:rounded-lg md:shadow-sm md:sticky md:top-20 md:self-start transition-all duration-300 ease-in-out hidden md:block"
+                  style="max-height: calc(100vh - 100px); overflow-y: auto;"
+                  x-bind:class="{ '!block': isCategorySidebarOpen }" x-cloak {
+
+                div class="p-4 md:p-0" {
+                    h2 ."text-xl font-semibold mb-4 text-gray-800 hidden md:block" { "Kategorie " (current_gender_display_name) }
+                    nav {
+                        ul ."space-y-1" {
+                            li {
+                                a href="#"
+                                   hx-get=(format!("/htmx/products?gender={}", current_gender.to_string()))
+                                   hx-target="#product-listing-area" "hx-swap"="innerHTML"
+                                   hx-push-url=(format!("/dla-{}", gender_slug))
+                                   "@click"="if (window.innerWidth < 768) isCategorySidebarOpen = false"
+                                   class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
+                                   "_"="on htmx:afterSwap remove .font-bold .text-pink-700 from #category-sidebar a add .font-bold .text-pink-700 to me" {
+                                    "Wszystkie"
+                                }
+                            }
+                            @for category_item in &categories {
+                                li {
+                                    @let category_param = category_item.as_ref();
+                                    @let category_display_name = category_item.to_string();
+                                    a href="#"
+                                       hx-get=(format!("/htmx/products?gender={}&category={}", current_gender.to_string(), category_item.as_ref()))
+                                       hx-target="#product-listing-area" "hx-swap"="innerHTML"
+                                       hx-push-url=(format!("/dla-{}/{}", gender_slug, category_param))
+                                       "@click"="if (window.innerWidth < 768) { isCategorySidebarOpen = false; }"
+                                       class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
+                                       "_"="on htmx:afterSwap remove .font-bold .text-pink-700 from #category-sidebar a add .font-bold .text-pink-700 to me" {
+                                        (category_display_name)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- Główny obszar na listę produktów ---
+            section #product-listing-area ."w-full md:w-3/4 lg:w-4/5" {
+                (render_product_grid_maud(
+                    &paginated_response.data,
+                    paginated_response.current_page,
+                    paginated_response.total_pages,
+                    paginated_response.per_page,
+                    &filter_query_string_for_initial_grid,
+                    &current_listing_params_qs_for_initial_grid,
+                ))
+            }
+        }
+    };
+
+    build_response(headers, page_content).await
+}
+
 pub async fn about_us_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
     let page_content = html! {
         div ."max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16" {
