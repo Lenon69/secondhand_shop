@@ -466,9 +466,9 @@ pub async fn get_cart_details_htmx_handler(
                     div ."flex flex-1 items-end justify-between text-xs mt-2" { // Dodano mt-2 dla odstępu
                         div ."flex" {
                             button type="button"
-                                "hx-post"=(format!("/htmx/cart/remove/{}", item.product.id))
-                                "hx-target"="#cart-content-target" // Celuje w listę itemów w koszyku
-                                "hx-swap"="innerHTML"
+                                hx-post=(format!("/htmx/cart/remove/{}", item.product.id))
+                                hx-target="#cart-content-target"
+                                hx-swap="innerHTML"
                                 class="text-sm font-medium text-pink-600 px-3 py-1 rounded-md hover:bg-pink-100 hover:text-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-opacity-50 transition-all duration-150 ease-in-out" {
                                 "Usuń"
                             }
@@ -840,9 +840,9 @@ pub async fn remove_item_from_cart_htmx_handler(
                     div ."flex flex-1 items-end justify-between text-xs mt-2" { // Dodano mt-2 dla odstępu
                         div ."flex" {
                             button type="button"
-                                "hx-post"=(format!("/htmx/cart/remove/{}", item.product.id))
-                                "hx-target"="#cart-content-target" // Celuje w listę itemów w koszyku
-                                "hx-swap"="innerHTML"
+                                hx-post=(format!("/htmx/cart/remove/{}", item.product.id))
+                                hx-target="#cart-content-target" // Celuje w listę itemów w koszyku
+                                hx-swap="innerHTML"
                                 class="text-sm font-medium text-pink-600 px-3 py-1 rounded-md hover:bg-pink-100 hover:text-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-opacity-50 transition-all duration-150 ease-in-out" {
                                 "Usuń"
                             }
@@ -941,7 +941,7 @@ fn render_product_grid_maud(
                                 h2 ."text-lg font-semibold mb-1 text-gray-800 group-hover:text-pink-600 transition-colors duration-200" {
                                     a href=(format!("/produkty/{}", product.id))
                                        hx-get=(format!("/htmx/produkt/{}?return_params={}", product.id, urlencoding::encode(current_listing_params_qs)))
-                                       hx-target="#content" "hx-swap"="innerHTML"
+                                       hx-target="#content" hx-swap="innerHTML"
                                        hx-push-url=(format!("/produkty/{}", product.id)) {
                                         (product.name)
                                     }
@@ -951,7 +951,8 @@ fn render_product_grid_maud(
                                 p ."text-xs text-gray-500 mb-2" { "Kategoria: " (product.category.to_string()) }
                             }
                             div ."mt-auto" {
-                                button "hx-post"=(format!("/htmx/cart/add/{}", product.id)) hx-swap="none"
+                                button
+                                hx-post=(format!("/htmx/cart/add/{}", product.id)) hx-swap="none"
                                 class="w-full mt-2 bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-opacity-70 transform active:scale-95 inline-flex items-center justify-center"
                                 title=(format!("Dodaj {} do koszyka", product.name)) {
                                     svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 mr-2" {
@@ -1080,7 +1081,7 @@ pub async fn gender_page_handler(
                             li {
                                 a href="#"
                                    hx-get=(format!("/htmx/products?gender={}", current_gender.to_string()))
-                                   hx-target="#product-listing-area" "hx-swap"="innerHTML"
+                                   hx-target="#product-listing-area" hx-swap="innerHTML"
                                    hx-push-url=(format!("/dla-{}", gender_slug))
                                    "@click"="if (window.innerWidth < 768) isCategorySidebarOpen = false"
                                    class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
@@ -1094,7 +1095,7 @@ pub async fn gender_page_handler(
                                     @let category_display_name = category_item.to_string();
                                     a href="#"
                                        hx-get=(format!("/htmx/products?gender={}&category={}", current_gender.to_string(), category_item.as_ref()))
-                                       hx-target="#product-listing-area" "hx-swap"="innerHTML"
+                                       hx-target="#product-listing-area" hx-swap="innerHTML"
                                        hx-push-url=(format!("/dla-{}/{}", gender_slug, category_param))
                                        "@click"="if (window.innerWidth < 768) { isCategorySidebarOpen = false; }"
                                        class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
@@ -1200,7 +1201,7 @@ pub async fn gender_with_category_page_handler(
                             li {
                                 a href="#"
                                    hx-get=(format!("/htmx/products?gender={}", current_gender.to_string()))
-                                   hx-target="#product-listing-area" "hx-swap"="innerHTML"
+                                   hx-target="#product-listing-area" hx-swap="innerHTML"
                                    hx-push-url=(format!("/dla-{}", gender_slug))
                                    "@click"="if (window.innerWidth < 768) isCategorySidebarOpen = false"
                                    class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
@@ -1214,7 +1215,7 @@ pub async fn gender_with_category_page_handler(
                                     @let category_display_name = category_item.to_string();
                                     a href="#"
                                        hx-get=(format!("/htmx/products?gender={}&category={}", current_gender.to_string(), category_item.as_ref()))
-                                       hx-target="#product-listing-area" "hx-swap"="innerHTML"
+                                       hx-target="#product-listing-area" hx-swap="innerHTML"
                                        hx-push-url=(format!("/dla-{}/{}", gender_slug, category_param))
                                        "@click"="if (window.innerWidth < 768) { isCategorySidebarOpen = false; }"
                                        class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
