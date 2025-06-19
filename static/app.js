@@ -52,8 +52,15 @@ document.addEventListener("DOMContentLoaded", function () {
       requestVerb === "delete" &&
       requestPath.startsWith("/api/orders/") &&
       requestPath.endsWith("/permanent");
+    const isProductDeleteRequest =
+      requestVerb === "delete" && requestPath.startsWith("/api/products/");
 
-    if (!isHistoryRestore && !isAddToCartRequest && !isOrderDeleteRequest) {
+    if (
+      !isHistoryRestore &&
+      !isAddToCartRequest &&
+      !isOrderDeleteRequest &&
+      !isProductDeleteRequest
+    ) {
       setTimeout(() => {
         window.scrollTo({ top: 0, left: 0, behavior: "auto" });
       }, 0);

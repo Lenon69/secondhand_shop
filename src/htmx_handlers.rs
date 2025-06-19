@@ -849,7 +849,54 @@ fn render_product_grid_maud(
                                // Opcjonalnie: można dodać target_div_id: &str, jeśli paginacja miałaby celować w różne kontenery
 ) -> Markup {
     html! {
+
         div #products-grid-container { // Ten ID jest ważny dla hx-target paginacji
+
+            // Wyświetlaj baner tylko na pierwszej stronie listy produktów
+            @if current_page == 1 {
+                // Główny kontener banera
+                div class="my-8 p-4 sm:p-6 bg-gradient-to-r from-pink-500 to-purple-500 rounded-xl shadow-lg text-white flex flex-col sm:flex-row items-center justify-center sm:justify-between gap-4" {
+
+                    // --- LEWA STRONA (zawsze widoczna) ---
+                    div class="flex items-center gap-x-4" {
+                        div class="flex-shrink-0" {
+                            svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6" {
+                              path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12";
+                            }
+                        }
+
+                        // Tekst główny
+                        div {
+                            p class="text-lg sm:text-xl font-bold text-center sm:text-left" {
+                                "Darmowa dostawa od "
+                                span class="whitespace-nowrap" { "300 zł!" }
+                            }
+                            p class="text-xs sm:text-sm text-pink-100 mt-1 text-center sm:text-left" { "Sprawdź nasze perełki i skorzystaj z okazji." }
+                        }
+                    }
+
+                    // --- PRAWA STRONA (widoczna tylko na dużych ekranach) ---
+                    div class="hidden lg:flex items-center gap-x-8 xl:gap-x-12 text-base" {
+
+                        // Atut 1
+                        div class="flex items-center gap-x-2.5 opacity-90" {
+                            svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6" {
+                                path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z";
+                            }
+                            span class="font-medium" { "Unikalne produkty" }
+                        }
+
+                        // Atut 2
+                        div class="flex items-center gap-x-2.5 opacity-90" {
+                            svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6" {
+                                path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z";
+                            }
+                            span class="font-medium" { "Szybka wysyłka" }
+                        }
+                    }
+                }
+            }
+
             div #products-container .grid.grid-cols-1.sm:grid-cols-2.lg:grid-cols-3.xl:grid-cols-4.gap-6 {
                 @if products.is_empty() {
                     p ."col-span-full text-center text-gray-500 py-8" {
