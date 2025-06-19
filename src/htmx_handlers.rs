@@ -887,7 +887,7 @@ fn render_product_grid_maud(
                         div {
                             p class="text-lg sm:text-xl font-bold text-center sm:text-left" {
                                 "Darmowa dostawa od "
-                                span class="whitespace-nowrap" { "300 zł!" }
+                                span class="whitespace-nowrap" { "250 zł!" }
                             }
                             p class="text-xs sm:text-sm text-pink-100 mt-1 text-center sm:text-left" { "Sprawdź nasze perełki i skorzystaj z okazji." }
                         }
@@ -1968,7 +1968,7 @@ pub async fn faq_page_handler(headers: HeaderMap) -> Result<Response, AppError> 
         },
         FaqItem {
             question: "Jakie są koszty i opcje dostawy?".to_string(),
-            answer: "Oferujemy dostawę za pośrednictwem Paczkomatów InPost oraz Poczta Polska. Koszt dostawy jest widoczny podczas składania zamówienia i zależy od wybranej opcji. Dla zamówień powyżej 300 zł dostawa jest darmowa!".to_string(),
+            answer: "Oferujemy dostawę za pośrednictwem Paczkomatów InPost oraz Poczta Polska. Koszt dostawy jest widoczny podczas składania zamówienia i zależy od wybranej opcji. Dla zamówień powyżej 250 zł dostawa jest darmowa!".to_string(),
         },
         FaqItem {
             question: "Czy wysyłacie za granicę?".to_string(),
@@ -2050,7 +2050,7 @@ pub async fn shipping_returns_page_handler(headers: HeaderMap) -> Result<Respons
     let shop_name = "mess - all that vintage";
     let processing_time = "1-2 dni robocze";
     let delivery_time = "1-2 dni robocze";
-    let free_shipping_threshold = "300 zł";
+    let free_shipping_threshold = "250 zł";
     let contact_email_returns = "sklep@messvintage.com";
     let return_address_line1 = "mess - all that vintage - Zwroty";
     let return_address_line2 = "ul. Magazynowa 5";
@@ -2984,12 +2984,12 @@ pub async fn checkout_page_handler(
                                 subtotal: {}, 
                                 selectedShippingCost: 0,
                                 selectedShippingKeyInternal: '',
-                                FREE_SHIPPING_THRESHOLD: 30000,
+                                FREE_SHIPPING_THRESHOLD: 25000,
 
                                 shippingOptions: [
                                     {{ id: 'inpost', name: 'Paczkomat InPost 24/7', cost: 1199, displayCost: '11,99 zł' }},
                                     {{ id: 'poczta', name: 'Poczta Polska S.A.', cost: 1799, displayCost: '17,99 zł' }},
-                                    {{ id: 'darmowa', name: 'Darmowa dostawa (od 300,00 zł)', cost: 0, displayCost: '0,00 zł' }}
+                                    {{ id: 'darmowa', name: 'Darmowa dostawa (od 250,00 zł)', cost: 0, displayCost: '0,00 zł' }}
                                 ],
 
                                 isFreeShippingEligible() {{
