@@ -289,8 +289,11 @@ pub async fn get_product_detail_htmx_handler(
                                    hx-target=(query_params.return_target.as_deref().unwrap_or("#content"))
                                    hx-swap="innerHTML"
                                    hx-push-url=(url.replace("/htmx", ""))
-                                   class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
-                                    "← " (text)
+                                   class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors" {
+                                   svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2" {
+                                   path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3";
+                                   }
+                                   span { (text) }
                                 }
                             }
                             // --- FALLBACK (LOGIKA ZASTĘPCZA), GDY NIE MA PRECYZYJNEGO LINKU ---
@@ -305,22 +308,32 @@ pub async fn get_product_detail_htmx_handler(
                                        hx-target="#content"
                                        hx-swap="innerHTML"
                                        hx-push-url=(format!("/dla-{}?{}", gender_slug_for_url, qs_val))
-                                       class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
-                                        "← Wróć do poprzedniego widoku"
+                                       class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors" {
+
+                                        svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2" {
+                                            path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3";
+                                        }
+                                        span { "Wróć do poprzedniego widoku" }
                                     }
                                 }
                                 // PRIORYTET 2: Jeśli nie ma filtrów, wróć do ogólnej kategorii płci produktu.
                                 // Ten blok wykona się, jeśli `return_params` to `None` lub `Some("")`.
-                                @else {
-                                    @if product.gender == crate::models::ProductGender::Damskie {
-                                        a href="/dla-niej" hx-get="/htmx/dla-niej" hx-target="#content" hx-swap="innerHTML" hx-push-url="/dla-niej" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
-                                            "← Wróć do " (product.gender.to_string())
+                        @else {
+                                    @let (return_path, return_text) = if product.gender == crate::models::ProductGender::Damskie {
+                                        ("/dla-niej", "Damskie")
+                                    } else {
+                                        ("/dla-niego", "Męskie")
+                                    };
+                                    a href=(return_path) hx-get=(format!("/htmx{}", return_path)) hx-target="#content" hx-swap="innerHTML" hx-push-url=(return_path)
+                                       // NOWE KLASY TAILWIND DLA STYLU PRZYCISKU
+                                       class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors" {
+
+                                        // POPRAWIONA IKONA SVG (zgodna z maud)
+                                        svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2" {
+                                            path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3";
                                         }
-                                    } @else if product.gender == crate::models::ProductGender::Meskie {
-                                        // UZUPEŁNIONA LOGIKA DLA MĘSKICH PRODUKTÓW
-                                        a href="/dla-niego" hx-get="/htmx/dla-niego" hx-target="#content" hx-swap="innerHTML" hx-push-url="/dla-niego" class="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors" {
-                                            "← Wróć do " (product.gender.to_string())
-                                        }
+                                        // Tekst przycisku
+                                        span { "Wróć do " (return_text) }
                                     }
                                 }
                             }
@@ -4477,8 +4490,7 @@ pub async fn admin_order_details_htmx_handler(
     State(app_state): State<AppState>,
     claims: TokenClaims,
     Path(order_id): Path<Uuid>,
-    // Opcjonalnie: Query(params) jeśli chcesz przekazać parametry powrotu do listy
-    Query(list_params): Query<OrderListingParams>, // Aby zbudować link "Wróć do listy"
+    Query(list_params): Query<OrderListingParams>,
 ) -> Result<Response, AppError> {
     if claims.role != Role::Admin {
         return Err(AppError::UnauthorizedAccess(
