@@ -267,12 +267,15 @@ pub async fn get_product_detail_htmx_handler(
                     div ."mt-auto pt-6" {
                         @if product.status.to_string() == "Dostępny" {
                             button
-                                "hx-post"=(format!("/htmx/cart/add/{}", product.id)) // Nazwy atrybutów HTMX też w cudzysłowy
-                                "hx-swap"="none"
-                                class="w-full bg-pink-600 hover:bg-pink-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition-all duration-200 ease-in-out hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-opacity-70 cursor-pointer transform active:scale-95"
+                                hx-post=(format!("/htmx/cart/add/{}", product.id))
+                                hx-swap="none"
+                                class="w-full bg-pink-600 hover:bg-pink-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition-all duration-200 ease-in-out hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-opacity-70 cursor-pointer transform active:scale-95 inline-flex items-center justify-center"
                                 title=(format!("Dodaj {} do koszyka", product.name))
                             {
-                                "Dodaj do koszyka"
+                                    svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 mr-2" {
+                                    path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15";
+                                }
+                                span { "Dodaj do koszyka" }
                             }
                         } @else {
                             div ."w-full text-center py-3 px-6 rounded-lg bg-gray-100 text-gray-500 font-semibold" {
@@ -948,9 +951,12 @@ fn render_product_grid_maud(
                                 p ."text-xs text-gray-500 mb-2" { "Kategoria: " (product.category.to_string()) }
                             }
                             div ."mt-auto" {
-                                button "hx-post"=(format!("/htmx/cart/add/{}", product.id)) "hx-swap"="none"
-                                        class="w-full mt-2 bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-opacity-70 transform active:scale-95"
-                                        title=(format!("Dodaj {} do koszyka", product.name)) {
+                                button "hx-post"=(format!("/htmx/cart/add/{}", product.id)) hx-swap="none"
+                                class="w-full mt-2 bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-opacity-70 transform active:scale-95 inline-flex items-center justify-center"
+                                title=(format!("Dodaj {} do koszyka", product.name)) {
+                                    svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 mr-2" {
+                                    path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15";
+                                }
                                     "Dodaj do koszyka"
                                 }
                             }
