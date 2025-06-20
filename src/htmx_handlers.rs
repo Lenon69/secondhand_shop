@@ -1,7 +1,5 @@
 // src/htmx_handlers.rs
 
-use std::{collections::HashMap, str::FromStr};
-
 use axum::response::Response;
 #[allow(unused_imports)]
 use axum::{
@@ -9,12 +7,16 @@ use axum::{
     http::{HeaderMap, HeaderValue, StatusCode},
     response::IntoResponse,
 };
-use axum_extra::TypedHeader;
+use axum_extra::{
+    TypedHeader,
+    extract::cookie::{Cookie, SameSite},
+};
 use chrono::Utc;
 #[allow(unused_imports)]
 use maud::{Markup, PreEscaped, html};
 use serde::Deserialize;
 use serde_json;
+use std::{collections::HashMap, str::FromStr};
 use strum::IntoEnumIterator;
 #[allow(unused_imports)]
 use urlencoding::encode;
@@ -23,6 +25,7 @@ use uuid::Uuid;
 use crate::{
     auth::Role,
     filters::OrderListingParams,
+    middleware::{OptionalGuestCartId, OptionalTokenClaims},
     models::{
         OrderDetailsResponse, OrderItem, OrderItemDetailsPublic, OrderWithCustomerInfo,
         PasswordResetToken, PaymentMethod, ProductCondition, ProductGender, ProductStatus,
@@ -134,6 +137,8 @@ pub async fn get_product_detail_htmx_handler(
     State(app_state): State<AppState>,
     Path(product_id): Path<Uuid>,
     Query(query_params): Query<DetailViewParams>,
+    OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
+    OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
 ) -> Result<Response, AppError> {
     tracing::info!(
         "MAUD: /htmx/product/{} z parametrami: {:?}",
@@ -141,8 +146,16 @@ pub async fn get_product_detail_htmx_handler(
         query_params
     );
 
+    // --- NOWA LOGIKA: Pobranie koszyka i sprawdzenie, czy produkt w nim jest ---
+    let mut conn = app_state.db_pool.acquire().await?;
+    let cart_details_opt =
+        crate::cart_utils::get_cart_details(&mut conn, user_claims_opt, guest_cart_id_opt).await?;
+    let product_ids_in_cart: Vec<Uuid> = cart_details_opt
+        .map(|details| details.items.iter().map(|item| item.product.id).collect())
+        .unwrap_or_else(Vec::new);
+
     let product = match sqlx::query_as::<_, Product>(
-        r#"SELECT id, name, description, price, gender, condition, category, status, images, on_sale, created_at, updated_at
+        r#"SELECT *
            FROM products
            WHERE id = $1"#,
     )
@@ -165,6 +178,7 @@ pub async fn get_product_detail_htmx_handler(
         }
     };
 
+    let is_in_cart = product_ids_in_cart.contains(&product.id);
     let formatted_price = format_price_maud(product.price);
 
     let initial_image_url_str: &str = product.images.get(0).map_or("", |url| url.as_str());
@@ -264,20 +278,37 @@ pub async fn get_product_detail_htmx_handler(
                         }
                     }
 
-                    div ."mt-auto pt-6" {
-                        @if product.status.to_string() == "Dostępny" {
-                            button
-                                hx-post=(format!("/htmx/cart/add/{}", product.id))
-                                hx-swap="none"
-                                class="w-full bg-pink-600 hover:bg-pink-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition-all duration-200 ease-in-out hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-opacity-70 cursor-pointer transform active:scale-95 inline-flex items-center justify-center"
-                                title=(format!("Dodaj {} do koszyka", product.name))
-                            {
+                div ."mt-auto pt-6" {
+                    @if product.status == ProductStatus::Available {
+                        // --- POCZĄTEK POPRAWIONEGO PRZYCISKU ---
+                        button x-data=(format!("{{ isInCart: {} }}", is_in_cart))
+                               "x-on:product-added.window"=(format!("if ($event.detail.productId === '{}') isInCart = true", product.id))
+                               "x-on:product-removed.window"=(format!("if ($event.detail.productId === '{}') isInCart = false", product.id))
+                               x-bind:hx-post=(format!("!isInCart ? '/htmx/cart/add/{}' : null", product.id))
+                               hx-swap="none"
+                               x-bind:disabled="isInCart"
+                               x-bind:class="isInCart ? 'bg-green-600 cursor-default' : 'bg-pink-600 hover:bg-pink-700'"
+                               class="w-full text-white font-semibold py-3 px-6 rounded-lg transition-all inline-flex items-center justify-center"
+                        {
+                            template x-if="!isInCart" {
+                                div class="flex items-center" {
                                     svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 mr-2" {
-                                    path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15";
+                                        path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z";
+                                    }
+                                    span { "Dodaj do koszyka" }
                                 }
-                                span { "Dodaj do koszyka" }
                             }
-                        } @else {
+                            template x-if="isInCart" {
+                                div class="flex items-center" {
+                                    svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-5 h-5 mr-2" {
+                                        path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5";
+                                    }
+                                    span { "Dodano!" }
+                                }
+                            }
+                        }
+                        // --- KONIEC POPRAWIONEGO PRZYCISKU ---
+                    } @else {
                             div ."w-full text-center py-3 px-6 rounded-lg bg-gray-100 text-gray-500 font-semibold" {
                                 "Produkt obecnie niedostępny"
                             }
@@ -501,6 +532,8 @@ pub async fn add_item_to_cart_htmx_handler(
 
     let cart: ShoppingCart;
     let mut new_guest_cart_id_to_set: Option<Uuid> = None; // ID do odesłania w triggerze, jeśli nowy koszyk gościa
+    let new_guest_cookie: Option<Cookie> = None;
+    let mut headers = HeaderMap::new();
 
     // 1. Ustal koszyk (użytkownika lub gościa)
     if let Ok(claims) = user_claims_result {
@@ -569,10 +602,21 @@ pub async fn add_item_to_cart_htmx_handler(
             new_id,
             cart.id
         );
+
+        // --- NOWY KOD: Ustaw ciasteczko dla nowego gościa ---
+        let guest_cookie = Cookie::build(("guest_cart_id", new_id.to_string()))
+            .path("/")
+            .http_only(true)
+            .same_site(SameSite::Lax)
+            .build();
+        headers.insert(
+            axum::http::header::SET_COOKIE,
+            guest_cookie.to_string().parse().unwrap(),
+        );
+        // --- KONIEC NOWEGO KODU ---
     }
 
     // 2. Sprawdź produkt i dodaj do koszyka
-    let mut headers = HeaderMap::new();
     let product_opt =
         sqlx::query_as::<_, Product>("SELECT * FROM products WHERE id = $1 FOR UPDATE")
             .bind(product_id)
@@ -641,6 +685,7 @@ pub async fn add_item_to_cart_htmx_handler(
 
     // 5. Przygotuj nagłówek HX-Trigger
     let trigger_payload = serde_json::json!({
+        "productAdded": { "productId": product_id },
         "updateCartCount": {
             "newCount": cart_details.total_items,
             "newCartTotalPrice": cart_details.total_price,
@@ -658,8 +703,14 @@ pub async fn add_item_to_cart_htmx_handler(
         tracing::error!("MAUD AddToCart: Nie można utworzyć nagłówka HX-Trigger.");
     }
 
-    // Ponieważ przyciski "Dodaj do koszyka" mają hx-swap="none", nie zwracamy HTML.
-    // Zwracamy tylko nagłówki (z HX-Trigger) i kod statusu. f
+    if let Some(cookie) = new_guest_cookie {
+        // Bezpiecznie parsujemy string ciasteczka na HeaderValue
+        if let Ok(cookie_value) = cookie.to_string().parse() {
+            headers.insert(axum::http::header::SET_COOKIE, cookie_value);
+            tracing::info!("Ustawiono ciasteczko guest_cart_id dla nowego gościa.");
+        }
+    }
+
     Ok((headers, StatusCode::OK)) // Można też użyć StatusCode::NO_CONTENT (204), jeśli nie ma żadnej wiadomości w payloadzie
 }
 
@@ -773,6 +824,7 @@ pub async fn remove_item_from_cart_htmx_handler(
     // 5. Przygotuj nagłówek HX-Trigger
     let mut headers = HeaderMap::new();
     let trigger_payload = serde_json::json!({
+        "productRemoved": { "productId": product_id_to_remove },
         "updateCartCount": {
             "newCount": cart_details.total_items,
             "newCartTotalPrice": cart_details.total_price,
@@ -858,13 +910,13 @@ pub async fn remove_item_from_cart_htmx_handler(
 }
 
 fn render_product_grid_maud(
-    products: &[Product], // Przyjmujemy plaster (slice)
+    products: &[Product],
     current_page: i64,
     total_pages: i64,
     per_page: i64,
-    filter_query_string: &str, // Dla linków paginacji
-    current_listing_params_qs: &str, // Dla linków "Zobacz szczegóły"
-                               // Opcjonalnie: można dodać target_div_id: &str, jeśli paginacja miałaby celować w różne kontenery
+    filter_query_string: &str,
+    current_listing_params_qs: &str,
+    product_ids_in_cart: &[Uuid],
 ) -> Markup {
     html! {
 
@@ -950,16 +1002,39 @@ fn render_product_grid_maud(
                                 p ."text-xs text-gray-500 mb-1" { "Stan: " (product.condition.to_string()) }
                                 p ."text-xs text-gray-500 mb-2" { "Kategoria: " (product.category.to_string()) }
                             }
+
                             div ."mt-auto" {
-                                button
-                                hx-post=(format!("/htmx/cart/add/{}", product.id)) hx-swap="none"
-                                class="w-full mt-2 bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-opacity-70 transform active:scale-95 inline-flex items-center justify-center"
-                                title=(format!("Dodaj {} do koszyka", product.name)) {
-                                    svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 mr-2" {
-                                    path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15";
+                                // --- POCZĄTEK POPRAWIONEGO PRZYCISKU ---
+                                @let is_in_cart = product_ids_in_cart.contains(&product.id);
+
+                                button x-data=(format!("{{ isInCart: {} }}", is_in_cart))
+                                       // POPRAWKA: Używamy format! do wstawienia ID do wartości atrybutu
+                                       "x-on:product-added.window"=(format!("if ($event.detail.productId === '{}') isInCart = true", product.id))
+                                       "x-on:product-removed.window"=(format!("if ($event.detail.productId === '{}') isInCart = false", product.id))
+                                       x-bind:hx-post=(format!("!isInCart ? '/htmx/cart/add/{}' : null", product.id))
+                                       hx-swap="none"
+                                       x-bind:disabled="isInCart"
+                                       x-bind:class="isInCart ? 'bg-green-600 cursor-default' : 'bg-pink-600 hover:bg-pink-700'"
+                                       class="w-full mt-2 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 ease-in-out inline-flex items-center justify-center"
+                                {
+                                    template x-if="!isInCart" {
+                                        div class="flex items-center" {
+                                            svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 mr-2" {
+                                                path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z";
+                                            }
+                                            span { "Dodaj do koszyka" }
+                                        }
+                                    }
+                                    template x-if="isInCart" {
+                                        div class="flex items-center" {
+                                            svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-5 h-5 mr-2" {
+                                                path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5";
+                                            }
+                                            span { "Dodano!" }
+                                        }
+                                    }
                                 }
-                                    "Dodaj do koszyka"
-                                }
+                                // --- KONIEC POPRAWIONEGO PRZYCISKU ---
                             }
                         }
                     }
@@ -1009,8 +1084,19 @@ pub async fn list_products_htmx_handler(
     headers: HeaderMap,
     State(app_state): State<AppState>,
     Query(params): Query<ListingParams>,
+    OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
+    OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
 ) -> Result<Response, AppError> {
-    let page_content = render_product_listing_view(app_state, params).await?;
+    let mut conn = app_state.db_pool.acquire().await?;
+    let cart_details_opt =
+        crate::cart_utils::get_cart_details(&mut conn, user_claims_opt, guest_cart_id_opt).await?;
+
+    let product_ids_in_cart: Vec<Uuid> = cart_details_opt
+        .map(|details| details.items.iter().map(|item| item.product.id).collect())
+        .unwrap_or_else(Vec::new);
+
+    let page_content = render_product_listing_view(app_state, params, product_ids_in_cart).await?;
+
     build_response(headers, page_content).await
 }
 
@@ -1019,6 +1105,8 @@ pub async fn gender_page_handler(
     State(app_state): State<AppState>,
     Path(gender_slug): Path<String>,
     Query(params): Query<ListingParams>,
+    OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
+    OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
 ) -> Result<Response, AppError> {
     tracing::info!("MAUD: /htmx/dla-{} - ładowanie strony płci", gender_slug);
 
@@ -1030,6 +1118,15 @@ pub async fn gender_page_handler(
             return Err(AppError::NotFound);
         }
     };
+
+    // --- NOWA LOGIKA POBIERANIA KOSZYKA ---
+    let mut conn = app_state.db_pool.acquire().await?;
+    let cart_details_opt =
+        crate::cart_utils::get_cart_details(&mut conn, user_claims_opt, guest_cart_id_opt).await?;
+    let product_ids_in_cart: Vec<Uuid> = cart_details_opt
+        .map(|details| details.items.iter().map(|item| item.product.id).collect())
+        .unwrap_or_else(Vec::new);
+    // --- KONIEC NOWEJ LOGIKI ---
 
     let final_params = ListingParams {
         gender: Some(current_gender.clone()),
@@ -1118,6 +1215,7 @@ pub async fn gender_page_handler(
                     paginated_response.per_page,
                     &filter_query_string_for_initial_grid,
                     &current_listing_params_qs_for_initial_grid,
+                    &product_ids_in_cart
                 ))
             }
         }
@@ -1132,6 +1230,8 @@ pub async fn gender_with_category_page_handler(
     State(app_state): State<AppState>,
     Path((gender_slug, category_slug)): Path<(String, String)>,
     Query(params): Query<ListingParams>,
+    OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
+    OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
 ) -> Result<Response, AppError> {
     tracing::info!(
         "MAUD: /dla-{}/{} - ładowanie strony płci z wybraną kategorią",
@@ -1146,6 +1246,15 @@ pub async fn gender_with_category_page_handler(
     };
 
     let current_category = Category::from_str(&category_slug).map_err(|_| AppError::NotFound)?;
+
+    // --- NOWA LOGIKA POBIERANIA KOSZYKA ---
+    let mut conn = app_state.db_pool.acquire().await?;
+    let cart_details_opt =
+        crate::cart_utils::get_cart_details(&mut conn, user_claims_opt, guest_cart_id_opt).await?;
+    let product_ids_in_cart: Vec<Uuid> = cart_details_opt
+        .map(|details| details.items.iter().map(|item| item.product.id).collect())
+        .unwrap_or_else(Vec::new);
+    // --- KONIEC NOWEJ LOGIKI ---
 
     // Tworzymy parametry do zapytania, ustawiając płeć i kategorię z URL
     let final_params = ListingParams {
@@ -1238,6 +1347,7 @@ pub async fn gender_with_category_page_handler(
                     paginated_response.per_page,
                     &filter_query_string_for_initial_grid,
                     &current_listing_params_qs_for_initial_grid,
+                    &product_ids_in_cart
                 ))
             }
         }
@@ -4688,8 +4798,19 @@ fn get_order_status_badge_classes(status: OrderStatus) -> &'static str {
 pub async fn news_page_htmx_handler(
     headers: HeaderMap,
     State(app_state): State<AppState>,
+    OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
+    OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
 ) -> Result<Response, AppError> {
     tracing::info!("MAUD: Obsługa publicznego URL /nowosci");
+
+    // ZMIANA 2: Pobieramy zawartość koszyka przed renderowaniem widoku
+    let mut conn = app_state.db_pool.acquire().await?;
+    let cart_details_opt =
+        crate::cart_utils::get_cart_details(&mut conn, user_claims_opt, guest_cart_id_opt).await?;
+    let product_ids_in_cart: Vec<Uuid> = cart_details_opt
+        .map(|details| details.items.iter().map(|item| item.product.id).collect())
+        .unwrap_or_else(Vec::new);
+
     let params = ListingParams {
         sort_by: Some("created_at".to_string()),
         order: Some("desc".to_string()),
@@ -4698,7 +4819,7 @@ pub async fn news_page_htmx_handler(
         ..Default::default()
     };
 
-    let page_content = render_product_listing_view(app_state, params).await?;
+    let page_content = render_product_listing_view(app_state, params, product_ids_in_cart).await?;
     build_response(headers, page_content).await
 }
 
@@ -4706,6 +4827,8 @@ pub async fn news_page_htmx_handler(
 pub async fn sale_page_htmx_handler(
     headers: HeaderMap,
     State(app_state): State<AppState>,
+    OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
+    OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
 ) -> Result<Response, AppError> {
     tracing::info!("MAUD: Obsługa publicznego URL /wyprzedaz");
     let params = ListingParams {
@@ -4714,13 +4837,24 @@ pub async fn sale_page_htmx_handler(
         limit: Some(8),
         ..Default::default()
     };
-    let page_content = render_product_listing_view(app_state, params).await?;
+
+    // --- NOWA LOGIKA POBIERANIA KOSZYKA ---
+    let mut conn = app_state.db_pool.acquire().await?;
+    let cart_details_opt =
+        crate::cart_utils::get_cart_details(&mut conn, user_claims_opt, guest_cart_id_opt).await?;
+    let product_ids_in_cart: Vec<Uuid> = cart_details_opt
+        .map(|details| details.items.iter().map(|item| item.product.id).collect())
+        .unwrap_or_else(Vec::new);
+    // --- KONIEC NOWEJ LOGIKI ---
+
+    let page_content = render_product_listing_view(app_state, params, product_ids_in_cart).await?;
     build_response(headers, page_content).await
 }
 
 pub async fn render_product_listing_view(
     app_state: AppState,
     params: ListingParams,
+    product_ids_in_cart: Vec<Uuid>,
 ) -> Result<Markup, AppError> {
     tracing::info!("MAUD: /htmx/products z parametrami: {:?}", params);
     let paginated_response_axum_json =
@@ -4737,6 +4871,7 @@ pub async fn render_product_listing_view(
         paginated_response.per_page,
         &filter_query_string,
         &current_listing_params_qs,
+        &product_ids_in_cart,
     ))
 }
 

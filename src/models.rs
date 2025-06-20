@@ -544,6 +544,7 @@ where
     deserializer.deserialize_any(I64Visitor)
 }
 
+#[allow(dead_code)]
 #[derive(Debug, sqlx::FromRow)]
 pub struct PasswordResetToken {
     pub token: Uuid,

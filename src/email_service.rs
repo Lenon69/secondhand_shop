@@ -11,11 +11,13 @@ use maud::{Markup, PreEscaped, html};
 use resend_rs::{Resend, types::CreateEmailBaseOptions};
 
 // Pomocnicza funkcja do formatowania ceny, tak jak w htmx_handlers
+#[allow(dead_code)]
 fn format_price_maud(price: i64) -> String {
     format!("{:.2}", (price as f64) / 100.0).replace('.', ",") + " zł"
 }
 
 // Funkcja, którą będziemy wywoływać z handlera
+#[allow(dead_code)]
 pub async fn send_order_confirmation_email(
     app_state: &AppState,
     order_details: &OrderDetailsResponse,

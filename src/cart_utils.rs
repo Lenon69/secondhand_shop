@@ -1,10 +1,14 @@
 // src/cart_utils.rs
 
+use axum_extra::TypedHeader;
 use chrono::{DateTime, Utc};
 use sqlx::PgConnection;
+use uuid::Uuid;
 
 use crate::{
+    auth::TokenClaims,
     errors::AppError,
+    handlers::XGuestCartId,
     models::{
         CartDetailsResponse, CartItemPublic, CartItemWithProduct, Product, ProductStatus,
         ShoppingCart,
@@ -123,4 +127,58 @@ pub async fn build_cart_details_response(
         total_price: current_total_price,
         updated_at: updated_cart_timestamp,
     })
+}
+
+// NOWA, DOCELOWA WERSJA FUNKCJI POMOCNICZEJ
+/// Pobiera szczegóły koszyka na podstawie opcjonalnych danych użytkownika lub gościa.
+/// Ta wersja współpracuje z nowymi, uniwersalnymi ekstraktorami.
+pub async fn get_cart_details(
+    conn: &mut PgConnection,
+    user_claims_opt: Option<TokenClaims>,
+    guest_cart_id_opt: Option<Uuid>,
+) -> Result<Option<CartDetailsResponse>, AppError> {
+    // Logika do znalezienia właściwego koszyka
+    let cart_opt = if let Some(claims) = user_claims_opt {
+        // Scenariusz 1: Użytkownik jest zalogowany. Szukamy koszyka po jego ID.
+        tracing::debug!(
+            "get_cart_details_v2: Szukanie koszyka dla zalogowanego użytkownika ID: {}",
+            claims.sub
+        );
+        sqlx::query_as::<_, ShoppingCart>("SELECT * FROM shopping_carts WHERE user_id = $1")
+            .bind(claims.sub)
+            .fetch_optional(&mut *conn)
+            .await?
+    } else if let Some(guest_id) = guest_cart_id_opt {
+        // Scenariusz 2: Użytkownik jest gościem. Szukamy koszyka po jego ID sesji.
+        tracing::debug!(
+            "get_cart_details_v2: Szukanie koszyka dla gościa o ID sesji: {}",
+            guest_id
+        );
+        sqlx::query_as::<_, ShoppingCart>(
+            "SELECT * FROM shopping_carts WHERE guest_session_id = $1",
+        )
+        .bind(guest_id)
+        .fetch_optional(&mut *conn)
+        .await?
+    } else {
+        // Scenariusz 3: Nie ma żadnej tożsamości (ani tokenu, ani ciasteczka). Użytkownik nie ma koszyka.
+        tracing::debug!(
+            "get_cart_details_v2: Brak tożsamości użytkownika lub gościa. Brak koszyka."
+        );
+        None
+    };
+
+    // Jeśli znaleźliśmy koszyk (w scenariuszu 1 lub 2), budujemy jego szczegóły.
+    if let Some(cart) = cart_opt {
+        tracing::debug!(
+            "get_cart_details_v2: Znaleziono koszyk ID: {}. Budowanie szczegółów.",
+            cart.id
+        );
+        // Używamy istniejącej funkcji, która robi całą "ciężką pracę"
+        let details = build_cart_details_response(&cart, conn).await?;
+        Ok(Some(details))
+    } else {
+        // Jeśli nie znaleziono koszyka, zwracamy Ok(None), co oznacza "brak koszyka".
+        Ok(None)
+    }
 }

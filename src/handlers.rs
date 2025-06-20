@@ -7,6 +7,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
 };
 use axum_extra::TypedHeader;
+use axum_extra::extract::cookie::{Cookie, SameSite};
 use chrono::{Duration, Utc};
 use maud::{Markup, html};
 use serde_json::{Value, json};
@@ -14,6 +15,7 @@ use sqlx::{Postgres, QueryBuilder};
 
 use crate::cart_utils::build_cart_details_response;
 use crate::cloudinary::{delete_image_from_cloudinary, extract_public_id_from_url};
+#[allow(unused_imports)]
 use crate::email_service::{send_order_confirmation_email, send_password_reset_email};
 use crate::errors::AppError;
 use crate::filters::{ListingParams, OrderListingParams};
@@ -1061,11 +1063,29 @@ pub async fn login_handler(
         app_state.jwt_expiration_hours,
     ) {
         Ok(token_str) => {
+            // --- POCZĄTEK NOWEGO KODU ---
+            // Tworzymy bezpieczne ciasteczko z naszym tokenem JWT.
+            let cookie = Cookie::build(("token", token_str.clone())) // Klonujemy token, bo użyjemy go też w triggerze
+                .path("/") // Ciasteczko będzie dostępne na całej stronie
+                .http_only(true) // Ważne: ciasteczko niedostępne dla JavaScript po stronie klienta
+                .secure(true) // Wysyłane tylko przez HTTPS
+                .same_site(SameSite::Lax) // Dobra ochrona przed atakami CSRF
+                .build();
+
             let mut headers = HeaderMap::new();
+            // Dodajemy nagłówek `Set-Cookie`, który każe przeglądarce zapisać nasze ciasteczko.
+            headers.insert(
+                axum::http::header::SET_COOKIE,
+                cookie.to_string().parse().unwrap(),
+            );
+            // --- KONIEC NOWEGO KODU ---
+
+            // Istniejąca logika nagłówków HTMX pozostaje bez zmian
             headers.insert("HX-Reswap", HeaderValue::from_static("none"));
 
             let trigger_payload = json!({
-                "loginSuccessDetails": {"token": token_str}, // Przekazujemy token do JS
+                // Przekazujemy token do JS, aby mógł go zapisać w localStorage (dla HTMX)
+                "loginSuccessDetails": {"token": token_str},
                 "showMessage": {"message": "Zalogowano pomyslnie!", "type": "success"}
             });
             if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
@@ -1073,11 +1093,11 @@ pub async fn login_handler(
             }
 
             tracing::info!(
-                "Użytkownik {} ({}) zalogowany pomyślnie.",
+                "Użytkownik {} ({}) zalogowany pomyślnie. Ustawiono ciasteczko.",
                 user.email,
                 user.id
             );
-            // Ciało odpowiedzi może być puste lub zawierać potwierdzenie, HTMX go nie podmieni.
+
             Ok((StatusCode::OK, headers, Json(json!({"status": "success"}))))
         }
         Err(e) => {

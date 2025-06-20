@@ -255,6 +255,29 @@ function initEventListeners() {
   /**
    * Aktualizuje licznik koszyka i sumę częściową na podstawie danych z serwera.
    */
+
+  document.body.addEventListener("productAdded", (event) => {
+    if (event.detail && event.detail.productId) {
+      window.dispatchEvent(
+        new CustomEvent("product-added", {
+          detail: { productId: event.detail.productId },
+          bubbles: true,
+        }),
+      );
+    }
+  });
+
+  document.body.addEventListener("productRemoved", (event) => {
+    if (event.detail && event.detail.productId) {
+      window.dispatchEvent(
+        new CustomEvent("product-removed", {
+          detail: { productId: event.detail.productId },
+          bubbles: true,
+        }),
+      );
+    }
+  });
+
   document.body.addEventListener("updateCartCount", (event) => {
     if (!event.detail) return;
 

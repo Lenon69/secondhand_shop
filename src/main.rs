@@ -2,14 +2,12 @@
 
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
-use axum::http::{HeaderMap, header};
-use axum::response::{Html, IntoResponse};
+use axum::response::Html;
 use axum::routing::{delete, get, post};
 use axum_server::tls_rustls::RustlsConfig;
 use dotenvy::dotenv;
 use htmx_handlers::*;
 use reqwest::StatusCode;
-use rustls::crypto::CryptoProvider;
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 use std::net::SocketAddr;

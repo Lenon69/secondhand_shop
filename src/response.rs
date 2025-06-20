@@ -1,6 +1,6 @@
 use axum::body::Body;
 use axum::http::{HeaderMap, StatusCode};
-use axum::response::{Html, IntoResponse, Response};
+use axum::response::{IntoResponse, Response};
 use lol_html::{HtmlRewriter, Settings, element};
 use maud::Markup;
 use tokio::fs;
@@ -8,20 +8,20 @@ use tokio_util::bytes::Bytes;
 
 use crate::errors::AppError;
 
-pub enum AppResponse {
-    Full(Html<String>),
-    Partial(Markup),
-}
+// pub enum AppResponse {
+//     Full(Html<String>),
+//     Partial(Markup),
+// }
 
 // Implementacja, która mówi Axum, jak zamienić AppResponse na odpowiedź HTTP
-impl IntoResponse for AppResponse {
-    fn into_response(self) -> Response {
-        match self {
-            AppResponse::Full(html) => html.into_response(),
-            AppResponse::Partial(markup) => markup.into_response(),
-        }
-    }
-}
+// impl IntoResponse for AppResponse {
+//     fn into_response(self) -> Response {
+//         match self {
+//             AppResponse::Full(html) => html.into_response(),
+//             AppResponse::Partial(markup) => markup.into_response(),
+//         }
+//     }
+// }
 
 /// Asynchronicznie wczytuje i modyfikuje szablon HTML.
 /// Wstawia dynamiczną treść i usuwa atrybuty HTMX inicjujące ładowanie,
