@@ -66,6 +66,7 @@ document.addEventListener("DOMContentLoaded", function () {
       }, 0);
     }
     hideSpinner();
+    hydrateCartButtons();
   });
   document.body.addEventListener("htmx:sendError", hideSpinner);
   document.body.addEventListener("htmx:responseError", hideSpinner);
@@ -144,6 +145,7 @@ function initEventListeners() {
       );
       if (registrationMessages) registrationMessages.innerHTML = "";
     }
+    hydrateCartButtons();
   });
 
   /**
@@ -504,4 +506,42 @@ function adminProductEditForm() {
       return originalUrl && this.imagesToDelete.includes(originalUrl);
     },
   };
+}
+
+// Ta funkcja będzie odpowiedzialna za "naprawienie" stanu przycisków
+function hydrateCartButtons() {
+  const dataIsland = document.getElementById("cart-state-data");
+  if (!dataIsland) {
+    // Jeśli nie ma wyspy danych (np. przy zwykłym swapie HTMX), nic nie rób
+    return;
+  }
+
+  try {
+    const productIdsInCart = JSON.parse(dataIsland.textContent);
+    const cartIdSet = new Set(productIdsInCart); // Użycie Seta dla szybkiego sprawdzania
+
+    // Znajdź wszystkie przyciski do dodawania do koszyka
+    // Załóżmy, że mają wspólną klasę lub atrybut do identyfikacji
+    const allProductButtons = document.querySelectorAll("[data-product-id]");
+
+    allProductButtons.forEach((button) => {
+      const productId = button.dataset.productId;
+      // Sprawdzamy, czy przycisk ma dostęp do swojego komponentu Alpine
+      if (button._x_dataStack) {
+        const alpineComponent = button.__x;
+        if (
+          alpineComponent &&
+          typeof alpineComponent.data.isInCart !== "undefined"
+        ) {
+          alpineComponent.data.isInCart = cartIdSet.has(productId);
+        }
+      }
+    });
+
+    console.log("Hydracja stanu przycisków zakończona.");
+    // Usuń wyspę danych po użyciu, żeby nie zaśmiecać DOM
+    dataIsland.remove();
+  } catch (e) {
+    console.error('Błąd podczas hydracji stanu koszyka z "wyspy danych":', e);
+  }
 }

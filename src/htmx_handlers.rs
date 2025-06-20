@@ -1008,15 +1008,15 @@ fn render_product_grid_maud(
                                 @let is_in_cart = product_ids_in_cart.contains(&product.id);
 
                                 button x-data=(format!("{{ isInCart: {} }}", is_in_cart))
-                                       // POPRAWKA: Używamy format! do wstawienia ID do wartości atrybutu
-                                       "x-on:product-added.window"=(format!("if ($event.detail.productId === '{}') isInCart = true", product.id))
-                                       "x-on:product-removed.window"=(format!("if ($event.detail.productId === '{}') isInCart = false", product.id))
-                                       x-bind:hx-post=(format!("!isInCart ? '/htmx/cart/add/{}' : null", product.id))
-                                       hx-swap="none"
-                                       x-bind:disabled="isInCart"
-                                       x-bind:class="isInCart ? 'bg-green-600 cursor-default' : 'bg-pink-600 hover:bg-pink-700'"
-                                       class="w-full mt-2 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 ease-in-out inline-flex items-center justify-center"
-                                {
+                                   data-product-id=(product.id)
+                                   "x-on:product-added.window"=(format!("if ($event.detail.productId === '{}') isInCart = true", product.id))
+                                   "x-on:product-removed.window"=(format!("if ($event.detail.productId === '{}') isInCart = false", product.id))
+                                   x-bind:hx-post=(format!("!isInCart ? '/htmx/cart/add/{}' : null", product.id))
+                                   hx-swap="none"
+                                   x-bind:disabled="isInCart"
+                                   x-bind:class="isInCart ? 'bg-green-600 cursor-default' : 'bg-pink-600 hover:bg-pink-700'"
+                                   class="w-full mt-2 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 ease-in-out inline-flex items-center justify-center"
+                            {
                                     template x-if="!isInCart" {
                                         div class="flex items-center" {
                                             svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 mr-2" {
@@ -4864,7 +4864,14 @@ pub async fn render_product_listing_view(
     let filter_query_string = build_filter_only_query_string(&params);
     let current_listing_params_qs = build_full_query_string_from_params(&params);
 
-    Ok(render_product_grid_maud(
+    let cart_product_ids_json =
+        serde_json::to_string(&product_ids_in_cart).unwrap_or_else(|_| "[]".to_string());
+
+    Ok(html!(
+        script #cart-state-data type="application/json" {
+            (PreEscaped(cart_product_ids_json))
+        }
+        (render_product_grid_maud(
         &paginated_response.data,
         paginated_response.current_page,
         paginated_response.total_pages,
@@ -4872,6 +4879,7 @@ pub async fn render_product_listing_view(
         &filter_query_string,
         &current_listing_params_qs,
         &product_ids_in_cart,
+    ))
     ))
 }
 

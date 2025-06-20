@@ -1,7 +1,7 @@
 // src/filters.rs
 use crate::models::{Category, OrderStatus, ProductCondition, ProductGender};
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Deserializer, de};
+use serde::{Deserialize, Deserializer, Serialize, de};
 use std::str::FromStr;
 
 const DEFAULT_PAGE_LIMIT: i64 = 8;
@@ -15,7 +15,7 @@ const DEFAULT_ORDER_SORT_BY: &str = "order_date";
 const DEFAULT_ORDER_SORT_ORDER: &str = "desc";
 
 #[allow(dead_code)]
-#[derive(Debug, Deserialize, Clone, Default)]
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct ListingParams {
     // Paginacja
