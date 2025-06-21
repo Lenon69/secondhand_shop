@@ -1,6 +1,5 @@
 // src/cart_utils.rs
 
-use axum_extra::TypedHeader;
 use chrono::{DateTime, Utc};
 use sqlx::PgConnection;
 use uuid::Uuid;
@@ -8,7 +7,6 @@ use uuid::Uuid;
 use crate::{
     auth::TokenClaims,
     errors::AppError,
-    handlers::XGuestCartId,
     models::{
         CartDetailsResponse, CartItemPublic, CartItemWithProduct, Product, ProductStatus,
         ShoppingCart,

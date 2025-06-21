@@ -178,6 +178,10 @@ pub async fn get_product_detail_htmx_handler(
         }
     };
 
+    // Przygotowujemy JSON dla wyspy danych, tak jak na liście produktów
+    let cart_product_ids_json =
+        serde_json::to_string(&product_ids_in_cart).unwrap_or_else(|_| "[]".to_string());
+
     let is_in_cart = product_ids_in_cart.contains(&product.id);
     let formatted_price = format_price_maud(product.price);
 
@@ -207,6 +211,10 @@ pub async fn get_product_detail_htmx_handler(
     let return_query_params_str_rust: Option<String> = query_params.return_params;
 
     let page_content = html! {
+        script #cart-state-data type="application/json" {
+            (PreEscaped(cart_product_ids_json))
+        }
+
     div #product-detail-view "x-data"=(x_data_attribute_value)
         class="bg-white p-4 sm:p-6 lg:p-8 rounded-lg shadow-xl" {
         div ."grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12" {
@@ -279,12 +287,14 @@ pub async fn get_product_detail_htmx_handler(
                     }
 
                 div ."mt-auto pt-6" {
-                    @if product.status == ProductStatus::Available {
-                        // --- POCZĄTEK POPRAWIONEGO PRZYCISKU ---
+                        @if product.status == ProductStatus::Available {
                         button x-data=(format!("{{ isInCart: {} }}", is_in_cart))
                                "x-on:product-added.window"=(format!("if ($event.detail.productId === '{}') isInCart = true", product.id))
                                "x-on:product-removed.window"=(format!("if ($event.detail.productId === '{}') isInCart = false", product.id))
-                               x-bind:hx-post=(format!("!isInCart ? '/htmx/cart/add/{}' : null", product.id))
+
+                               x-bind:hx-post="!isInCart ? '/htmx/cart/add/' + $el.dataset.productId : null"
+                               data-product-id=(product.id)
+
                                hx-swap="none"
                                x-bind:disabled="isInCart"
                                x-bind:class="isInCart ? 'bg-green-600 cursor-default' : 'bg-pink-600 hover:bg-pink-700'"
@@ -307,9 +317,8 @@ pub async fn get_product_detail_htmx_handler(
                                 }
                             }
                         }
-                        // --- KONIEC POPRAWIONEGO PRZYCISKU ---
-                    } @else {
-                            div ."w-full text-center py-3 px-6 rounded-lg bg-gray-100 text-gray-500 font-semibold" {
+                        } @else {
+                        div ."w-full text-center py-3 px-6 rounded-lg bg-gray-100 text-gray-500 font-semibold" {
                                 "Produkt obecnie niedostępny"
                             }
                         }
@@ -686,7 +695,7 @@ pub async fn add_item_to_cart_htmx_handler(
 
     // 5. Przygotuj nagłówek HX-Trigger
     let trigger_payload = serde_json::json!({
-        "productAdded": { "productId": product_id },
+        "product-added": { "productId": product_id },
         "updateCartCount": {
             "newCount": cart_details.total_items,
             "newCartTotalPrice": cart_details.total_price,
@@ -822,10 +831,18 @@ pub async fn remove_item_from_cart_htmx_handler(
         AppError::InternalServerError("Błąd serwera przy aktualizacji koszyka".to_string())
     })?;
 
+    let product_ids_in_cart: Vec<Uuid> = cart_details
+        .items
+        .iter()
+        .map(|item| item.product.id)
+        .collect();
+    let cart_product_ids_json =
+        serde_json::to_string(&product_ids_in_cart).unwrap_or_else(|_| "[]".to_string());
+
     // 5. Przygotuj nagłówek HX-Trigger
     let mut headers = HeaderMap::new();
     let trigger_payload = serde_json::json!({
-        "productRemoved": { "productId": product_id_to_remove },
+        "product-removed": { "productId": product_id_to_remove },
         "updateCartCount": {
             "newCount": cart_details.total_items,
             "newCartTotalPrice": cart_details.total_price,
@@ -845,66 +862,70 @@ pub async fn remove_item_from_cart_htmx_handler(
 
     // 6. Wyrenderuj HTML dla listy przedmiotów w koszyku (podobnie jak w get_cart_details_htmx_handler)
     let markup = html! {
-        @if cart_details.items.is_empty() {
-            p ."text-gray-600 py-6 text-center" { "Twój koszyk jest pusty." }
-        } @else {
-    ul role="list" ."my-6 divide-y divide-gray-200 border-t border-b" {
-        @for item in &cart_details.items { // lub &items, zależnie od nazwy zmiennej
-            li ."flex py-4 px-4 sm:px-0" {
-                // --- Obrazek jako link ---
-                a href=(format!("/produkty/{}", item.product.id)) // Fallback URL
-                   hx-get=(format!("/htmx/produkt/{}", item.product.id)) // Endpoint HTMX
-                   hx-target="#content"                                 // Cel podmiany
-                   hx-swap="innerHTML"
-                   hx-push-url=(format!("/produkty/{}", item.product.id)) // Aktualizacja URL w przeglądarce
-                   // Opcjonalnie: wskaźnik ładowania, jeśli masz globalny np. .page-load-spinner
-                   // "hx-indicator"=".page-load-spinner"
-                   "@click"="if(typeof cartOpen !== 'undefined') cartOpen = false" // Zamknij koszyk (Alpine.js)
-                   class="h-20 w-20 flex-shrink-0 overflow-hidden rounded-md border border-gray-200 block group"
-                   aria-label={"Zobacz szczegóły produktu " (item.product.name)} {
-                    @if !item.product.images.is_empty() {
-                        img src=(item.product.images[0]) alt=(item.product.name) class="h-full w-full object-cover object-center group-hover:opacity-85 transition-opacity" loading="lazy";
-                    } @else {
-                        div ."h-full w-full bg-gray-100 flex items-center justify-center text-xs text-gray-400 group-hover:opacity-85 transition-opacity" { "Brak foto" }
-                    }
-                }
-
-                div ."ml-4 flex flex-1 flex-col" {
-                    div {
-                        div ."flex justify-between text-sm font-medium text-gray-800" {
-                            h3 ."group" { // Dodajemy 'group' dla efektu hover na linku wewnątrz
-                                // --- Nazwa produktu jako link ---
-                                a href=(format!("/produkty/{}", item.product.id)) // Fallback URL
-                                   hx-get=(format!("/htmx/produkt/{}", item.product.id))
-                                   hx-target="#content"
-                                   hx-swap="innerHTML"
-                                   hx-push-url=(format!("/produkty/{}", item.product.id))
-                                   // "hx-indicator"=".page-load-spinner"
-                                   "@click"="if(typeof cartOpen !== 'undefined') cartOpen = false" // Zamknij koszyk (Alpine.js)
-                                   class="hover:text-pink-600 transition-colors group-hover:underline" {
-                                    (item.product.name)
-                                }
+                @if cart_details.items.is_empty() {
+                    p ."text-gray-600 py-6 text-center" { "Twój koszyk jest pusty." }
+                } @else {
+            ul role="list" ."my-6 divide-y divide-gray-200 border-t border-b" {
+                @for item in &cart_details.items { // lub &items, zależnie od nazwy zmiennej
+                    li ."flex py-4 px-4 sm:px-0" {
+                        // --- Obrazek jako link ---
+                        a href=(format!("/produkty/{}", item.product.id)) // Fallback URL
+                           hx-get=(format!("/htmx/produkt/{}", item.product.id)) // Endpoint HTMX
+                           hx-target="#content"                                 // Cel podmiany
+                           hx-swap="innerHTML"
+                           hx-push-url=(format!("/produkty/{}", item.product.id)) // Aktualizacja URL w przeglądarce
+                           // Opcjonalnie: wskaźnik ładowania, jeśli masz globalny np. .page-load-spinner
+                           // "hx-indicator"=".page-load-spinner"
+                           "@click"="if(typeof cartOpen !== 'undefined') cartOpen = false" // Zamknij koszyk (Alpine.js)
+                           class="h-20 w-20 flex-shrink-0 overflow-hidden rounded-md border border-gray-200 block group"
+                           aria-label={"Zobacz szczegóły produktu " (item.product.name)} {
+                            @if !item.product.images.is_empty() {
+                                img src=(item.product.images[0]) alt=(item.product.name) class="h-full w-full object-cover object-center group-hover:opacity-85 transition-opacity" loading="lazy";
+                            } @else {
+                                div ."h-full w-full bg-gray-100 flex items-center justify-center text-xs text-gray-400 group-hover:opacity-85 transition-opacity" { "Brak foto" }
                             }
-                            p ."ml-4 whitespace-nowrap" { (format_price_maud(item.product.price)) }
                         }
-                        // Można tu dodać np. kategorię, jeśli jest potrzebna w skróconym widoku koszyka
-                        // p ."mt-1 text-xs text-gray-500" { (item.product.category.to_string()) }
-                    }
-                    div ."flex flex-1 items-end justify-between text-xs mt-2" { // Dodano mt-2 dla odstępu
-                        div ."flex" {
-                            button type="button"
-                                hx-post=(format!("/htmx/cart/remove/{}", item.product.id))
-                                hx-target="#cart-content-target" // Celuje w listę itemów w koszyku
-                                hx-swap="innerHTML"
-                                class="text-sm font-medium text-pink-600 px-3 py-1 rounded-md hover:bg-pink-100 hover:text-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-opacity-50 transition-all duration-150 ease-in-out" {
-                                "Usuń"
+
+                        div ."ml-4 flex flex-1 flex-col" {
+                            div {
+                                div ."flex justify-between text-sm font-medium text-gray-800" {
+                                    h3 ."group" { // Dodajemy 'group' dla efektu hover na linku wewnątrz
+                                        // --- Nazwa produktu jako link ---
+                                        a href=(format!("/produkty/{}", item.product.id)) // Fallback URL
+                                           hx-get=(format!("/htmx/produkt/{}", item.product.id))
+                                           hx-target="#content"
+                                           hx-swap="innerHTML"
+                                           hx-push-url=(format!("/produkty/{}", item.product.id))
+                                           // "hx-indicator"=".page-load-spinner"
+                                           "@click"="if(typeof cartOpen !== 'undefined') cartOpen = false" // Zamknij koszyk (Alpine.js)
+                                           class="hover:text-pink-600 transition-colors group-hover:underline" {
+                                            (item.product.name)
+                                        }
+                                    }
+                                    p ."ml-4 whitespace-nowrap" { (format_price_maud(item.product.price)) }
+                                }
+                                // Można tu dodać np. kategorię, jeśli jest potrzebna w skróconym widoku koszyka
+                                // p ."mt-1 text-xs text-gray-500" { (item.product.category.to_string()) }
+                            }
+                            div ."flex flex-1 items-end justify-between text-xs mt-2" { // Dodano mt-2 dla odstępu
+                                div ."flex" {
+                                    button type="button"
+                                        hx-post=(format!("/htmx/cart/remove/{}", item.product.id))
+                                        hx-target="#cart-content-target" // Celuje w listę itemów w koszyku
+                                        hx-swap="innerHTML"
+                                        class="text-sm font-medium text-pink-600 px-3 py-1 rounded-md hover:bg-pink-100 hover:text-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-opacity-50 transition-all duration-150 ease-in-out" {
+                                        "Usuń"
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
+    }
+            script #cart-state-data hx-swap-oob="true" type="application/json" {
+                (PreEscaped(cart_product_ids_json))
         }
-    }        }
     };
 
     Ok((headers, markup))
@@ -1005,19 +1026,21 @@ fn render_product_grid_maud(
                             }
 
                             div ."mt-auto" {
-                                // --- POCZĄTEK POPRAWIONEGO PRZYCISKU ---
                                 @let is_in_cart = product_ids_in_cart.contains(&product.id);
 
                                 button x-data=(format!("{{ isInCart: {} }}", is_in_cart))
-                                   data-product-id=(product.id)
-                                   "x-on:product-added.window"=(format!("if ($event.detail.productId === '{}') isInCart = true", product.id))
-                                   "x-on:product-removed.window"=(format!("if ($event.detail.productId === '{}') isInCart = false", product.id))
-                                   x-bind:hx-post=(format!("!isInCart ? '/htmx/cart/add/{}' : null", product.id))
-                                   hx-swap="none"
-                                   x-bind:disabled="isInCart"
-                                   x-bind:class="isInCart ? 'bg-green-600 cursor-default' : 'bg-pink-600 hover:bg-pink-700'"
-                                   class="w-full mt-2 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 ease-in-out inline-flex items-center justify-center"
-                            {
+                                       data-product-id=(product.id)
+                                       "x-on:product-added.window"=(format!("if ($event.detail.productId === '{}') isInCart = true", product.id))
+                                       "x-on:product-removed.window"=(format!("if ($event.detail.productId === '{}') isInCart = false", product.id))
+
+                                       // Poprawiona, JEDYNA wersja atrybutu hx-post
+                                       x-bind:hx-post="!isInCart ? '/htmx/cart/add/' + $el.dataset.productId : null"
+
+                                       hx-swap="none"
+                                       x-bind:disabled="isInCart"
+                                       x-bind:class="isInCart ? 'bg-green-600 cursor-default' : 'bg-pink-600 hover:bg-pink-700'"
+                                       class="w-full mt-2 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 ease-in-out inline-flex items-center justify-center"
+                                {
                                     template x-if="!isInCart" {
                                         div class="flex items-center" {
                                             svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 mr-2" {
@@ -1035,7 +1058,6 @@ fn render_product_grid_maud(
                                         }
                                     }
                                 }
-                                // --- KONIEC POPRAWIONEGO PRZYCISKU ---
                             }
                         }
                     }

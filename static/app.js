@@ -14,6 +14,25 @@ function hydrateButtonsWithDelay() {
   }, 0);
 }
 
+function forceEnableButton(productId) {
+  const button = document.querySelector(
+    `button[data-product-id="${productId}"]`,
+  );
+  if (button) {
+    console.log(`Ręczne włączanie przycisku dla produktu: ${productId}`);
+
+    button.removeAttribute("disabled");
+
+    if (!button.getAttribute("hx-post")) {
+      button.setAttribute("hx-post", `/htmx/cart/add/${productId}`);
+    }
+
+    // Krok 3: Poinformuj HTMX, aby "przetworzył" ten element na nowo.
+    // To jest kluczowe, jeśli atrybut hx-post był dodawany dynamicznie.
+    htmx.process(button);
+  }
+}
+
 // Wszystkie listenery inicjujemy po załadowaniu struktury strony (DOM).
 document.addEventListener("DOMContentLoaded", function () {
   const globalSpinner = document.getElementById("global-loading-spinner");
@@ -43,10 +62,12 @@ document.addEventListener("DOMContentLoaded", function () {
   document.body.addEventListener("htmx:afterRequest", function (event) {
     // Sprawdzamy, czy żądanie zakończyło się sukcesem (status 2xx)
     if (!event.detail.successful) {
+      hideSpinner();
       return;
     }
 
-    // KROK 1: Pobieramy dane o żądaniu, w tym metodę (verb)
+    hydrateButtonsWithDelay();
+
     const requestConfig = event.detail.requestConfig;
     const requestPath = requestConfig.path;
     const requestVerb = requestConfig.verb.toLowerCase(); // np. "get", "post", "delete"
@@ -72,7 +93,6 @@ document.addEventListener("DOMContentLoaded", function () {
       }, 0);
     }
     hideSpinner();
-    hydrateButtonsWithDelay();
   });
   hydrateButtonsWithDelay();
   document.body.addEventListener("htmx:sendError", hideSpinner);
@@ -109,13 +129,21 @@ document.addEventListener("DOMContentLoaded", function () {
 
 initEventListeners();
 function initEventListeners() {
-  // ========================================================================
-  // A. Konfiguracja i cykl życia HTMX
-  // ========================================================================
+  document.body.addEventListener("productRemoved", (event) => {
+    if (event.detail && event.detail.productId) {
+      // Najpierw rozgłoś zdarzenie dla Alpine.js (jak wcześniej)
+      window.dispatchEvent(
+        new CustomEvent("product-removed", {
+          detail: { productId: event.detail.productId },
+          bubbles: true,
+        }),
+      );
 
-  /**
-   * Dodaje nagłówki autoryzacji (JWT) i koszyka gościa do każdego żądania HTMX.
-   */
+      // Następnie, jako zabezpieczenie, ręcznie włącz przycisk
+      forceEnableButton(event.detail.productId);
+    }
+  });
+
   document.body.addEventListener("htmx:configRequest", (event) => {
     if (!event.detail?.headers) return;
 
@@ -130,10 +158,6 @@ function initEventListeners() {
     }
   });
 
-  /**
-   * Główna logika po podmianie treści przez HTMX.
-   * Odpowiada za przewijanie strony do góry i czyszczenie komunikatów.
-   */
   document.body.addEventListener("htmx:afterSwap", (event) => {
     // Czyszczenie starych komunikatów z formularzy logowania/rejestracji
     const isContentSwap =
@@ -264,28 +288,6 @@ function initEventListeners() {
   /**
    * Aktualizuje licznik koszyka i sumę częściową na podstawie danych z serwera.
    */
-
-  document.body.addEventListener("productAdded", (event) => {
-    if (event.detail && event.detail.productId) {
-      window.dispatchEvent(
-        new CustomEvent("product-added", {
-          detail: { productId: event.detail.productId },
-          bubbles: true,
-        }),
-      );
-    }
-  });
-
-  document.body.addEventListener("productRemoved", (event) => {
-    if (event.detail && event.detail.productId) {
-      window.dispatchEvent(
-        new CustomEvent("product-removed", {
-          detail: { productId: event.detail.productId },
-          bubbles: true,
-        }),
-      );
-    }
-  });
 
   document.body.addEventListener("updateCartCount", (event) => {
     if (!event.detail) return;
