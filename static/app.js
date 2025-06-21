@@ -7,29 +7,6 @@
 // I. GŁÓWNA INICJALIZACJA I LISTENERY
 // ========================================================================
 */
-
-function hydrateButtonsWithDelay() {
-  setTimeout(() => {
-    hydrateCartButtons();
-  }, 0);
-}
-
-function forceEnableButton(productId) {
-  const button = document.querySelector(
-    `button[data-product-id="${productId}"]`,
-  );
-  if (button) {
-    console.log(`Ręczne włączanie przycisku dla produktu: ${productId}`);
-
-    button.removeAttribute("disabled");
-
-    if (!button.getAttribute("hx-post")) {
-      button.setAttribute("hx-post", `/htmx/cart/add/${productId}`);
-    }
-    htmx.process(button);
-  }
-}
-
 // Wszystkie listenery inicjujemy po załadowaniu struktury strony (DOM).
 document.addEventListener("DOMContentLoaded", function () {
   const globalSpinner = document.getElementById("global-loading-spinner");
@@ -63,8 +40,6 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
 
-    hydrateButtonsWithDelay();
-
     const requestConfig = event.detail.requestConfig;
     const requestPath = requestConfig.path;
     const requestVerb = requestConfig.verb.toLowerCase(); // np. "get", "post", "delete"
@@ -91,7 +66,6 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     hideSpinner();
   });
-  hydrateButtonsWithDelay();
   document.body.addEventListener("htmx:sendError", hideSpinner);
   document.body.addEventListener("htmx:responseError", hideSpinner);
 
@@ -126,22 +100,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
 initEventListeners();
 function initEventListeners() {
-  document.body.addEventListener("productRemoved", (event) => {
-    if (event.detail && event.detail.productId) {
-      // Najpierw rozgłoś zdarzenie dla Alpine.js (jak wcześniej)
-      window.dispatchEvent(
-        new CustomEvent("product-removed", {
-          detail: { productId: event.detail.productId },
-          bubbles: true,
-        }),
-      );
-
-      setTimeout(() => {
-        forceEnableButton(productId);
-      }, 0);
-    }
-  });
-
   document.body.addEventListener("htmx:configRequest", (event) => {
     if (!event.detail?.headers) return;
 
@@ -174,7 +132,6 @@ function initEventListeners() {
       );
       if (registrationMessages) registrationMessages.innerHTML = "";
     }
-    hydrateCartButtons();
   });
 
   /**
@@ -513,42 +470,4 @@ function adminProductEditForm() {
       return originalUrl && this.imagesToDelete.includes(originalUrl);
     },
   };
-}
-
-// Ta funkcja będzie odpowiedzialna za "naprawienie" stanu przycisków
-function hydrateCartButtons() {
-  const dataIsland = document.getElementById("cart-state-data");
-  if (!dataIsland) {
-    // Jeśli nie ma wyspy danych (np. przy zwykłym swapie HTMX), nic nie rób
-    return;
-  }
-
-  try {
-    const productIdsInCart = JSON.parse(dataIsland.textContent);
-    const cartIdSet = new Set(productIdsInCart); // Użycie Seta dla szybkiego sprawdzania
-
-    // Znajdź wszystkie przyciski do dodawania do koszyka
-    // Załóżmy, że mają wspólną klasę lub atrybut do identyfikacji
-    const allProductButtons = document.querySelectorAll("[data-product-id]");
-
-    allProductButtons.forEach((button) => {
-      const productId = button.dataset.productId;
-      // Sprawdzamy, czy przycisk ma dostęp do swojego komponentu Alpine
-      if (button._x_dataStack) {
-        const alpineComponent = button.__x;
-        if (
-          alpineComponent &&
-          typeof alpineComponent.data.isInCart !== "undefined"
-        ) {
-          alpineComponent.data.isInCart = cartIdSet.has(productId);
-        }
-      }
-    });
-
-    console.log("Hydracja stanu przycisków zakończona.");
-    // Usuń wyspę danych po użyciu, żeby nie zaśmiecać DOM
-    dataIsland.remove();
-  } catch (e) {
-    console.error('Błąd podczas hydracji stanu koszyka z "wyspy danych":', e);
-  }
 }
