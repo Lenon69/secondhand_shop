@@ -607,7 +607,8 @@ pub async fn add_item_to_cart_htmx_handler(
         let guest_cookie = Cookie::build(("guest_cart_id", new_id.to_string()))
             .path("/")
             .http_only(true)
-            .same_site(SameSite::Lax)
+            .secure(true)
+            .same_site(SameSite::None)
             .build();
         headers.insert(
             axum::http::header::SET_COOKIE,
@@ -1122,11 +1123,22 @@ pub async fn gender_page_handler(
     // --- NOWA LOGIKA POBIERANIA KOSZYKA ---
     let mut conn = app_state.db_pool.acquire().await?;
     let cart_details_opt =
-        crate::cart_utils::get_cart_details(&mut conn, user_claims_opt, guest_cart_id_opt).await?;
+        crate::cart_utils::get_cart_details(&mut conn, user_claims_opt.clone(), guest_cart_id_opt)
+            .await?;
     let product_ids_in_cart: Vec<Uuid> = cart_details_opt
         .map(|details| details.items.iter().map(|item| item.product.id).collect())
         .unwrap_or_else(Vec::new);
     // --- KONIEC NOWEJ LOGIKI ---
+    // ================================================================
+    // =========== BLOK DO DEBUGOWANIA ======================
+    tracing::info!("--- DEBUGOWANIE SESJI (F5) ---");
+    tracing::info!("Zalogowany użytkownik (Claims): {:?}", user_claims_opt);
+    tracing::info!("Koszyk gościa (Cookie/Header): {:?}", guest_cart_id_opt);
+    // ================================================================
+    tracing::info!(
+        "Ostateczna lista ID produktów w koszyku: {:?}",
+        product_ids_in_cart
+    );
 
     let final_params = ListingParams {
         gender: Some(current_gender.clone()),
@@ -1250,11 +1262,23 @@ pub async fn gender_with_category_page_handler(
     // --- NOWA LOGIKA POBIERANIA KOSZYKA ---
     let mut conn = app_state.db_pool.acquire().await?;
     let cart_details_opt =
-        crate::cart_utils::get_cart_details(&mut conn, user_claims_opt, guest_cart_id_opt).await?;
+        crate::cart_utils::get_cart_details(&mut conn, user_claims_opt.clone(), guest_cart_id_opt)
+            .await?;
     let product_ids_in_cart: Vec<Uuid> = cart_details_opt
         .map(|details| details.items.iter().map(|item| item.product.id).collect())
         .unwrap_or_else(Vec::new);
     // --- KONIEC NOWEJ LOGIKI ---
+
+    // ================================================================
+    // =========== BLOK DO DEBUGOWANIA ======================
+    tracing::info!("--- DEBUGOWANIE SESJI (F5) ---");
+    tracing::info!("Zalogowany użytkownik (Claims): {:?}", user_claims_opt);
+    tracing::info!("Koszyk gościa (Cookie/Header): {:?}", guest_cart_id_opt);
+    // ================================================================
+    tracing::info!(
+        "Ostateczna lista ID produktów w koszyku: {:?}",
+        product_ids_in_cart
+    );
 
     // Tworzymy parametry do zapytania, ustawiając płeć i kategorię z URL
     let final_params = ListingParams {

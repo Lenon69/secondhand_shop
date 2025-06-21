@@ -8,6 +8,12 @@
 // ========================================================================
 */
 
+function hydrateButtonsWithDelay() {
+  setTimeout(() => {
+    hydrateCartButtons();
+  }, 0);
+}
+
 // Wszystkie listenery inicjujemy po załadowaniu struktury strony (DOM).
 document.addEventListener("DOMContentLoaded", function () {
   const globalSpinner = document.getElementById("global-loading-spinner");
@@ -66,8 +72,9 @@ document.addEventListener("DOMContentLoaded", function () {
       }, 0);
     }
     hideSpinner();
-    hydrateCartButtons();
+    hydrateButtonsWithDelay();
   });
+  hydrateButtonsWithDelay();
   document.body.addEventListener("htmx:sendError", hideSpinner);
   document.body.addEventListener("htmx:responseError", hideSpinner);
 
@@ -85,7 +92,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
       setTimeout(() => {
         window.location.reload();
-      }, 100);
+      }, 0);
     };
 
     window.addEventListener("pageshow", function (event) {
@@ -181,7 +188,7 @@ function initEventListeners() {
       );
 
       // Przeładuj na stronę główną po chwili
-      setTimeout(() => window.location.replace("/"), 800);
+      setTimeout(() => window.location.replace("/"), 0);
     }
   });
 
@@ -342,7 +349,7 @@ function initEventListeners() {
         swap: "innerHTML",
         pushUrl: "/logowanie",
       });
-    }, 100); // Małe opóźnienie dla pewności
+    }, 0); // Małe opóźnienie dla pewności
   });
 
   /**

@@ -1069,7 +1069,7 @@ pub async fn login_handler(
                 .path("/") // Ciasteczko będzie dostępne na całej stronie
                 .http_only(true) // Ważne: ciasteczko niedostępne dla JavaScript po stronie klienta
                 .secure(true) // Wysyłane tylko przez HTTPS
-                .same_site(SameSite::Lax) // Dobra ochrona przed atakami CSRF
+                .same_site(SameSite::None) // Dobra ochrona przed atakami CSRF
                 .build();
 
             let mut headers = HeaderMap::new();
