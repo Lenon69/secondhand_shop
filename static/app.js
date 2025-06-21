@@ -26,9 +26,6 @@ function forceEnableButton(productId) {
     if (!button.getAttribute("hx-post")) {
       button.setAttribute("hx-post", `/htmx/cart/add/${productId}`);
     }
-
-    // Krok 3: Poinformuj HTMX, aby "przetworzył" ten element na nowo.
-    // To jest kluczowe, jeśli atrybut hx-post był dodawany dynamicznie.
     htmx.process(button);
   }
 }
@@ -139,8 +136,9 @@ function initEventListeners() {
         }),
       );
 
-      // Następnie, jako zabezpieczenie, ręcznie włącz przycisk
-      forceEnableButton(event.detail.productId);
+      setTimeout(() => {
+        forceEnableButton(productId);
+      }, 0);
     }
   });
 
