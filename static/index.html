@@ -334,7 +334,7 @@
                           autocomplete="off"
 
                           hx-get="/htmx/live-search"
-                          hx-trigger="keyup changed delay:300ms, search"
+                          hx-trigger="keyup changed delay:150ms, search"
                           hx-target="#live-search-results"
                           hx-swap="innerHTML"
 
@@ -542,26 +542,48 @@
         @click.away="isMobileMenuOpen = false"
       >
         <div class="pt-2 pb-3 space-y-1 px-2">
-          <div class="px-2 pb-3 pt-1">
-            <form
-              hx-get="/htmx/products"
-              hx-target="#content"
-              hx-swap="innerHTML"
-              @submit="isMobileMenuOpen = false"
-              hx-push-url="true"
-              class="flex space-x-0"
-            >
-          <input type="search"
-                 name="search"
-                 placeholder="Szukaj perełek..."
-                 class="flex-grow px-3 py-2 border border-r-0 border-gray-300 rounded-l-md focus:outline-none focus:ring-1 focus:ring-pink-500 focus:border-pink-500 text-sm"
-                 aria-label="Wyszukaj produkty (mobilne)" />
-          <button type="submit"
-                  class="px-3 py-2 bg-black text-white rounded-r-md hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 text-sm"
-                  aria-label="Szukaj">
-              <span>Szukaj</span>
-          </button>
-          </form>
+          <div 
+              class="mt-6 relative"
+              x-data="{ hasMobileResults: false }"
+              @htmx:after-request="if ($event.target.id === 'mobile-search-input') hasMobileResults = $event.detail.xhr.responseText.trim() !== ''"
+              @click.away="hasMobileResults = false"
+          >
+              <form 
+                  action="/wyszukiwanie" 
+                  method="GET" 
+                  class="group relative"
+                  @submit="hasMobileResults = false"
+              >
+                  <input
+                      id="mobile-search-input"
+                      class="block w-full rounded-md border-0 bg-gray-700 py-1.5 pl-10 pr-3 text-gray-300 placeholder:text-gray-400 focus:bg-white focus:text-gray-900 focus:ring-0 sm:text-sm sm:leading-6"
+                      placeholder="Szukaj..."
+                      type="search"
+                      name="search"
+                      autocomplete="off"
+
+                      hx-get="/htmx/live-search"
+                      hx-trigger="keyup changed delay:150ms, search"
+                      hx-target="#mobile-live-search-results"
+                      hx-swap="innerHTML"
+
+                      @focus="hasMobileResults = true"
+                      @keydown.escape.window="hasMobileResults = false"
+                  />
+                  <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                      <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                          <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"></path>
+                      </svg>
+                  </div>
+              </form>
+    
+              <div
+                  x-show="hasMobileResults"
+                  x-transition
+                  id="mobile-live-search-results"
+                  class="absolute mt-1 w-full bg-white rounded-md shadow-lg z-20 overflow-hidden border border-gray-200"
+              >
+                  </div>
           </div>
           <a
             href="/dla-niej"

@@ -23,10 +23,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Pokaż spinner przed każdym żądaniem HTMX
   document.body.addEventListener("htmx:beforeRequest", (event) => {
-    const requestPath = event.detail.path;
-    if (requestPath.includes("/htmx/live-search")) {
-      return;
-    }
+    // const requestPath = event.detail.path;
+    // if (requestPath.includes("/htmx/live-search")) {
+    //   return;
+    // }
     // Sprawdzamy, czy to żądanie do strony głównej, aby wymusić pełny reload
     const path = event.detail.requestConfig.path;
     if (path === "/" || path === "") {

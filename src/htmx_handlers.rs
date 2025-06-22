@@ -5469,7 +5469,7 @@ pub async fn live_search_handler(
                            hx-swap="innerHTML"
                            hx-push-url=(format!("/produkty/{}", product.id))
                            class="flex items-center p-3 hover:bg-gray-50 transition-colors"
-                           "@click"="hasResults = false; hasMobileResults = false"
+                           "@click"="hasResults = false; hasMobileResults = false; isMobileMenuOpen = false"
 
                         {
                             // Miniaturka obrazka
