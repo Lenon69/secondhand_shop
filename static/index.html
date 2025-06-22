@@ -309,27 +309,57 @@
               />
               </a>
             </h1>
-          <div class="hidden lg:flex flex-1 justify-center items-center px-6">
-            <form
-              hx-get="/htmx/products"
-              hx-target="#content"
-              hx-swap="innerHTML"
-              hx-push-url="true"
-              class="w-full max-w-md flex"
-            >
-            <input type="search"
-               name="search"
-               placeholder="Szukaj perełek..."
-               class="w-full px-4 py-2 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-shadow text-sm"
-               aria-label="Wyszukaj produkty" />
-              <button type="submit"
-                class="px-4 py-2 bg-black text-white rounded-r-lg transition-colors duration-300 ease-in-out hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 text-sm"
-                aria-label="Szukaj">
-            <span class="search-button-text">Szukaj</span>
-        </button>
-        </form>
+          <div 
+              class="hidden lg:flex flex-1 justify-center items-center px-6 relative"
+              x-data="{ hasResults: false }"
+              @htmx:after-request="if ($event.target.id === 'live-search-input') hasResults = $event.detail.xhr.responseText.trim() !== ''"
+              @click.away="hasResults = false"
+          >
+              <div class="w-full max-w-md">
+                  <form
+                      hx-get="/htmx/products"
+                      hx-target="#content"
+                      hx-swap="innerHTML"
+                      hx-push-url="true"
+                      class="flex w-full"
+                      @submit="hasResults = false"
+                  >
+                      <input 
+                          type="search"
+                          name="search"
+                          id="live-search-input"
+                          placeholder="Szukaj perełek..."
+                          class="w-full px-4 py-2 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-shadow text-sm"
+                          aria-label="Wyszukaj produkty"
+                          autocomplete="off"
+
+                          hx-get="/htmx/live-search"
+                          hx-trigger="keyup changed delay:300ms, search"
+                          hx-target="#live-search-results"
+                          hx-swap="innerHTML"
+
+                          @focus="hasResults = true"
+                          @keydown.escape.window="hasResults = false"
+                      />
+                      <button 
+                          type="submit"
+                          class="px-4 py-2 bg-black text-white rounded-r-lg transition-colors duration-300 ease-in-out hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 text-sm"
+                          aria-label="Szukaj"
+                      >
+                          <span class="search-button-text">Szukaj</span>
+                      </button>
+                  </form>
+
+                  <div
+                      x-show="hasResults"
+                      x-transition
+                      id="live-search-results"
+                      class="absolute mt-1 w-full max-w-md bg-white rounded-md shadow-lg z-20 overflow-hidden border border-gray-200"
+                  >
+                      </div>
+              </div>
           </div>
-        <div class="hidden lg:flex items-center space-x-4">
+          <div class="hidden lg:flex items-center space-x-4">
          <a  x-bind:href="isAuthenticated ? '/moje-konto' : '/logowanie'"
             x-bind:hx-get="isAuthenticated ? '/htmx/my-account' : '/htmx/logowanie'"
             hx-target="#content" hx-swap="innerHTML"

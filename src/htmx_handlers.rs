@@ -5427,3 +5427,66 @@ fn render_added_to_cart_button(product_id: Uuid) -> Markup {
         }
     }
 }
+
+pub async fn live_search_handler(
+    State(app_state): State<AppState>,
+    Query(params): Query<ListingParams>,
+) -> Result<Markup, AppError> {
+    // Sprawdź, czy zapytanie nie jest puste. Jeśli jest, zwróć pusty HTML.
+    let search_query = match params.search {
+        Some(q) if !q.trim().is_empty() => q,
+        _ => return Ok(html! {}),
+    };
+
+    tracing::info!("LIVE SEARCH: Szukanie dla '{}'", search_query);
+
+    // Wykorzystujemy istniejący handler API do pobrania produktów, ale z limitem np. 5
+    let search_params = ListingParams {
+        search: Some(search_query),
+        limit: Some(5),
+        ..Default::default()
+    };
+
+    // Używamy `list_products`, aby uniknąć duplikacji logiki zapytań do bazy
+    let products_response =
+        crate::handlers::list_products(State(app_state), Query(search_params)).await?;
+    let products = products_response.0.data;
+
+    Ok(html! {
+        @if products.is_empty() {
+            // Komunikat, gdy nic nie znaleziono
+            div class="p-4 text-sm text-gray-500 text-center" {
+                "Brak wyników."
+            }
+        } @else {
+            // Lista znalezionych produktów
+            ul class="divide-y divide-gray-100" {
+                @for product in products {
+                    li {
+                        a href=(format!("/produkty/{}", product.id))
+                           hx-get=(format!("/htmx/produkt/{}", product.id))
+                           hx-target="#content"
+                           hx-swap="innerHTML"
+                           hx-push-url=(format!("/produkty/{}", product.id))
+                           class="flex items-center p-3 hover:bg-gray-50 transition-colors"
+                           "@click"="hasResults = false; hasMobileResults = false"
+
+                        {
+                            // Miniaturka obrazka
+                            @if let Some(image_url) = product.images.first() {
+                                img src=(image_url) alt=(product.name) class="h-12 w-12 rounded-md object-cover flex-shrink-0";
+                            } @else {
+                                div class="h-12 w-12 rounded-md bg-gray-200 flex-shrink-0" {}
+                            }
+                            // Nazwa i cena
+                            div class="ml-4 flex-1 overflow-hidden" {
+                                p class="text-sm font-medium text-gray-900 truncate" { (product.name) }
+                                p class="text-sm text-gray-500" { (format_price_maud(product.price)) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    })
+}

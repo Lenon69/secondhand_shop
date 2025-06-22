@@ -260,6 +260,7 @@ async fn main() {
         .route("/zapomnialem-hasla", get(forgot_password_form_handler))
         .route("/htmx/zapomnialem-hasla", get(forgot_password_form_handler))
         .route("/resetuj-haslo", get(reset_password_form_handler))
+        .route("/htmx/live-search", get(live_search_handler))
         .nest_service("/static", ServeDir::new("static"))
         .fallback(handler_404)
         .layer(TraceLayer::new_for_http())
