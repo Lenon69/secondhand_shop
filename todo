@@ -1,0 +1,81 @@
+Lista 15+ Usprawnień Wizualnych i UX
+Nawigacja i Odkrywanie Produktów
+
+Zaawansowane Filtrowanie Produktów:
+Co: Dodaj na stronach kategorii (/dla-niej, /dla-niego) panel z filtrami, podobny do tego w panelu admina. Umożliw użytkownikom filtrowanie po cenie (suwak lub pola od/do), stanie produktu (ProductCondition), a w przyszłości może po rozmiarze czy marce.
+Dlaczego: To absolutnie kluczowa funkcja w e-commerce. Pomaga użytkownikom szybko zawęzić ogromną listę produktów do tych, które ich interesują, co bezpośrednio zwiększa szansę na zakup.
+Jak: Możesz stworzyć formularz z atrybutami hx-get i hx-trigger="change", który przy każdej zmianie będzie odświeżał siatkę produktów, wysyłając nowe parametry do Twojego handlera list_products_htmx_handler.
+
+
+Widoczne Opcje Sortowania:
+Co: Nad siatką produktów umieść rozwijaną listę (<select>), która pozwoli użytkownikom jawnie wybrać sposób sortowania (np. "Cena: od najniższej", "Najnowsze", "Cena: od najwyższej").
+Dlaczego: Daje użytkownikom poczucie kontroli i pozwala im przeglądać ofertę według własnych preferencji.
+Jak: Podobnie jak z filtrami – formularz z hx-get i hx-trigger="change", który będzie wysyłał odpowiednie parametry sort_by i order.
+
+Wyszukiwanie "Na Żywo" (Live Search):
+Co: Zamiast czekać na wciśnięcie "Enter", wyniki wyszukiwania mogą pojawiać się w małym, rozwijanym okienku już w trakcie pisania przez użytkownika.
+Dlaczego: To nowoczesne i bardzo szybkie rozwiązanie. Użytkownik od razu widzi, czy coś jest dostępne, i może przejść do produktu jednym kliknięciem.
+Jak: Na polu <input type="search"> dodaj hx-get="/htmx/live-search", hx-trigger="keyup changed delay:300ms" (opóźnienie zapobiega wysyłaniu żądań po każdej literze) i hx-target wskazujący na <div>, który pojawi się pod polem wyszukiwania.
+
+Nawigacja Okruszkowa (Breadcrumbs):
+Co: Na stronach kategorii i produktów dodaj ścieżkę nawigacyjną, np. Strona główna > Dla niej > Sukienki > Letnia sukienka w kwiaty.
+Dlaczego: Pomaga użytkownikom w orientacji na stronie i ułatwia powrót do wyższych kategorii jednym kliknięciem. Jest też świetne dla SEO.
+Jak: W handlerach (gender_page_handler, get_product_detail_htmx_handler) przekazuj do szablonu Maud informacje o aktualnej ścieżce i renderuj listę linków.
+
+Efekt Hover na Zdjęciach Produktów:
+Co: Na liście produktów, gdy użytkownik najedzie kursorem na zdjęcie, może ono płynnie zmienić się na drugie zdjęcie z galerii danego produktu (jeśli istnieje).
+Dlaczego: To subtelny, ale bardzo profesjonalny detal, który pozwala szybko zobaczyć produkt z innej perspektywy bez wchodzenia w szczegóły.
+Jak: Można to osiągnąć za pomocą Alpine.js (@mouseenter, @mouseleave) lub czystego CSS, ukrywając drugie zdjęcie i pokazując je przy :hover na kontenerze.
+Interakcja i Informacja Zwrotna (Feedback)
+
+Szkieletowe Ekrany Ładowania (Skeleton Screens):
+Co: Zamiast globalnego spinnera przy ładowaniu siatki produktów, wyświetl szare "szkielety", które imitują wygląd docelowych kart produktowych.
+Dlaczego: Znacząco poprawia postrzegany czas ładowania (perceived performance) i eliminuje "skakanie" layoutu, gdy pojawia się nowa treść.
+Jak: Na linkach paginacji/filtrach użyj hx-indicator="#skeleton-container", gdzie #skeleton-container to div z kilkoma szarymi, animowanymi prostokątami, który jest normalnie ukryty.
+
+Lepsze Komunikaty o Błędach Walidacji:
+Co: Gdy walidacja formularza (np. w kasie) zawiedzie, oprócz globalnego komunikatu "toast", podświetl błędne pola na czerwono i wyświetl komunikat o błędzie bezpośrednio pod nimi.
+Dlaczego: Użytkownik od razu wie, które dokładnie pole musi poprawić, co zmniejsza frustrację.
+Jak: Handler w Rust w przypadku błędu walidacji może zwrócić kod 422 z fragmentem HTML zawierającym cały formularz, ale z dodanymi klasami CSS dla błędów i komunikatami. Użyj hx-target na całym formularzu.
+
+Ulepszone "Puste Stany":
+Co: Gdy wyszukiwanie nie zwróci wyników lub kategoria jest pusta, zamiast prostego "Brak produktów", wyświetl bardziej pomocny komunikat.
+Dlaczego: Dobry "pusty stan" może zachęcić użytkownika do dalszego działania.
+Jak: Zamiast p { "Brak produktów" } wyrenderuj: div { "Niestety, nic nie znaleziono dla frazy '...'." br; "Może sprawdź nasze " a hx-get="/nowosci" { "nowości" } "?" }.
+Strona Produktu i Proces Zakupowy
+
+"Przyklejony" Pasek Zakupu na Stronie Produktu:
+Co: Gdy użytkownik na stronie szczegółów produktu przewija stronę w dół, a główny przycisk "Dodaj do koszyka" znika z ekranu, na górze lub na dole ekranu pojawia się cienki pasek z nazwą produktu, ceną i przyciskiem "Dodaj do koszyka".
+Dlaczego: Utrzymuje kluczową akcję (CTA) zawsze w zasięgu wzroku, co ułatwia podjęcie decyzji o zakupie w dowolnym momencie.
+Jak: Za pomocą Alpine.js i x-intersect, który wykrywa, kiedy oryginalny przycisk znika z widoku, i wtedy pokazuje/ukrywa "przyklejony" pasek.
+
+Modal "Szybkiego Podglądu" (Quick View):
+Co: Na liście produktów, oprócz linku do pełnych szczegółów, dodaj przycisk "Szybki podgląd", który otwiera modal (okno dialogowe) z kluczowymi informacjami i przyciskiem "Dodaj do koszyka".
+Dlaczego: Pozwala użytkownikom szybko ocenić produkt i dodać go do koszyka bez opuszczania strony z listą, co przyspiesza zakupy.
+Jak: Przycisk "Szybki podgląd" używałby hx-get do pobrania uproszczonego widoku HTML produktu i wstawiałby go do modala zarządzanego przez Alpine.js.
+
+Ostatnio Oglądane Produkty:
+Co: W stopce lub na stronie głównej wyświetlaj sekcję z kilkoma ostatnio oglądanymi przez użytkownika produktami.
+Dlaczego: Ułatwia powrót do interesujących przedmiotów i przypomina o nich użytkownikowi.
+Jak: Na stronie szczegółów produktu, za pomocą małego skryptu w app.js, zapisuj ID oglądanego produktu w localStorage. Następnie renderuj tę sekcję, pobierając dane z localStorage.
+Ogólny Wygląd i Optymalizacje Techniczne
+
+Spójne Stany focus dla Dostępności:
+Co: Upewnij się, że wszystkie klikalne elementy (linki, przyciski, pola formularzy) mają wyraźny i spójny wygląd, gdy są aktywne (fokusowane) za pomocą klawiatury (klawisz Tab).
+Dlaczego: Jest to kluczowe dla dostępności (a11y), umożliwiając osobom korzystającym tylko z klawiatury wygodną nawigację po stronie.
+Jak: W Tailwind CSS używaj klas focus:ring-2, focus:outline-none, focus:ring-pink-500, aby zdefiniować spójny styl dla stanu :focus.
+
+Zarządzanie Fokusem w Modalach i Panelach Bocznych:
+Co: Gdy otwiera się modal (np. powiększone zdjęcie) lub panel boczny (koszyk), fokus klawiatury powinien być "uwięziony" wewnątrz tego elementu. Po zamknięciu, fokus powinien wrócić do przycisku, który go otworzył.
+Dlaczego: To fundamentalna zasada dostępności dla elementów modalnych.
+Jak: Alpine.js ma wtyczkę @alpinejs/focus, która bardzo ułatwia zarządzanie fokusem (x-trap).
+
+Dynamiczne Metatagi dla SEO i Social Media:
+Co: Spraw, aby serwer dynamicznie renderował tagi <title> oraz <meta> (np. og:title, og:image, description) dla każdej podstrony, zwłaszcza dla stron produktów.
+Dlaczego: Niezbędne dla SEO i dla pięknego wyglądu linków, gdy ktoś udostępnia Twój produkt na Facebooku, Twitterze itp.
+Jak: W głównym szablonie index.html zdefiniuj bloki, które HTMX może podmienić "out of band". Handler w Rust dla strony produktu powinien zwracać HTML produktu oraz, jako OOB, nowe tagi <title> i <meta> do wstawienia w sekcji <head>.
+
+Tryb Ciemny (Dark Mode):
+Co: Dodaj przełącznik, który pozwoli użytkownikom włączyć ciemną wersję kolorystyczną Twojego sklepu.
+Dlaczego: Jest to bardzo popularna i pożądana przez wielu użytkowników funkcja, która zmniejsza zmęczenie oczu w nocy.
+Jak: Tailwind CSS ma wbudowane wsparcie dla trybu ciemnego. Wystarczy, że dodasz klasę dark do tagu <html> (zarządzaną przez Alpine.js i localStorage), a następnie w całym kodzie będziesz używać wariantów dark:, np. dark:bg-gray-800 dark:text-white.

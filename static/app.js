@@ -9,8 +9,9 @@
 */
 // Wszystkie listenery inicjujemy po załadowaniu struktury strony (DOM).
 document.addEventListener("DOMContentLoaded", function () {
-  const globalSpinner = document.getElementById("global-loading-spinner");
+  checkSession();
 
+  const globalSpinner = document.getElementById("global-loading-spinner");
   if (!globalSpinner) {
     console.error("Global spinner element #global-loading-spinner NOT FOUND!");
     return;
@@ -470,4 +471,81 @@ function adminProductEditForm() {
       return originalUrl && this.imagesToDelete.includes(originalUrl);
     },
   };
+}
+
+/**
+ * Parsuje token JWT, aby uzyskać dostęp do jego zawartości (payload).
+ * @param {string} token - Token JWT.
+ * @returns {object|null} - Zdekodowany payload lub null w przypadku błędu.
+ */
+function parseJwt(token) {
+  try {
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map(function (c) {
+          return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
+        })
+        .join(""),
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Wylogowuje użytkownika po stronie klienta.
+ * Czyści localStorage, informuje użytkownika i odświeża stronę.
+ */
+function clientSideLogout() {
+  console.log("Wykryto wygasłą sesję. Wylogowywanie...");
+  localStorage.removeItem("jwtToken");
+
+  // Wyślij zdarzenie, aby pokazać komunikat "toast"
+  window.dispatchEvent(
+    new CustomEvent("showMessage", {
+      detail: {
+        type: "info",
+        message: "Twoja sesja wygasła. Zaloguj się ponownie.",
+      },
+    }),
+  );
+
+  // Po krótkiej chwili odśwież stronę, aby w pełni zaktualizować stan UI
+  setTimeout(() => {
+    window.location.reload();
+  }, 750); // 2 sekundy, aby użytkownik zdążył przeczytać komunikat
+}
+
+/**
+ * Sprawdza ważność sesji użytkownika przy każdym załadowaniu strony.
+ * Jeśli token wygasł, automatycznie wylogowuje.
+ */
+function checkSession() {
+  const token = localStorage.getItem("jwtToken");
+  if (!token) {
+    return; // Brak tokenu, użytkownik jest gościem.
+  }
+
+  const decodedToken = parseJwt(token);
+  if (!decodedToken || !decodedToken.exp) {
+    // Token jest uszkodzony, wyloguj dla bezpieczeństwa
+    clientSideLogout();
+    return;
+  }
+
+  // `decodedToken.exp` jest w sekundach, a `Date.now()` w milisekundach.
+  const isExpired = decodedToken.exp < Date.now() / 1000;
+
+  if (isExpired) {
+    clientSideLogout();
+  } else {
+    console.log(
+      "Sesja jest ważna. Wygasa za:",
+      new Date(decodedToken.exp * 1000),
+    );
+  }
 }

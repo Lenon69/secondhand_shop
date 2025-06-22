@@ -1114,17 +1114,6 @@ pub async fn gender_page_handler(
     let product_ids_in_cart: Vec<Uuid> = cart_details_opt
         .map(|details| details.items.iter().map(|item| item.product.id).collect())
         .unwrap_or_else(Vec::new);
-    // --- KONIEC NOWEJ LOGIKI ---
-    // ================================================================
-    // =========== BLOK DO DEBUGOWANIA ======================
-    tracing::info!("--- DEBUGOWANIE SESJI (F5) ---");
-    tracing::info!("Zalogowany użytkownik (Claims): {:?}", user_claims_opt);
-    tracing::info!("Koszyk gościa (Cookie/Header): {:?}", guest_cart_id_opt);
-    // ================================================================
-    tracing::info!(
-        "Ostateczna lista ID produktów w koszyku: {:?}",
-        product_ids_in_cart
-    );
 
     let final_params = ListingParams {
         gender: Some(current_gender.clone()),
