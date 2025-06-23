@@ -5761,12 +5761,16 @@ pub async fn home_page_handler(
 /// Renderuje sekcję "hero" z nagłówkiem H1 dla strony głównej.
 fn render_home_page_hero() -> Markup {
     html! {
-        div class="text-center py-10 sm:py-16 bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-100 rounded-xl shadow-inner-lg border border-gray-200 mb-8" {
-            h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-gray-900" {
-                "Wyjątkowa Odzież Vintage Online"
-            }
-            p class="mt-4 max-w-2xl mx-auto text-lg text-gray-600" {
-                "Odkryj unikalne perełki z duszą. Ręcznie selekcjonowana odzież z drugiej ręki dla Niej i dla Niego."
+        div class="relative text-center py-20 sm:py-28 bg-[url('/static/main-background.jpg')] bg-cover bg-center rounded-xl shadow-lg border border-gray-300 mb-8 overflow-hidden" {
+            div class="absolute inset-0 bg-black/50" {}
+
+            div class="relative z-10 px-4" {
+                h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white" {
+                    "Wyjątkowa Odzież Vintage Online"
+                }
+                p class="mt-4 max-w-2xl mx-auto text-lg text-gray-100" {
+                    "Odkryj unikalne perełki z duszą. Ręcznie selekcjonowana odzież z drugiej ręki dla Niej i dla Niego."
+                }
             }
         }
     }

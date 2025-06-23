@@ -135,7 +135,7 @@
 
               // 🛒 Koszyk
               cartOpen: false,
-              cartItemCount: parseInt(localStorage.getItem('alpineCartCount')) || 0,
+              cartItemCount: 0,
               guestCartId: localStorage.getItem('guestCartId'),
 
               // 📱 Menu mobilne
@@ -269,7 +269,8 @@
         window.addEventListener('authChangedClient', syncAuth);
         window.addEventListener('logoutClient', () => isAuthenticated = false);
 
-        $watch('cartItemCount', val => localStorage.setItem('alpineCartCount', val));
+        this.cartItemCount = parseInt(localStorage.getItem('cartItemCount')) || 0;
+        this.$watch('cartItemCount', val => localStorage.setItem('alpineCartCount', val));
         $watch('guestCartId', val => val
             ? localStorage.setItem('guestCartId', val)
             : localStorage.removeItem('guestCartId'));
