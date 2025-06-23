@@ -1329,7 +1329,7 @@ pub async fn create_order_handler(
     const SHIPPING_POCZTA_COST: i64 = 1799;
     const SHIPPING_POCZTA_NAME: &str = "Poczta Polska S.A.";
     const SHIPPING_FREE_NAME: &str = "Darmowa dostawa";
-    const FREE_SHIPPING_THRESHOLD: i64 = 30000;
+    const FREE_SHIPPING_THRESHOLD: i64 = 25000;
 
     let (derived_shipping_cost, shipping_method_name_to_store): (i64, String) = match payload
         .shipping_method_key

@@ -26,7 +26,7 @@ use crate::errors::AppError;
 /// Asynchronicznie wczytuje i modyfikuje szablon HTML.
 /// Wstawia dynamiczną treść i usuwa atrybuty HTMX inicjujące ładowanie,
 /// aby zapobiec konfliktom przy renderowaniu po stronie serwera.
-async fn serve_full_page<'a>(page_builder: PageBuilder<'a>) -> Result<Response, AppError> {
+pub async fn serve_full_page<'a>(page_builder: PageBuilder<'a>) -> Result<Response, AppError> {
     let shell_content = match fs::read("static/index.html").await {
         Ok(bytes) => Bytes::from(bytes),
         Err(e) => {
@@ -37,38 +37,46 @@ async fn serve_full_page<'a>(page_builder: PageBuilder<'a>) -> Result<Response, 
         }
     };
 
-    // let content_string = content_markup.into_string();
-    // let title_string = title.to_string();
+    // KROK 1: Dekonstrukcja PageBuilder. Teraz mamy bezpośrednią własność nad każdą częścią.
+    let PageBuilder {
+        title,
+        main_content,
+        head_scripts,
+        body_scripts,
+    } = page_builder;
+
+    // KROK 2: Konwertujemy Markup na String *jeden raz*, przed utworzeniem domknięć.
+    // .into_string() zużywa `main_content`, co jest w porządku, bo już go nie potrzebujemy.
+    let content_string = main_content.into_string();
+
     let mut response_body = Vec::new();
     let mut element_handlers = vec![
-        element!("#content", |el| {
-            el.set_inner_content(
-                &page_builder.main_content.clone().into_string(),
-                lol_html::html_content::ContentType::Html,
-            );
+        // KROK 3: Używamy `move`, aby domknięcie przejęło własność nad `content_string`.
+        element!("#content", move |el| {
+            // ZNIKA .clone()! Przekazujemy referencję do stringa, który jest teraz własnością domknięcia.
+            el.set_inner_content(&content_string, lol_html::html_content::ContentType::Html);
             el.remove_attribute("hx-trigger");
             el.remove_attribute("hx-get");
             Ok(())
         }),
         element!("head > title", |el| {
-            el.set_inner_content(
-                &page_builder.title,
-                lol_html::html_content::ContentType::Text,
-            );
+            // `title` to `&'a str`, który jest `Copy`, więc można go używać bez `move`.
+            el.set_inner_content(title, lol_html::html_content::ContentType::Text);
             Ok(())
         }),
     ];
 
-    if let Some(scripts) = &page_builder.head_scripts {
-        let scripts_string = scripts.clone().into_string();
+    // Ta sama optymalizacja dla skryptów
+    if let Some(scripts) = head_scripts {
+        let scripts_string = scripts.into_string(); // Konwersja bez klonowania
         element_handlers.push(element!("#head-scripts-placeholder", move |el| {
             el.replace(&scripts_string, lol_html::html_content::ContentType::Html);
             Ok(())
         }));
     }
 
-    if let Some(scripts) = page_builder.body_scripts {
-        let scripts_string = scripts.clone().into_string();
+    if let Some(scripts) = body_scripts {
+        let scripts_string = scripts.into_string(); // Konwersja bez klonowania
         element_handlers.push(element!("#body-scripts-placeholder", move |el| {
             el.replace(&scripts_string, lol_html::html_content::ContentType::Html);
             Ok(())
@@ -83,7 +91,6 @@ async fn serve_full_page<'a>(page_builder: PageBuilder<'a>) -> Result<Response, 
         |c: &[u8]| response_body.extend_from_slice(c),
     );
 
-    // Używamy 'if let Err' do obsługi błędów z rewritera
     if let Err(e) = rewriter.write(&shell_content) {
         tracing::error!("Błąd podczas przetwarzania HTML (write): {}", e);
         return Err(AppError::InternalServerError(
@@ -97,13 +104,11 @@ async fn serve_full_page<'a>(page_builder: PageBuilder<'a>) -> Result<Response, 
         ));
     }
 
-    // Bezpieczne budowanie odpowiedzi bez .unwrap()
     Response::builder()
         .status(StatusCode::OK)
         .header("Content-Type", "text/html; charset=utf-8")
         .body(Body::from(response_body))
         .map_err(|e| {
-            // Konwertujemy potencjalny błąd budowania odpowiedzi na nasz AppError
             tracing::error!("Nie udało się zbudować odpowiedzi HTTP: {}", e);
             AppError::InternalServerError("Błąd serwera podczas tworzenia odpowiedzi".to_string())
         })
