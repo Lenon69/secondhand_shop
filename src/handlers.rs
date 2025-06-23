@@ -2644,3 +2644,49 @@ pub async fn logout_handler() -> Result<(StatusCode, HeaderMap), AppError> {
 
     Ok((StatusCode::OK, headers))
 }
+
+/// Inicjalizuje nową sesję gościa, tworzy koszyk w bazie i ustawia ciasteczko.
+pub async fn init_guest_session_handler(
+    State(app_state): State<AppState>,
+) -> Result<impl IntoResponse, AppError> {
+    tracing::info!("Inicjalizacja nowej sesji gościa.");
+
+    let new_guest_id = Uuid::new_v4();
+
+    // Utwórz nowy koszyk dla gościa w bazie danych
+    let cart = sqlx::query_as::<_, ShoppingCart>(
+        "INSERT INTO shopping_carts (guest_session_id) VALUES ($1) RETURNING *",
+    )
+    .bind(new_guest_id)
+    .fetch_one(&app_state.db_pool)
+    .await?;
+
+    tracing::info!(
+        "Utworzono nowy koszyk ID: {} dla gościa z sesją ID: {}",
+        cart.id,
+        new_guest_id
+    );
+
+    // Ustaw ciasteczko DOKŁADNIE tak, jak dla zalogowanego użytkownika,
+    // aby zapewnić spójne zachowanie przeglądarki.
+    let cookie = Cookie::build(("guest_cart_id", new_guest_id.to_string()))
+        .path("/")
+        .http_only(true)
+        .secure(true) // Zakładając, że działasz na HTTPS
+        .same_site(SameSite::Lax) // Lax to najlepszy i najbezpieczniejszy wybór tutaj
+        .max_age(time::Duration::days(365))
+        .build();
+
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        axum::http::header::SET_COOKIE,
+        cookie.to_string().parse().unwrap(),
+    );
+
+    // Zwracamy ID gościa w ciele odpowiedzi, aby frontend mógł je zapisać w localStorage
+    Ok((
+        StatusCode::OK,
+        headers,
+        Json(json!({ "guestCartId": new_guest_id })),
+    ))
+}

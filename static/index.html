@@ -129,144 +129,175 @@
   </head>
 
   <body
-          x-data="{
-              isAuthenticated: !!localStorage.getItem('jwtToken'),
-              cartOpen: false,
-              cartItemCount: 0,
-              guestCartId: localStorage.getItem('guestCartId'),
-              isMobileMenuOpen: false,
-              currentMobilePage: '', 
-              isCategorySidebarOpen: false,
-              
-              activeImageModal: {
-                  isOpen: false,
-                  currentSrc: '',
-                  images: [],
-                  currentIndex: 0
-              },
+    x-data="{
+        // --- Właściwości (stan) komponentu ---
+        isAuthenticated: false,
+        cartOpen: false,
+        cartItemCount: 0,
+        guestCartId: null,
+        isMobileMenuOpen: false,
+        currentMobilePage: '', 
+        isCategorySidebarOpen: false,
+        activeImageModal: {
+            isOpen: false,
+            currentSrc: '',
+            images: [],
+            currentIndex: 0
+        },
 
-              initAlpine() {
-                  this.$watch('cartItemCount', value => {
-                      localStorage.setItem('alpineCartCount', String(value));
-                      this.updateCartCounterVisuals();
-                  });
+        // --- Metody (logika) komponentu ---
 
-                  this.$watch('guestCartId', value => {
-                      if (value) localStorage.setItem('guestCartId', value);
-                      else localStorage.removeItem('guestCartId');
-                  });
+        // Metoda inicjalizacyjna, uruchamiana przez x-init
+        init() {
+            console.log('✅ Alpine.js poprawnie zainicjalizowany!');
+            
+            // 1. Sprawdź, czy użytkownik jest zalogowany
+            this.isAuthenticated = !!localStorage.getItem('jwtToken');
+            
+            // 2. Jeśli jest gościem, upewnij się, że ma sesję
+            if (!this.isAuthenticated) {
+                this.ensureGuestSession();
+            }
 
-                  // Nasłuch na zdarzenie zmiany autoryzacji TYLKO do aktualizacji stanu Alpine
-                  window.addEventListener('authChangedClient', event => {
-                      console.log('[Alpine] Odebrano authChangedClient, isAuthenticated:', event.detail.isAuthenticated);
-                      this.isAuthenticated = event.detail.isAuthenticated;
-                      this.updateCartCounterVisuals(); // Zaktualizuj UI
+            // 3. Załaduj stan licznika koszyka
+            this.cartItemCount = parseInt(localStorage.getItem('cartItemCount')) || 0;
 
-                       setTimeout(() => {
-                          const path = window.location.pathname;
-                          if (!this.isAuthenticated && (path.startsWith('/moje-konto') || path.startsWith('/checkout'))) {
-                              this.navigateToHtmx('/', '/htmx/products?limit=8&sort_by=name&order=asc');
-                              this.currentMobilePage = '';
-                          } else if (this.isAuthenticated && (path.startsWith('/logowanie') || path.startsWith('/rejestracja'))) {
-                               this.navigateToHtmx('/moje-konto', '/htmx/my-account');
-                               this.currentMobilePage = 'moje-konto';
-                          }
-                      }, 1); // Drobne opóźnienie, aby dać app.js szansę na działanie
-                  });
-                  window.addEventListener('trigger-alpine-logout', () => {
-                      this.clientSideLogout();
-                  });
-              },
+            // 4. Ustaw nasłuch na zmiany i zapisuj je w localStorage
+            this.$watch('cartItemCount', value => localStorage.setItem('cartItemCount', String(value)));
+            this.$watch('guestCartId', value => {
+                if (value) {
+                    localStorage.setItem('guestCartId', value);
+                } else {
+                    localStorage.removeItem('guestCartId');
+                }
+            });
 
-              updateCartCounterVisuals() {
-                  ['cart-count-bubble', 'cart-count-bubble-mobile'].forEach(id => {
-                      const el = document.getElementById(id);
-                      if (el) el.classList.toggle('hidden', this.cartItemCount <= 0);
-                  });
-              },
+            // 5. Nasłuchuj na globalne zdarzenia z innych części aplikacji
+            window.addEventListener('authChangedClient', event => {
+                console.log('[Alpine] Odebrano authChangedClient, isAuthenticated:', event.detail.isAuthenticated);
+                this.isAuthenticated = event.detail.isAuthenticated;
+            });
 
-              handleHtmxCartUpdate(detail) {
-                  if (detail?.newCount !== undefined) {
-                      this.cartItemCount = parseInt(detail.newCount) || 0;
+            document.body.addEventListener('htmx:afterOnLoad', (event) => {
+                try {
+                  const json = JSON.parse(event.detail.xhr.responseText);
+                  if (json.showMessage) {
+                    window.dispatchEvent(
+                      new CustomEvent('showMessage', { detail: json.showMessage }),
+                    );
                   }
-                  if (detail?.newGuestCartId && this.guestCartId !== detail.newGuestCartId) {
-                      this.guestCartId = detail.newGuestCartId;
-                  }
-              },
+                } catch (_) {
+                }
+              });
 
-              navigateToHtmx(pushUrl, htmxUrl) { // Zmieniono nazwę dla jasności
-                  if (window.location.pathname === pushUrl) return; // Nie rób nic, jeśli już tam jesteśmy
-                  htmx.ajax('GET', htmxUrl, {
-                      target: '#content',
-                      swap: 'innerHTML'
-                  });
-                  if (htmx.history?.push && pushUrl) { // Upewnij się, że pushUrl jest zdefiniowany
-                      htmx.history.push(pushUrl);
-                  }
-              },
-
-              // 🖼️ Modal - otwarcie
-              openImageModal(src, imagesArray) {
-                  this.activeImageModal.images = Array.isArray(imagesArray) ? imagesArray : [];
-                  this.activeImageModal.currentIndex = this.activeImageModal.images.indexOf(src);
-                  if (this.activeImageModal.currentIndex === -1 && this.activeImageModal.images.length > 0) {
-                      this.activeImageModal.currentIndex = 0;
-                  }
-                  this.activeImageModal.currentSrc = this.activeImageModal.images[this.activeImageModal.currentIndex] || src;
-                  this.activeImageModal.isOpen = true;
-                  document.body.style.overflow = 'hidden';
-              },
-
-              // 🖼️ Modal - zamknięcie
-              closeImageModal() {
-                  this.activeImageModal.isOpen = false;
-                  document.body.style.overflow = '';
-              },
-
-              // 🖼️ Modal - następny obraz
-              nextImageModal() {
-                  if (this.activeImageModal.images.length > 0) {
-                      this.activeImageModal.currentIndex = (this.activeImageModal.currentIndex + 1) % this.activeImageModal.images.length;
-                      this.activeImageModal.currentSrc = this.activeImageModal.images[this.activeImageModal.currentIndex];
-                  }
-              },
-
-              // 🖼️ Modal - poprzedni obraz
-              prevImageModal() {
-                  if (this.activeImageModal.images.length > 0) {
-                      this.activeImageModal.currentIndex = (this.activeImageModal.currentIndex - 1 + this.activeImageModal.images.length) % this.activeImageModal.images.length;
-                      this.activeImageModal.currentSrc = this.activeImageModal.images[this.activeImageModal.currentIndex];
-                  }
-              },
-
-              // 🚪 Wylogowanie
-              clientSideLogout() {
-                  console.log('Wykonywanie clientSideLogout.');
-                  localStorage.removeItem('jwtToken');
-                  window.dispatchEvent(new CustomEvent('authChangedClient', { detail: { isAuthenticated: false } }));
-                  this.isMobileMenuOpen = false;
+            document.body.addEventListener('updateCartCount', (event) => {
+                if (!event.detail) return;
+                this.handleHtmxCartUpdate(event.detail);
+            });
+            
+            document.body.addEventListener('loginSuccessDetails', (event) => {
+                if (event.detail?.token) {
+                  localStorage.setItem('jwtToken', event.detail.token);
+                  console.log('Logowanie pomyślne. Przeładowuję stronę...');
                   window.location.replace('/');
-              }
-              
-              
-          }"    
-    x-init="
-        initAlpine();
+                }
+            });
+            
+            document.body.addEventListener('registrationComplete', () => {
+                htmx.ajax('GET', '/htmx/logowanie', {
+                    target: '#content',
+                    swap: 'innerHTML',
+                    pushUrl: '/logowanie',
+                });
+            });
 
-        // Synchronizacja autoryzacji z localStorage
-        isAuthenticated = !!localStorage.getItem('jwtToken');
+            document.body.addEventListener('clearCartDisplay', () => {
+                this.handleHtmxCartUpdate({ newCount: 0, newCartTotalPrice: 0 });
+                htmx.ajax('GET', '/htmx/cart/details', {
+                    target: '#cart-content-target',
+                    swap: 'innerHTML',
+                });
+            });
 
-        // 🔁 Nasłuch zmian autoryzacji z zewnątrz
-        const syncAuth = e => isAuthenticated = !!e.detail?.isAuthenticated;
-        window.addEventListener('authChangedClient', syncAuth);
-        window.addEventListener('logoutClient', () => isAuthenticated = false);
+            window.addEventListener('logoutClient', () => {
+                this.clientSideLogout();
+            });
+        },
 
-        this.cartItemCount = parseInt(localStorage.getItem('cartItemCount')) || 0;
-        $watch('cartItemCount', val => localStorage.setItem('alpineCartCount', val));
-        $watch('guestCartId', val => val
-            ? localStorage.setItem('guestCartId', val)
-            : localStorage.removeItem('guestCartId'));
-    "
+        // Metoda do inicjalizacji sesji gościa
+        ensureGuestSession() {
+            let guestId = localStorage.getItem('guestCartId');
+            if (!guestId) {
+                console.log('Brak sesji gościa. Inicjalizuję nową na serwerze...');
+                fetch('/api/session/guest/init', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                })
+                .then(res => res.ok ? res.json() : Promise.reject('Błąd inicjalizacji sesji gościa'))
+                .then(data => {
+                    console.log('Otrzymano nowe ID gościa od serwera:', data.guestCartId);
+                    this.guestCartId = data.guestCartId; // To uruchomi $watch
+                })
+                .catch(err => console.error('Błąd podczas inicjalizacji sesji gościa:', err));
+            } else {
+                this.guestCartId = guestId;
+            }
+        },
+
+        // Metoda do obsługi aktualizacji koszyka
+        handleHtmxCartUpdate(detail) {
+            if (detail?.newCount !== undefined) {
+                this.cartItemCount = parseInt(detail.newCount) || 0;
+            }
+            if (detail?.newCartTotalPrice !== undefined) {
+                 const el = document.getElementById('cart-subtotal-price');
+                 if (el) {
+                    const price = (parseInt(detail.newCartTotalPrice, 10) / 100).toFixed(2);
+                    el.innerHTML = `${price.replace('.', ',')} zł`;
+                 }
+            }
+        },
+
+        // Reszta metod bez zmian
+        openImageModal(src, imagesArray) {
+            this.activeImageModal.images = Array.isArray(imagesArray) ? imagesArray : [];
+            this.activeImageModal.currentIndex = this.activeImageModal.images.indexOf(src);
+            if (this.activeImageModal.currentIndex === -1 && this.activeImageModal.images.length > 0) {
+                this.activeImageModal.currentIndex = 0;
+            }
+            this.activeImageModal.currentSrc = this.activeImageModal.images[this.activeImageModal.currentIndex] || src;
+            this.activeImageModal.isOpen = true;
+            document.body.style.overflow = 'hidden';
+        },
+        closeImageModal() {
+            this.activeImageModal.isOpen = false;
+            document.body.style.overflow = '';
+        },
+        nextImageModal() {
+            if (this.activeImageModal.images.length > 0) {
+                this.activeImageModal.currentIndex = (this.activeImageModal.currentIndex + 1) % this.activeImageModal.images.length;
+                this.activeImageModal.currentSrc = this.activeImageModal.images[this.activeImageModal.currentIndex];
+            }
+        },
+        prevImageModal() {
+            if (this.activeImageModal.images.length > 0) {
+                this.activeImageModal.currentIndex = (this.activeImageModal.currentIndex - 1 + this.activeImageModal.images.length) % this.activeImageModal.images.length;
+                this.activeImageModal.currentSrc = this.activeImageModal.images[this.activeImageModal.currentIndex];
+            }
+        },
+        clientSideLogout() {
+            console.log('Wykonywanie clientSideLogout.');
+            localStorage.removeItem('jwtToken');
+            // Usuwamy też koszyk gościa przy wylogowaniu
+            localStorage.removeItem('guestCartId'); 
+            this.guestCartId = null;
+            
+            window.dispatchEvent(new CustomEvent('authChangedClient', { detail: { isAuthenticated: false } }));
+            this.isMobileMenuOpen = false;
+            window.location.replace('/');
+        }
+    }"
+    x-init="init()"
     x-on:open-alpine-modal.window="openImageModal($event.detail.src, $event.detail.imagesArray)"
     x-on:js-update-cart.document="handleHtmxCartUpdate($event.detail)"
     x-on:keydown.escape.window="if(activeImageModal.isOpen) closeImageModal()"

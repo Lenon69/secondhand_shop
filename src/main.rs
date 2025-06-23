@@ -153,6 +153,7 @@ async fn main() {
             post(upsert_user_shipping_details_handler),
         )
         .route("/api/auth/logout", post(logout_handler))
+        .route("/api/session/guest/init", post(init_guest_session_handler))
         // Trasa główna i jej aliasy
         .route("/", get(home_page_handler))
         .route("/kategoria", get(list_products_htmx_handler))
