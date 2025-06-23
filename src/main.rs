@@ -152,6 +152,7 @@ async fn main() {
             "/api/user/shipping-details",
             post(upsert_user_shipping_details_handler),
         )
+        .route("/api/auth/logout", post(logout_handler))
         // Trasa główna i jej aliasy
         .route("/", get(home_page_handler))
         .route("/kategoria", get(list_products_htmx_handler))
@@ -309,6 +310,7 @@ async fn main() {
     // }
 }
 
+#[allow(dead_code)]
 async fn serve_index() -> Result<Html<String>, StatusCode> {
     match tokio::fs::read_to_string("static/index.html").await {
         Ok(content) => Ok(Html(content)),

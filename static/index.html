@@ -666,7 +666,10 @@
                     </a>
                 </div>
                 <div x-show="isAuthenticated" x-cloak class="mt-2 px-1"> 
-                    <button @click="clientSideLogout()" class="w-full text-left flex items-center text-base font-medium text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-md">
+                    <button
+                      hx-post="/api/auth/logout"
+                      hx-swap="none"
+                      @click="clientSideLogout()" class="w-full text-left flex items-center text-base font-medium text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-md">
                         <svg class="w-6 h-6 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"></path></svg>
                         Wyloguj
                     </button>

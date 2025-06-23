@@ -1,6 +1,9 @@
 // src/htmx_handlers.rs
 
-use crate::seo::{self, SchemaBrand, SchemaOffer, SchemaProduct};
+use crate::{
+    response::PageBuilder,
+    seo::{SchemaBrand, SchemaOffer, SchemaProduct},
+};
 use axum::response::Response;
 #[allow(unused_imports)]
 use axum::{
@@ -252,16 +255,21 @@ pub async fn get_product_detail_htmx_handler(
         "{}".to_string()
     });
 
-    // --- KONIEC NOWEGO BLOKU ---
-
-    let page_content = html! {
+    let head_scripts = html! {
         script type="application/ld+json" {
             (PreEscaped(json_ld_string))
         }
-        script #cart-state-data type="application/json" {
+    };
+
+    let body_scripts = html! {
+        script #cart_state-data type="application/json" {
             (PreEscaped(cart_product_ids_json))
         }
+    };
 
+    // --- KONIEC NOWEGO BLOKU ---
+
+    let page_content = html! {
     div #product-detail-view "x-data"=(x_data_attribute_value)
         class="bg-white p-4 sm:p-6 lg:p-8 rounded-lg shadow-xl" {
         div ."grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12" {
@@ -414,7 +422,9 @@ pub async fn get_product_detail_htmx_handler(
         "{} - Szczegóły produktu - sklep mess - all that vintage",
         product.name
     );
-    build_response(headers, page_content, &title).await
+    let page_builder =
+        PageBuilder::new(&title, page_content, Some(head_scripts), Some(body_scripts));
+    build_response(headers, page_builder).await
 }
 
 pub async fn get_cart_details_htmx_handler(
@@ -645,6 +655,7 @@ pub async fn add_item_to_cart_htmx_handler(
             .http_only(true)
             .secure(true)
             .same_site(SameSite::None)
+            .max_age(time::Duration::MAX)
             .build();
         headers.insert(
             axum::http::header::SET_COOKIE,
@@ -1165,7 +1176,8 @@ pub async fn list_products_htmx_handler(
 
     let title = format!("{} - sklep mess - all that vintage", dynamic_part);
     let page_content = render_product_listing_view(app_state, params, product_ids_in_cart).await?;
-    build_response(headers, page_content, &title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 pub async fn gender_page_handler(
@@ -1293,7 +1305,8 @@ pub async fn gender_page_handler(
         "Produkty dla {} - sklep mess - all that vintage",
         gender_slug
     );
-    build_response(headers, page_content, &title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 // NOWA FUNKCJA do obsługi widoku płci z wybraną kategorią
@@ -1442,7 +1455,8 @@ pub async fn gender_with_category_page_handler(
         "Produkty dla {}: {} - sklep mess - all that vintage",
         gender_slug, &current_category_string
     );
-    build_response(headers, page_content, &title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 pub async fn about_us_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
@@ -1517,7 +1531,8 @@ pub async fn about_us_page_handler(headers: HeaderMap) -> Result<Response, AppEr
     };
 
     let title = "O nas - sklep mess - all that vintage";
-    build_response(headers, page_content, title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 pub async fn privacy_policy_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
@@ -1708,7 +1723,8 @@ pub async fn privacy_policy_page_handler(headers: HeaderMap) -> Result<Response,
     };
 
     let title = "Polityka prywatności - sklep mess - all that vintage";
-    build_response(headers, page_content, title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 pub async fn terms_of_service_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
@@ -2036,7 +2052,8 @@ pub async fn terms_of_service_page_handler(headers: HeaderMap) -> Result<Respons
     };
 
     let title = "Regulamin sklepu - sklep mess - all that vintage";
-    build_response(headers, page_content, title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 pub async fn contact_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
@@ -2080,7 +2097,7 @@ pub async fn contact_page_handler(headers: HeaderMap) -> Result<Response, AppErr
     let response_time_text =
         "Staramy się odpowiadać na wszystkie zapytania w ciągu 24 godzin w dni robocze.";
 
-    let content = html! {
+    let page_content = html! {
         div ."max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16" {
             div ."text-center mb-12" {
                 h1 ."text-4xl sm:text-5xl font-bold tracking-tight text-gray-900" { (heading_main_text) }
@@ -2151,7 +2168,8 @@ pub async fn contact_page_handler(headers: HeaderMap) -> Result<Response, AppErr
     };
 
     let title = "Kontakt - sklep mess - all that vintage";
-    build_response(headers, content, title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 #[derive(Debug)]
@@ -2248,7 +2266,8 @@ pub async fn faq_page_handler(headers: HeaderMap) -> Result<Response, AppError> 
     };
 
     let title = "FAQ - Najczęściej zadawane pytania - sklep mess - all that vintage";
-    build_response(headers, page_content, title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 pub async fn shipping_returns_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
@@ -2423,7 +2442,8 @@ pub async fn shipping_returns_page_handler(headers: HeaderMap) -> Result<Respons
     };
 
     let title = "Wysyłki i zwroty - sklep mess - all that vintage";
-    build_response(headers, page_content, title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 pub async fn my_account_page_handler(
@@ -2441,7 +2461,7 @@ pub async fn my_account_page_handler(
             "/htmx/moje-konto/zamowienia",
             "/moje-konto/zamowienia",
         ),
-        ("Moje Dane", "/htmx/moje-konto/dane", "/moje-konto/dane"), // todo!, do zaimplementowania
+        ("Moje Dane", "/htmx/moje-konto/dane", "/moje-konto/dane"),
     ];
     let default_section_url = "/htmx/moje-konto/zamowienia";
 
@@ -2467,11 +2487,14 @@ pub async fn my_account_page_handler(
                             li ."pt-4 mt-4 border-t border-gray-200" {
                                 // ZMIANA: Uproszczony i poprawiony link wylogowania
                                 button type="button"
-                                       "@click"="clientSideLogout()" // Wywołuje funkcję z Alpine.js
-                                       class="w-full text-left block px-3 py-2 rounded-md text-red-600 hover:bg-red-50 hover:text-red-700 font-medium transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-red-500" {
+                                    hx-post="/api/auth/logout"
+                                    hx-swap="none"
+                                   "@click"="clientSideLogout()" // Wywołuje funkcję z Alpine.js
+                                   class="w-full text-left block px-3 py-2 rounded-md text-red-600 hover:bg-red-50 hover:text-red-700 font-medium transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-red-500" {
                                     "Wyloguj"
                                 }
-                            }                        }
+                            }
+                        }
                     }
                 }
                 main #my-account-content ."w-full md:w-3/4 lg:w-4/5 bg-white p-4 sm:p-6 rounded-lg shadow-md min-h-[300px]"
@@ -2491,7 +2514,8 @@ pub async fn my_account_page_handler(
     };
 
     let title = "Moje konto - sklep mess - all that vintage";
-    build_response(headers, page_content, title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 // REFAKTORYZACJA: Nowa, reużywalna funkcja do renderowania formularza produktu
@@ -2744,7 +2768,8 @@ pub async fn admin_product_new_form_htmx_handler(
     let page_content = render_product_form_maud(None)?;
 
     let title = "Admin - dodawanie produktu - sklep mess - all that vintage";
-    build_response(headers, page_content, title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 pub async fn admin_product_edit_form_htmx_handler(
@@ -2775,7 +2800,8 @@ pub async fn admin_product_edit_form_htmx_handler(
 
     let page_content = render_product_form_maud(Some(&product_to_edit))?;
     let title = "Admin - edycja produktu - sklep mess - all that vintage";
-    build_response(headers, page_content, title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 pub async fn login_page_htmx_handler(headers: HeaderMap) -> Result<Response, AppError> {
@@ -2866,7 +2892,8 @@ pub async fn login_page_htmx_handler(headers: HeaderMap) -> Result<Response, App
     };
 
     let title = "Logowanie - sklep mess - all that vintage";
-    build_response(headers, page_content, title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 pub async fn registration_page_htmx_handler(headers: HeaderMap) -> Result<Response, AppError> {
@@ -2957,7 +2984,8 @@ pub async fn registration_page_htmx_handler(headers: HeaderMap) -> Result<Respon
     };
 
     let title = "Rejestracja - sklep mess - all that vintage";
-    build_response(headers, page_content, title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 pub async fn my_orders_htmx_handler(
@@ -3067,7 +3095,8 @@ pub async fn my_orders_htmx_handler(
     };
 
     let title = "Moje zamówienia - sklep mess - all that vintage";
-    build_response(headers, page_content, title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 pub async fn checkout_page_handler(
@@ -3543,7 +3572,8 @@ pub async fn checkout_page_handler(
     };
 
     let title = "Składanie zamówienia - sklep mess - all that vintage";
-    let app_response = build_response(request_headers, page_content, title).await?;
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    let app_response = build_response(request_headers, page_builder).await?;
     Ok((response_headers, app_response))
 }
 
@@ -3693,7 +3723,8 @@ pub async fn my_account_data_htmx_handler(
         }
     };
     let title = "Moje konto - sklep mess - all that vintage";
-    build_response(headers, page_content, title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 pub async fn my_order_details_htmx_handler(
@@ -3933,7 +3964,8 @@ pub async fn my_order_details_htmx_handler(
         "Szczegóły zamówienia: {} sklep mess - all that vintage",
         order_id_display_short
     );
-    build_response(headers, page_content, &title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 pub async fn admin_dashboard_htmx_handler(
@@ -3985,7 +4017,8 @@ pub async fn admin_dashboard_htmx_handler(
     };
 
     let title = "Admin Panel - sklep mess - all that vintage";
-    build_response(headers, page_content, title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 pub async fn admin_products_list_htmx_handler(
@@ -4202,7 +4235,8 @@ pub async fn admin_products_list_htmx_handler(
     };
 
     let title = "Admin Panel - Lista produktów - sklep mess - all that vintage";
-    build_response(headers, page_content, title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 // Pomocnicza funkcja do generowania linków sortowania
@@ -4712,7 +4746,8 @@ pub async fn admin_orders_list_htmx_handler(
         }
     };
     let title = "Admin Panel - Lista zamówień - sklep mess - all that vintage";
-    build_response(headers, page_content, title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 pub async fn admin_order_details_htmx_handler(
@@ -4897,7 +4932,8 @@ pub async fn admin_order_details_htmx_handler(
         "Admin Panel - Szczegóły zamówienia: {} sklep mess - all that vintage",
         order_id_display_short
     );
-    build_response(headers, page_content, &title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 // Funkcja pomocnicza do klas badge dla statusu zamówienia (możesz ją przenieść)
@@ -4939,7 +4975,8 @@ pub async fn news_page_htmx_handler(
 
     let title = "Nowości - sklep mess - all that vintage";
     let page_content = render_product_listing_view(app_state, params, product_ids_in_cart).await?;
-    build_response(headers, page_content, title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 // NOWA FUNKCJA
@@ -4968,7 +5005,8 @@ pub async fn sale_page_htmx_handler(
 
     let title = "Wyprzedaż - sklep mess - all that vintage";
     let page_content = render_product_listing_view(app_state, params, product_ids_in_cart).await?;
-    build_response(headers, page_content, title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 pub async fn render_product_listing_view(
@@ -5155,7 +5193,8 @@ pub async fn payment_finalization_page_handler(
         "Finalizacja płatności zamówienia: {} sklep mess - all that vintage",
         order_id
     );
-    build_response(headers, page_content, &title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 /// Renderuje stronę błędu, gdy produkt w koszyku jest niedostępny.
@@ -5347,7 +5386,8 @@ pub async fn handler_404(headers: HeaderMap) -> impl IntoResponse {
 
     let title = "Bład 404 - sklep mess - all that vintage";
     // Zbuduj odpowiedź (pełną stronę lub fragment) i ustaw status na 404 NOT FOUND
-    let response = build_response(headers, page_content, title)
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    let response = build_response(headers, page_builder)
         .await
         .unwrap_or_else(|err| err.into_response());
     (StatusCode::NOT_FOUND, response)
@@ -5388,7 +5428,8 @@ pub async fn forgot_password_form_handler(headers: HeaderMap) -> Result<Response
     };
 
     let title = "Zapomniałem hasła - sklep mess - all that vintage";
-    build_response(headers, page_content, title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 #[derive(Deserialize)]
@@ -5446,14 +5487,16 @@ pub async fn reset_password_form_handler(
                 }
             };
 
-            build_response(headers, page_content, title).await
+            let page_builder = PageBuilder::new(&title, page_content, None, None);
+            build_response(headers, page_builder).await
         }
         _ => {
             // Token nie istnieje lub wygasł
             let error_content = html! {
                 p class="text-red-600 text-center" { "Ten link do resetowania hasła jest nieprawidłowy lub wygasł. Poproś o nowy." }
             };
-            build_response(headers, error_content, title).await
+            let page_builder = PageBuilder::new(&title, error_content, None, None);
+            build_response(headers, page_builder).await
         }
     }
 }
@@ -5664,7 +5707,8 @@ pub async fn search_page_handler(
         "Wyniki dla: {} - sklep mess - all that vintage",
         search_term
     );
-    build_response(headers, page_content, &title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 /// Obsługuje pełne załadowanie strony głównej ("/").
@@ -5710,7 +5754,8 @@ pub async fn home_page_handler(
     let title = "mess - all that vintage - Sklep Vintage Online";
 
     // Krok 5: Zbuduj i zwróć pełną odpowiedź HTTP za pomocą swojej funkcji pomocniczej.
-    build_response(headers, page_content, title).await
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
 }
 
 /// Renderuje sekcję "hero" z nagłówkiem H1 dla strony głównej.

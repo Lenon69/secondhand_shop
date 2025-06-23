@@ -12,6 +12,7 @@ use chrono::{Duration, Utc};
 use maud::{Markup, html};
 use serde_json::{Value, json};
 use sqlx::{Postgres, QueryBuilder};
+use time;
 
 use crate::cart_utils::build_cart_details_response;
 use crate::cloudinary::{delete_image_from_cloudinary, extract_public_id_from_url};
@@ -1069,7 +1070,8 @@ pub async fn login_handler(
                 .path("/") // Ciasteczko będzie dostępne na całej stronie
                 .http_only(true) // Ważne: ciasteczko niedostępne dla JavaScript po stronie klienta
                 .secure(true) // Wysyłane tylko przez HTTPS
-                .same_site(SameSite::None) // Dobra ochrona przed atakami CSRF
+                .same_site(SameSite::None) // Dobra ochrona przed atakami CSRF - Lax
+                .max_age(time::Duration::MAX)
                 .build();
 
             let mut headers = HeaderMap::new();
@@ -2609,4 +2611,36 @@ pub async fn reset_password_handler(
     headers.insert("HX-Location", HeaderValue::from_static("/htmx/logowanie"));
 
     Ok((headers, html! {}))
+}
+
+/// Obsługuje wylogowanie użytkownika po stronie serwera.
+/// Głównym zadaniem jest wyczyszczenie ciasteczka 'token'.
+#[allow(deprecated)]
+pub async fn logout_handler() -> Result<(StatusCode, HeaderMap), AppError> {
+    tracing::info!("Obsługa żądania wylogowania: czyszczenie ciasteczka.");
+
+    // Tworzymy ciasteczko, które "nadpisze" istniejące i natychmiast wygaśnie.
+    let cookie = Cookie::build(("token", "")) // Pusta wartość
+        .path("/")
+        .http_only(true)
+        .secure(true)
+        .same_site(SameSite::None)
+        .max_age(time::Duration::ZERO) // Ustawia Max-Age=0, co każe przeglądarce usunąć ciasteczko
+        .finish();
+
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        axum::http::header::SET_COOKIE,
+        cookie.to_string().parse().unwrap(),
+    );
+
+    // Dodatkowo wysyłamy trigger, który poinformuje klienta, że ma dokończyć wylogowanie
+    // (np. wyczyścić localStorage i przekierować).
+    let trigger_payload = json!({"logoutClient": {}});
+    headers.insert(
+        "HX-Trigger",
+        HeaderValue::from_str(&trigger_payload.to_string()).unwrap(),
+    );
+
+    Ok((StatusCode::OK, headers))
 }

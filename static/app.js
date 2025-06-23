@@ -73,6 +73,9 @@ document.addEventListener("DOMContentLoaded", function () {
   });
   document.body.addEventListener("htmx:sendError", hideSpinner);
   document.body.addEventListener("htmx:responseError", hideSpinner);
+  document.body.addEventListener("logoutClient", () => {
+    clientSideLogout();
+  });
 
   (function () {
     let isReloading = false;
@@ -505,23 +508,20 @@ function parseJwt(token) {
  * Czyści localStorage, informuje użytkownika i odświeża stronę.
  */
 function clientSideLogout() {
-  console.log("Wykryto wygasłą sesję. Wylogowywanie...");
+  console.log(
+    "Wykonywanie wylogowania po stronie klienta (czyszczenie localStorage i przekierowanie)...",
+  );
   localStorage.removeItem("jwtToken");
 
-  // Wyślij zdarzenie, aby pokazać komunikat "toast"
   window.dispatchEvent(
     new CustomEvent("showMessage", {
-      detail: {
-        type: "info",
-        message: "Twoja sesja wygasła. Zaloguj się ponownie.",
-      },
+      detail: { type: "info", message: "Zostałes pomyslnie wylogowany." },
     }),
   );
 
-  // Po krótkiej chwili odśwież stronę, aby w pełni zaktualizować stan UI
   setTimeout(() => {
-    window.location.reload();
-  }, 750); // 2 sekundy, aby użytkownik zdążył przeczytać komunikat
+    window.location.href = "/";
+  }, 500);
 }
 
 /**
