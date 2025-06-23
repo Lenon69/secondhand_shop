@@ -1,5 +1,5 @@
 use axum::body::Body;
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use lol_html::{HtmlRewriter, Settings, element};
 use maud::Markup;
@@ -26,7 +26,7 @@ use crate::errors::AppError;
 /// Asynchronicznie wczytuje i modyfikuje szablon HTML.
 /// Wstawia dynamiczną treść i usuwa atrybuty HTMX inicjujące ładowanie,
 /// aby zapobiec konfliktom przy renderowaniu po stronie serwera.
-async fn serve_full_page(content_markup: Markup) -> Result<Response, AppError> {
+async fn serve_full_page(content_markup: Markup, title: &str) -> Result<Response, AppError> {
     let shell_content = match fs::read("static/index.html").await {
         Ok(bytes) => Bytes::from(bytes),
         Err(e) => {
@@ -38,16 +38,26 @@ async fn serve_full_page(content_markup: Markup) -> Result<Response, AppError> {
     };
 
     let content_string = content_markup.into_string();
+    let title_string = title.to_string();
     let mut response_body = Vec::new();
 
     let mut rewriter = HtmlRewriter::new(
         Settings {
-            element_content_handlers: vec![element!("#content", |el| {
-                el.set_inner_content(&content_string, lol_html::html_content::ContentType::Html);
-                el.remove_attribute("hx-trigger");
-                el.remove_attribute("hx-get");
-                Ok(())
-            })],
+            element_content_handlers: vec![
+                element!("#content", |el| {
+                    el.set_inner_content(
+                        &content_string,
+                        lol_html::html_content::ContentType::Html,
+                    );
+                    el.remove_attribute("hx-trigger");
+                    el.remove_attribute("hx-get");
+                    Ok(())
+                }),
+                element!("head > title", |el| {
+                    el.set_inner_content(&title_string, lol_html::html_content::ContentType::Text);
+                    Ok(())
+                }),
+            ],
             ..Settings::default()
         },
         |c: &[u8]| response_body.extend_from_slice(c),
@@ -79,16 +89,18 @@ async fn serve_full_page(content_markup: Markup) -> Result<Response, AppError> {
         })
 }
 
-// Zmodyfikuj build_response, aby poprawnie obsługiwał nową odpowiedź
 pub async fn build_response(
     headers: HeaderMap,
     page_content: Markup,
+    title: &str,
 ) -> Result<Response, AppError> {
     if headers.contains_key("HX-Request") {
-        // Dla żądań HTMX zwracamy tylko fragment HTML
-        Ok(page_content.into_response())
+        let mut response = page_content.into_response();
+        if let Ok(val) = HeaderValue::from_str(title) {
+            response.headers_mut().insert("HX-Set-Title", val);
+        }
+        Ok(response)
     } else {
-        // Dla pełnych odświeżeń strony (F5) budujemy całą stronę
-        serve_full_page(page_content).await
+        serve_full_page(page_content, title).await
     }
 }

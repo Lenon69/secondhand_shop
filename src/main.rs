@@ -181,6 +181,7 @@ async fn main() {
             "/htmx/dla-{gender_slug}/{category_slug}",
             get(gender_with_category_page_handler),
         )
+        .route("/wyszukiwanie", get(search_page_handler))
         .route(
             "/htmx/cart/add/{product_id}",
             post(add_item_to_cart_htmx_handler),

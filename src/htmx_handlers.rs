@@ -235,7 +235,7 @@ pub async fn get_product_detail_htmx_handler(
                             // Używamy allProductImages (camelCase) konsekwentnie
                             @for (image_url_loop_item, index) in product.images.iter().zip(0..) {
                                 @let click_action_str = format!(
-                                    "currentMainImage = allProductImages[{}]; $nextTick(() => window.scrollTo({{ top: 0, behavior: 'smooth' }}));",
+                                    "currentMainImage = allProductImages[{}]; $nextTick(() => window.scrollTo({{ top: 0, behavior: 'auto' }}));",
                                     index
                                 );                                @let class_binding_str = format!("currentMainImage === allProductImages[{}] ? 'border-pink-500 ring-2 ring-pink-500' : 'border-gray-200 hover:border-pink-400'", index);
 
@@ -363,7 +363,11 @@ pub async fn get_product_detail_htmx_handler(
         }
     };
 
-    build_response(headers, page_content).await
+    let title = format!(
+        "{} - Szczegóły produktu - sklep mess - all that vintage",
+        product.name
+    );
+    build_response(headers, page_content, &title).await
 }
 
 pub async fn get_cart_details_htmx_handler(
@@ -1084,7 +1088,8 @@ pub async fn list_products_htmx_handler(
 
     let page_content = render_product_listing_view(app_state, params, product_ids_in_cart).await?;
 
-    build_response(headers, page_content).await
+    let title = "Lista produktów - sklep mess - all that vintage";
+    build_response(headers, page_content, title).await
 }
 
 pub async fn gender_page_handler(
@@ -1208,7 +1213,11 @@ pub async fn gender_page_handler(
         }
     };
 
-    build_response(headers, page_content).await
+    let title = format!(
+        "Produkty dla {} - sklep mess - all that vintage",
+        gender_slug
+    );
+    build_response(headers, page_content, &title).await
 }
 
 // NOWA FUNKCJA do obsługi widoku płci z wybraną kategorią
@@ -1233,6 +1242,7 @@ pub async fn gender_with_category_page_handler(
     };
 
     let current_category = Category::from_str(&category_slug).map_err(|_| AppError::NotFound)?;
+    let current_category_string = current_category.clone().to_string();
 
     // --- NOWA LOGIKA POBIERANIA KOSZYKA ---
     let mut conn = app_state.db_pool.acquire().await?;
@@ -1352,7 +1362,11 @@ pub async fn gender_with_category_page_handler(
         }
     };
 
-    build_response(headers, page_content).await
+    let title = format!(
+        "Produkty dla {}: {} - sklep mess - all that vintage",
+        gender_slug, &current_category_string
+    );
+    build_response(headers, page_content, &title).await
 }
 
 pub async fn about_us_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
@@ -1426,7 +1440,8 @@ pub async fn about_us_page_handler(headers: HeaderMap) -> Result<Response, AppEr
         }
     };
 
-    build_response(headers, page_content).await
+    let title = "O nas - sklep mess - all that vintage";
+    build_response(headers, page_content, title).await
 }
 
 pub async fn privacy_policy_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
@@ -1616,7 +1631,8 @@ pub async fn privacy_policy_page_handler(headers: HeaderMap) -> Result<Response,
         }
     };
 
-    build_response(headers, page_content).await
+    let title = "Polityka prywatności - sklep mess - all that vintage";
+    build_response(headers, page_content, title).await
 }
 
 pub async fn terms_of_service_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
@@ -1943,7 +1959,8 @@ pub async fn terms_of_service_page_handler(headers: HeaderMap) -> Result<Respons
         }
     };
 
-    build_response(headers, page_content).await
+    let title = "Regulamin sklepu - sklep mess - all that vintage";
+    build_response(headers, page_content, title).await
 }
 
 pub async fn contact_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
@@ -2057,7 +2074,8 @@ pub async fn contact_page_handler(headers: HeaderMap) -> Result<Response, AppErr
         }
     };
 
-    build_response(headers, content).await
+    let title = "Kontakt - sklep mess - all that vintage";
+    build_response(headers, content, title).await
 }
 
 #[derive(Debug)]
@@ -2153,7 +2171,8 @@ pub async fn faq_page_handler(headers: HeaderMap) -> Result<Response, AppError> 
             }
     };
 
-    build_response(headers, page_content).await
+    let title = "FAQ - Najczęściej zadawane pytania - sklep mess - all that vintage";
+    build_response(headers, page_content, title).await
 }
 
 pub async fn shipping_returns_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
@@ -2327,7 +2346,8 @@ pub async fn shipping_returns_page_handler(headers: HeaderMap) -> Result<Respons
        }
     };
 
-    build_response(headers, page_content).await
+    let title = "Wysyłki i zwroty - sklep mess - all that vintage";
+    build_response(headers, page_content, title).await
 }
 
 pub async fn my_account_page_handler(
@@ -2394,7 +2414,8 @@ pub async fn my_account_page_handler(
         }
     };
 
-    build_response(headers, page_content).await
+    let title = "Moje konto - sklep mess - all that vintage";
+    build_response(headers, page_content, title).await
 }
 
 // REFAKTORYZACJA: Nowa, reużywalna funkcja do renderowania formularza produktu
@@ -2645,7 +2666,9 @@ pub async fn admin_product_new_form_htmx_handler(
         claims.sub
     );
     let page_content = render_product_form_maud(None)?;
-    build_response(headers, page_content).await
+
+    let title = "Admin - dodawanie produktu - sklep mess - all that vintage";
+    build_response(headers, page_content, title).await
 }
 
 pub async fn admin_product_edit_form_htmx_handler(
@@ -2675,7 +2698,8 @@ pub async fn admin_product_edit_form_htmx_handler(
         })?;
 
     let page_content = render_product_form_maud(Some(&product_to_edit))?;
-    build_response(headers, page_content).await
+    let title = "Admin - edycja produktu - sklep mess - all that vintage";
+    build_response(headers, page_content, title).await
 }
 
 pub async fn login_page_htmx_handler(headers: HeaderMap) -> Result<Response, AppError> {
@@ -2765,7 +2789,8 @@ pub async fn login_page_htmx_handler(headers: HeaderMap) -> Result<Response, App
         }
     };
 
-    build_response(headers, page_content).await
+    let title = "Logowanie - sklep mess - all that vintage";
+    build_response(headers, page_content, title).await
 }
 
 pub async fn registration_page_htmx_handler(headers: HeaderMap) -> Result<Response, AppError> {
@@ -2855,7 +2880,8 @@ pub async fn registration_page_htmx_handler(headers: HeaderMap) -> Result<Respon
         }
     };
 
-    build_response(headers, page_content).await
+    let title = "Rejestracja - sklep mess - all that vintage";
+    build_response(headers, page_content, title).await
 }
 
 pub async fn my_orders_htmx_handler(
@@ -2964,7 +2990,8 @@ pub async fn my_orders_htmx_handler(
         }
     };
 
-    build_response(headers, page_content).await
+    let title = "Moje zamówienia - sklep mess - all that vintage";
+    build_response(headers, page_content, title).await
 }
 
 pub async fn checkout_page_handler(
@@ -3439,7 +3466,11 @@ pub async fn checkout_page_handler(
         }
     };
 
-    let app_response = build_response(request_headers, page_content).await?;
+    let title = format!(
+        "Podsumowanie zamówienia: {} sklep mess - all that vintage",
+        cart_details.cart_id
+    );
+    let app_response = build_response(request_headers, page_content, &title).await?;
     Ok((response_headers, app_response))
 }
 
@@ -3588,7 +3619,8 @@ pub async fn my_account_data_htmx_handler(
             }
         }
     };
-    build_response(headers, page_content).await
+    let title = "Moje konto - sklep mess - all that vintage";
+    build_response(headers, page_content, title).await
 }
 
 pub async fn my_order_details_htmx_handler(
@@ -3823,7 +3855,12 @@ pub async fn my_order_details_htmx_handler(
             }
         }
     };
-    build_response(headers, page_content).await
+
+    let title = format!(
+        "Szczegóły zamówienia: {} sklep mess - all that vintage",
+        order_id_display_short
+    );
+    build_response(headers, page_content, &title).await
 }
 
 pub async fn admin_dashboard_htmx_handler(
@@ -3873,7 +3910,9 @@ pub async fn admin_dashboard_htmx_handler(
             }
         }
     };
-    build_response(headers, page_content).await
+
+    let title = "Admin Panel - sklep mess - all that vintage";
+    build_response(headers, page_content, title).await
 }
 
 pub async fn admin_products_list_htmx_handler(
@@ -4089,7 +4128,8 @@ pub async fn admin_products_list_htmx_handler(
         }
     };
 
-    build_response(headers, page_content).await
+    let title = "Admin Panel - Lista produktów - sklep mess - all that vintage";
+    build_response(headers, page_content, title).await
 }
 
 // Pomocnicza funkcja do generowania linków sortowania
@@ -4598,7 +4638,8 @@ pub async fn admin_orders_list_htmx_handler(
             }
         }
     };
-    build_response(headers, page_content).await
+    let title = "Admin Panel - Lista zamówień - sklep mess - all that vintage";
+    build_response(headers, page_content, title).await
 }
 
 pub async fn admin_order_details_htmx_handler(
@@ -4778,7 +4819,12 @@ pub async fn admin_order_details_htmx_handler(
             }
         } // Koniec #order-details-page-container
     };
-    build_response(headers, page_content).await
+
+    let title = format!(
+        "Admin Panel - Szczegóły zamówienia: {} sklep mess - all that vintage",
+        order_id_display_short
+    );
+    build_response(headers, page_content, &title).await
 }
 
 // Funkcja pomocnicza do klas badge dla statusu zamówienia (możesz ją przenieść)
@@ -4818,8 +4864,9 @@ pub async fn news_page_htmx_handler(
         ..Default::default()
     };
 
+    let title = "Nowości - sklep mess - all that vintage";
     let page_content = render_product_listing_view(app_state, params, product_ids_in_cart).await?;
-    build_response(headers, page_content).await
+    build_response(headers, page_content, title).await
 }
 
 // NOWA FUNKCJA
@@ -4846,8 +4893,9 @@ pub async fn sale_page_htmx_handler(
         .unwrap_or_else(Vec::new);
     // --- KONIEC NOWEJ LOGIKI ---
 
+    let title = "Wyprzedaż - sklep mess - all that vintage";
     let page_content = render_product_listing_view(app_state, params, product_ids_in_cart).await?;
-    build_response(headers, page_content).await
+    build_response(headers, page_content, title).await
 }
 
 pub async fn render_product_listing_view(
@@ -5030,7 +5078,11 @@ pub async fn payment_finalization_page_handler(
         }
     };
 
-    build_response(headers, page_content).await
+    let title = format!(
+        "Finalizacja płatności zamówienia: {} sklep mess - all that vintage",
+        order_id
+    );
+    build_response(headers, page_content, &title).await
 }
 
 /// Renderuje stronę błędu, gdy produkt w koszyku jest niedostępny.
@@ -5220,8 +5272,9 @@ pub async fn handler_404(headers: HeaderMap) -> impl IntoResponse {
         }
     };
 
+    let title = "Bład 404 - sklep mess - all that vintage";
     // Zbuduj odpowiedź (pełną stronę lub fragment) i ustaw status na 404 NOT FOUND
-    let response = build_response(headers, page_content)
+    let response = build_response(headers, page_content, title)
         .await
         .unwrap_or_else(|err| err.into_response());
     (StatusCode::NOT_FOUND, response)
@@ -5260,7 +5313,9 @@ pub async fn forgot_password_form_handler(headers: HeaderMap) -> Result<Response
             }
         }
     };
-    build_response(headers, page_content).await
+
+    let title = "Zapomniałem hasła - sklep mess - all that vintage";
+    build_response(headers, page_content, title).await
 }
 
 #[derive(Deserialize)]
@@ -5281,6 +5336,8 @@ pub async fn reset_password_form_handler(
             ));
         }
     };
+
+    let title = "Resetowanie hasła - sklep mess - all that vitnage";
 
     // Walidacja tokenu
     match sqlx::query_as::<_, PasswordResetToken>("SELECT * FROM password_resets WHERE token = $1")
@@ -5315,14 +5372,15 @@ pub async fn reset_password_form_handler(
                     }
                 }
             };
-            build_response(headers, page_content).await
+
+            build_response(headers, page_content, title).await
         }
         _ => {
             // Token nie istnieje lub wygasł
             let error_content = html! {
                 p class="text-red-600 text-center" { "Ten link do resetowania hasła jest nieprawidłowy lub wygasł. Poproś o nowy." }
             };
-            build_response(headers, error_content).await
+            build_response(headers, error_content, title).await
         }
     }
 }
@@ -5489,4 +5547,49 @@ pub async fn live_search_handler(
             }
         }
     })
+}
+
+pub async fn search_page_handler(
+    headers: HeaderMap,
+    State(app_state): State<AppState>,
+    Query(params): Query<ListingParams>, // Pobiera parametry z URL, np. ?search=Biała
+    OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
+    OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
+) -> Result<Response, AppError> {
+    let search_term = params.search().unwrap_or_default();
+    tracing::info!(
+        "MAUD: Obsługa strony wyszukiwania dla frazy: '{}'",
+        search_term
+    );
+
+    // Pobieramy stan koszyka, aby przyciski "Dodaj do koszyka" miały poprawny stan
+    let mut conn = app_state.db_pool.acquire().await?;
+    let cart_details_opt =
+        crate::cart_utils::get_cart_details(&mut conn, user_claims_opt, guest_cart_id_opt).await?;
+    let product_ids_in_cart: Vec<Uuid> = cart_details_opt
+        .map(|details| details.items.iter().map(|item| item.product.id).collect())
+        .unwrap_or_else(Vec::new);
+
+    // Wywołujemy naszą reużywalną funkcję do renderowania siatki produktów,
+    // przekazując jej parametry wyszukiwania i stan koszyka.
+    let page_content = html! {
+        div ."mb-8" {
+            h1 ."text-2xl sm:text-3xl font-bold text-gray-800" {
+                "Wyniki wyszukiwania dla: "
+                span ."text-pink-600" { (search_term) }
+            }
+        }
+        // render_product_listing_view zwróci nam gotową siatkę produktów z paginacją
+        (render_product_listing_view(
+            app_state.clone(),
+            params.clone(),
+            product_ids_in_cart,
+        ).await?)
+    };
+
+    let title = format!(
+        "Wyniki dla: {} - sklep mess - all that vintage",
+        search_term
+    );
+    build_response(headers, page_content, &title).await
 }
