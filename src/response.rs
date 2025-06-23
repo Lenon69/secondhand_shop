@@ -109,3 +109,11 @@ pub async fn build_response(
         serve_full_page(page_content, title).await
     }
 }
+
+// Nowa struktura do budowania kompleksowych odpowiedzi
+pub struct PageBuilder {
+    pub title: String,
+    pub main_content: Markup,
+    pub head_scripts: Option<Markup>,
+    pub body_scripts: Option<Markup>,
+}

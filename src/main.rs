@@ -30,6 +30,7 @@ mod middleware;
 mod models;
 mod pagination;
 mod response;
+mod seo;
 mod state;
 
 // Importy z własnych modułów
@@ -152,7 +153,7 @@ async fn main() {
             post(upsert_user_shipping_details_handler),
         )
         // Trasa główna i jej aliasy
-        .route("/", get(serve_index))
+        .route("/", get(home_page_handler))
         .route("/kategoria", get(list_products_htmx_handler))
         .route("/nowosci", get(news_page_htmx_handler))
         .route("/wyprzedaz", get(sale_page_htmx_handler))

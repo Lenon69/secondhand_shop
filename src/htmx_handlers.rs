@@ -1,5 +1,6 @@
 // src/htmx_handlers.rs
 
+use crate::seo::{self, SchemaBrand, SchemaOffer, SchemaProduct};
 use axum::response::Response;
 #[allow(unused_imports)]
 use axum::{
@@ -199,8 +200,6 @@ pub async fn get_product_detail_htmx_handler(
         val1 = initial_image_js_literal,
         val2 = all_images_js_array_literal
     );
-    // x_data_attribute_value będzie teraz stringiem Rusta np:
-    // "{ currentMainImage: \"url1\", allProductImages: [\"url1\",\"url2\"] }"
 
     let main_image_click_alpine_action = format!(
         // Użyj klucza imagesArray, a wartość to już gotowa tablica JS
@@ -210,7 +209,55 @@ pub async fn get_product_detail_htmx_handler(
 
     let return_query_params_str_rust: Option<String> = query_params.return_params;
 
+    // --- NOWY BLOK: TWORZENIE DANYCH STRUKTURALNYCH (JSON-LD) ---
+    // 1. Mapujemy statusy i stany z naszej aplikacji na standard Schema.org
+    let schema_availability = match product.status {
+        ProductStatus::Available | ProductStatus::Reserved => "https://schema.org/InStock",
+        ProductStatus::Sold | ProductStatus::Archived => "https://schema.org/OutOfStock",
+    };
+
+    let schema_condition = match product.condition {
+        ProductCondition::New => "https://schema.org/NewCondition",
+        _ => "https://schema.org/UsedCondition", // Wszystkie inne traktujemy jako używane
+    };
+
+    // 2. Tworzymy obiekt "Offer"
+    let schema_offer = SchemaOffer {
+        type_of: "Offer",
+        url: format!("https://messvintage.com/produkty/{}", product.id),
+        price_currency: "PLN",
+        price: format!("{:.2}", product.price as f64 / 100.0),
+        availability: schema_availability,
+        item_condition: schema_condition,
+    };
+
+    // 3. Tworzymy główny obiekt "Product"
+    let schema_product = SchemaProduct {
+        context: "https://schema.org",
+        type_of: "Product",
+        name: &product.name,
+        description: &product.description,
+        sku: product.id.to_string(),
+        image: &product.images,
+        brand: SchemaBrand {
+            type_of: "Brand",
+            name: "mess - all that vintage",
+        },
+        offers: schema_offer,
+    };
+
+    // 4. Serializujemy całą strukturę do stringa JSON
+    let json_ld_string = serde_json::to_string(&schema_product).unwrap_or_else(|e| {
+        tracing::error!("Błąd serializacji JSON-LD: {}", e);
+        "{}".to_string()
+    });
+
+    // --- KONIEC NOWEGO BLOKU ---
+
     let page_content = html! {
+        script type="application/ld+json" {
+            (PreEscaped(json_ld_string))
+        }
         script #cart-state-data type="application/json" {
             (PreEscaped(cart_product_ids_json))
         }
@@ -5618,4 +5665,64 @@ pub async fn search_page_handler(
         search_term
     );
     build_response(headers, page_content, &title).await
+}
+
+/// Obsługuje pełne załadowanie strony głównej ("/").
+/// Pobiera stan koszyka, aby poprawnie wyrenderować przyciski "Dodaj do koszyka",
+/// renderuje sekcję Hero z H1 oraz początkową listę produktów.
+pub async fn home_page_handler(
+    headers: HeaderMap,
+    State(app_state): State<AppState>,
+    OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
+    OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
+) -> Result<Response, AppError> {
+    tracing::info!("MAUD: Obsługa żądania strony głównej");
+
+    // Krok 1: Pobierz aktualny stan koszyka (dla zalogowanego użytkownika lub gościa).
+    // To jest kluczowe, aby stan przycisków był poprawny po odświeżeniu strony.
+    let mut conn = app_state.db_pool.acquire().await?;
+    let cart_details_opt =
+        crate::cart_utils::get_cart_details(&mut conn, user_claims_opt, guest_cart_id_opt).await?;
+    let product_ids_in_cart: Vec<Uuid> = cart_details_opt
+        .map(|details| details.items.iter().map(|item| item.product.id).collect())
+        .unwrap_or_else(Vec::new);
+
+    // Krok 2: Przygotuj parametry dla początkowej listy produktów na stronie głównej.
+    let home_page_params = ListingParams {
+        limit: Some(8),
+        ..Default::default() // Używamy domyślnych wartości dla reszty (np. brak filtrów)
+    };
+
+    // Krok 3: Wyrenderuj zawartość strony (Markup).
+    let page_content = html! {
+        // Renderujemy sekcję "hero" z nagłówkiem H1 dla SEO i lepszego UX.
+        (render_home_page_hero())
+
+        // Renderujemy siatkę produktów, przekazując pobrany stan koszyka.
+        (render_product_listing_view(
+            app_state.clone(),
+            home_page_params,
+            product_ids_in_cart,
+        ).await?)
+    };
+
+    // Krok 4: Zdefiniuj tytuł strony.
+    let title = "mess - all that vintage - Sklep Vintage Online";
+
+    // Krok 5: Zbuduj i zwróć pełną odpowiedź HTTP za pomocą swojej funkcji pomocniczej.
+    build_response(headers, page_content, title).await
+}
+
+/// Renderuje sekcję "hero" z nagłówkiem H1 dla strony głównej.
+fn render_home_page_hero() -> Markup {
+    html! {
+        div class="text-center py-10 sm:py-16 bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-100 rounded-xl shadow-inner-lg border border-gray-200 mb-8" {
+            h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-gray-900" {
+                "Wyjątkowa Odzież Vintage Online"
+            }
+            p class="mt-4 max-w-2xl mx-auto text-lg text-gray-600" {
+                "Odkryj unikalne perełki z duszą. Ręcznie selekcjonowana odzież z drugiej ręki dla Niej i dla Niego."
+            }
+        }
+    }
 }
