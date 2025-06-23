@@ -1071,7 +1071,7 @@ pub async fn login_handler(
                 .http_only(true) // Ważne: ciasteczko niedostępne dla JavaScript po stronie klienta
                 .secure(true) // Wysyłane tylko przez HTTPS
                 .same_site(SameSite::None) // Dobra ochrona przed atakami CSRF - Lax
-                .max_age(time::Duration::MAX)
+                .max_age(time::Duration::days(365))
                 .build();
 
             let mut headers = HeaderMap::new();

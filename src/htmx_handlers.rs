@@ -22,6 +22,7 @@ use serde::Deserialize;
 use serde_json;
 use std::{collections::HashMap, str::FromStr};
 use strum::IntoEnumIterator;
+use time;
 #[allow(unused_imports)]
 use urlencoding::encode;
 use uuid::Uuid;
@@ -649,19 +650,18 @@ pub async fn add_item_to_cart_htmx_handler(
             cart.id
         );
 
-        // --- NOWY KOD: Ustaw ciasteczko dla nowego gościa ---
+        // --- Ustaw ciasteczko dla nowego gościa ---
         let guest_cookie = Cookie::build(("guest_cart_id", new_id.to_string()))
             .path("/")
             .http_only(true)
             .secure(true)
-            .same_site(SameSite::None)
-            .max_age(time::Duration::MAX)
+            .same_site(SameSite::Lax)
+            .max_age(time::Duration::days(365))
             .build();
         headers.insert(
             axum::http::header::SET_COOKIE,
             guest_cookie.to_string().parse().unwrap(),
         );
-        // --- KONIEC NOWEGO KODU ---
     }
 
     // 2. Sprawdź produkt i dodaj do koszyka

@@ -130,20 +130,14 @@
 
   <body
           x-data="{
-              // 🔐 Stan uwierzytelnienia
               isAuthenticated: !!localStorage.getItem('jwtToken'),
-
-              // 🛒 Koszyk
               cartOpen: false,
               cartItemCount: 0,
               guestCartId: localStorage.getItem('guestCartId'),
-
-              // 📱 Menu mobilne
               isMobileMenuOpen: false,
               currentMobilePage: '', 
               isCategorySidebarOpen: false,
-
-              // 🖼️ Modal obrazka
+              
               activeImageModal: {
                   isOpen: false,
                   currentSrc: '',
@@ -151,9 +145,7 @@
                   currentIndex: 0
               },
 
-              // Inicjalizacja specyficzna dla Alpine, która nie jest globalna
               initAlpine() {
-                  // Reakcja na zmiany stanu lokalne dla Alpine
                   this.$watch('cartItemCount', value => {
                       localStorage.setItem('alpineCartCount', String(value));
                       this.updateCartCounterVisuals();
@@ -270,7 +262,7 @@
         window.addEventListener('logoutClient', () => isAuthenticated = false);
 
         this.cartItemCount = parseInt(localStorage.getItem('cartItemCount')) || 0;
-        this.$watch('cartItemCount', val => localStorage.setItem('alpineCartCount', val));
+        $watch('cartItemCount', val => localStorage.setItem('alpineCartCount', val));
         $watch('guestCartId', val => val
             ? localStorage.setItem('guestCartId', val)
             : localStorage.removeItem('guestCartId'));
