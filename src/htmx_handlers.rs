@@ -1086,10 +1086,39 @@ pub async fn list_products_htmx_handler(
         .map(|details| details.items.iter().map(|item| item.product.id).collect())
         .unwrap_or_else(Vec::new);
 
-    let page_content = render_product_listing_view(app_state, params, product_ids_in_cart).await?;
+    let mut title_parts: Vec<String> = Vec::new();
 
-    let title = "Lista produktów - sklep mess - all that vintage";
-    build_response(headers, page_content, title).await
+    // Część tytułu dla płci
+    if let Some(gender) = params.gender() {
+        let gender_display = if gender == ProductGender::Meskie {
+            "niego"
+        } else {
+            "niej"
+        };
+        title_parts.push(format!("Produkty dla {}", gender_display));
+    }
+
+    // Dodaj część tytułu dla kategorii
+    if let Some(category) = params.category() {
+        title_parts.push(category.to_string());
+    }
+
+    // Dodaj czesc tytułu dla kategorii
+    if let Some(search_term) = params.search() {
+        if !search_term.is_empty() {
+            title_parts.push(format!("Szukaj: '{}'", search_term));
+        }
+    }
+
+    let dynamic_part = if title_parts.is_empty() {
+        "Wszystkie produkty".to_string()
+    } else {
+        title_parts.join(": ")
+    };
+
+    let title = format!("{} - sklep mess - all that vintage", dynamic_part);
+    let page_content = render_product_listing_view(app_state, params, product_ids_in_cart).await?;
+    build_response(headers, page_content, &title).await
 }
 
 pub async fn gender_page_handler(
@@ -3466,11 +3495,8 @@ pub async fn checkout_page_handler(
         }
     };
 
-    let title = format!(
-        "Podsumowanie zamówienia: {} sklep mess - all that vintage",
-        cart_details.cart_id
-    );
-    let app_response = build_response(request_headers, page_content, &title).await?;
+    let title = "Składanie zamówienia - sklep mess - all that vintage";
+    let app_response = build_response(request_headers, page_content, title).await?;
     Ok((response_headers, app_response))
 }
 

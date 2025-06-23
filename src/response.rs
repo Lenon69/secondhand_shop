@@ -2,7 +2,7 @@ use axum::body::Body;
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use lol_html::{HtmlRewriter, Settings, element};
-use maud::Markup;
+use maud::{Markup, html};
 use tokio::fs;
 use tokio_util::bytes::Bytes;
 
@@ -95,11 +95,16 @@ pub async fn build_response(
     title: &str,
 ) -> Result<Response, AppError> {
     if headers.contains_key("HX-Request") {
-        let mut response = page_content.into_response();
-        if let Ok(val) = HeaderValue::from_str(title) {
-            response.headers_mut().insert("HX-Set-Title", val);
-        }
-        Ok(response)
+        let oob_title = html! {
+            title hx-swap-oob="true" { (title) }
+        };
+
+        let final_markup = html! {
+            (page_content)
+            (oob_title)
+        };
+
+        Ok(final_markup.into_response())
     } else {
         serve_full_page(page_content, title).await
     }
