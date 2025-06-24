@@ -158,7 +158,7 @@ async fn main() {
         .route("/", get(home_page_handler))
         .route("/kategoria", get(list_products_htmx_handler))
         .route("/nowosci", get(news_page_htmx_handler))
-        .route("/wyprzedaz", get(sale_page_htmx_handler))
+        .route("/okazje", get(sale_page_htmx_handler))
         .route("/dla-{gender_slug}", get(gender_page_handler))
         .route(
             "/produkty/{product_id}",

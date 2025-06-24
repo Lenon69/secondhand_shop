@@ -520,14 +520,14 @@
               >Nowości</a
             >
             <a
-              href="/wyprzedaz"
-              hx-get="/wyprzedaz"
+              href="/okazje"
+              hx-get="/okazje"
               hx-target="#content"
-              hx-push-url="/wyprzedaz"
+              hx-push-url="/okazje"
               hx-swap="innerHTML"
-              @click="currentMobilePage='wyprzedaz'"
+              @click="currentMobilePage='okazje'"
               class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
-              >Wyprzedaż</a
+              >Okazje</a
             >
             <a
               href="/o-nas"
@@ -642,15 +642,15 @@
             >Nowości</a
           >
           <a
-            href="/wyprzedaz"
-            hx-get="/wyprzedaz"
+            href="/okazje"
+            hx-get="/okazje"
             hx-target="#content"
             hx-swap="innerHTML"
-            hx-push-url="/wyprzedaz"
-            @click="isMobileMenuOpen = false; currentMobilePage='wyprzedaz'"
-            :class="{'mobile-nav-active': currentMobilePage === 'wyprzedaz'}"
+            hx-push-url="/okazje"
+            @click="isMobileMenuOpen = false; currentMobilePage='okazje'"
+            :class="{'mobile-nav-active': currentMobilePage === 'okazje'}"
             class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-700 text-center"
-            >Wyprzedaż</a
+            >Okazje</a
           >
           <a
             href="/o-nas"

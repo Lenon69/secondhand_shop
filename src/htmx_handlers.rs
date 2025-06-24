@@ -995,51 +995,8 @@ fn render_product_grid_maud(
     html! {
 
         div #products-grid-container { // Ten ID jest ważny dla hx-target paginacji
-
-            // Wyświetlaj baner tylko na pierwszej stronie listy produktów
-            @if current_page == 1 {
-                // Główny kontener banera
-                div class="my-8 p-4 sm:p-6 bg-gradient-to-r from-pink-500 to-purple-500 rounded-xl shadow-lg text-white flex flex-col sm:flex-row items-center justify-center sm:justify-between gap-4" {
-
-                    // --- LEWA STRONA (zawsze widoczna) ---
-                    div class="flex items-center gap-x-4" {
-                        div class="flex-shrink-0" {
-                            svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6" {
-                              path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12";
-                            }
-                        }
-
-                        // Tekst główny
-                        div {
-                            p class="text-lg sm:text-xl font-bold text-center sm:text-left" {
-                                "Darmowa dostawa od "
-                                span class="whitespace-nowrap" { "250 zł!" }
-                            }
-                            p class="text-xs sm:text-sm text-pink-100 mt-1 text-center sm:text-left" { "Sprawdź nasze perełki i skorzystaj z okazji." }
-                        }
-                    }
-
-                    // --- PRAWA STRONA (widoczna tylko na dużych ekranach) ---
-                    div class="hidden lg:flex items-center gap-x-8 xl:gap-x-12 text-base" {
-
-                        // Atut 1
-                        div class="flex items-center gap-x-2.5 opacity-90" {
-                            svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6" {
-                                path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z";
-                            }
-                            span class="font-medium" { "Unikalne produkty" }
-                        }
-
-                        // Atut 2
-                        div class="flex items-center gap-x-2.5 opacity-90" {
-                            svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6" {
-                                path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z";
-                            }
-                            span class="font-medium" { "Szybka wysyłka" }
-                        }
-                    }
-                }
-            }
+           // Wyświetlaj baner tylko na pierwszej stronie listy produktów
+            @if current_page == 1 {}
 
             div #products-container .grid.grid-cols-1.sm:grid-cols-2.lg:grid-cols-3.xl:grid-cols-4.gap-6 {
                 @if products.is_empty() {
@@ -1203,28 +1160,11 @@ pub async fn gender_page_handler(
 ) -> Result<Response, AppError> {
     tracing::info!("MAUD: /htmx/dla-{} - ładowanie strony płci", gender_slug);
 
-    // --- Definiowanie tekstów H1 i H2 ---
-    let (current_gender, current_gender_display_name, h1_text, h2_text) = match gender_slug.as_str()
-    {
-        "niej" => (
-            ProductGender::Damskie,
-            "Dla niej",
-            "Moda dla niej – stylowe ubrania vintage",
-            "Odkryj wyjątkowe kolekcje pre-owned dla kobiet ceniących oryginalność i jakość",
-        ),
-        "niego" => (
-            ProductGender::Meskie,
-            "Dla niego",
-            "Moda męska w duchu slow fashion",
-            "Znajdź odzież i dodatki vintage, które podkreślą Twój indywidualny styl",
-        ),
-        _ => {
-            tracing::warn!("MAUD: Nieznany slug płci: {}", gender_slug);
-            return Err(AppError::NotFound);
-        }
+    let (current_gender, current_gender_display_name) = match gender_slug.as_str() {
+        "niej" => (ProductGender::Damskie, "Dla niej"),
+        "niego" => (ProductGender::Meskie, "Dla niego"),
+        _ => return Err(AppError::NotFound),
     };
-    // Renderujemy nagłówek SEO za pomocą naszej funkcji pomocniczej
-    let seo_header_markup = render_seo_header_maud(h1_text, h2_text);
 
     // --- NOWA LOGIKA POBIERANIA KOSZYKA ---
     let mut conn = app_state.db_pool.acquire().await?;
@@ -1256,13 +1196,18 @@ pub async fn gender_page_handler(
         build_full_query_string_from_params(&final_params);
 
     let page_content = html! {
-        (seo_header_markup)
+        // Renderujemy baner na samej górze. Będzie on widoczny na mobile i desktopie.
+        div class="mb-6 lg:mb-8" {
+            (render_free_shipping_banner_maud())
+        }
+
+        // Główny kontener z panelem bocznym
         div ."flex flex-col md:flex-row gap-6" {
             // --- Przycisk do rozwijania/zwijania kategorii na mobile ---
             div ."md:hidden p-4 border-b border-gray-200 bg-gray-50" {
                 button type="button"
                        "@click"="isCategorySidebarOpen = !isCategorySidebarOpen"
-                       class="w-full flex justify-between items-center px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 focus:outline-none font-semibold" {
+                       class="w-full flex justify-center items-center px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 focus:outline-none font-semibold" {
                     span { (current_gender_display_name) ": Kategorie" }
                     svg "x-show"="!isCategorySidebarOpen" class="w-5 h-5 transform transition-transform duration-200" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
                         path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
@@ -1286,10 +1231,10 @@ pub async fn gender_page_handler(
                             li {
                                 a href="#"
                                    hx-get=(format!("/htmx/products?gender={}", current_gender.to_string()))
-                                   hx-target="#product-listing-area" hx-swap="innerHTML"
+                                   hx-target="#main-content-area" hx-swap="innerHTML"
                                    hx-push-url=(format!("/dla-{}", gender_slug))
                                    "@click"="if (window.innerWidth < 768) isCategorySidebarOpen = false"
-                                   class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
+                                   class="flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
                                    "_"="on htmx:afterSwap remove .font-bold .text-pink-700 from #category-sidebar a add .font-bold .text-pink-700 to me" {
                                     "Wszystkie"
                                 }
@@ -1300,10 +1245,10 @@ pub async fn gender_page_handler(
                                     @let category_display_name = category_item.to_string();
                                     a href="#"
                                        hx-get=(format!("/htmx/products?gender={}&category={}", current_gender.to_string(), category_item.as_ref()))
-                                       hx-target="#product-listing-area" hx-swap="innerHTML"
+                                       hx-target="#main-content-area" hx-swap="innerHTML"
                                        hx-push-url=(format!("/dla-{}/{}", gender_slug, category_param))
                                        "@click"="if (window.innerWidth < 768) { isCategorySidebarOpen = false; }"
-                                       class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
+                                       class="flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
                                        "_"="on htmx:afterSwap remove .font-bold .text-pink-700 from #category-sidebar a add .font-bold .text-pink-700 to me" {
                                         (category_display_name)
                                     }
@@ -1315,7 +1260,7 @@ pub async fn gender_page_handler(
             }
 
             // --- Główny obszar na listę produktów ---
-            section #product-listing-area ."w-full md:w-3/4 lg:w-4/5" {
+            div #main-content-area ."w-full md:w-3/4 lg:w-4/5" {
                 (render_product_grid_maud(
                     &paginated_response.data,
                     paginated_response.current_page,
@@ -1353,8 +1298,8 @@ pub async fn gender_with_category_page_handler(
     );
 
     let (current_gender, current_gender_display_name) = match gender_slug.as_str() {
-        "niej" => (ProductGender::Damskie, "Dla niej"),
-        "niego" => (ProductGender::Meskie, "Dla niego"),
+        "niej" => (ProductGender::Damskie, "dla niej"),
+        "niego" => (ProductGender::Meskie, "dla niego"),
         _ => return Err(AppError::NotFound),
     };
 
@@ -1395,7 +1340,6 @@ pub async fn gender_with_category_page_handler(
         ..Default::default()
     };
 
-    // Reszta funkcji jest identyczna jak w `gender_page_handler`
     let paginated_response_json =
         crate::handlers::list_products(State(app_state.clone()), Query(final_params.clone()))
             .await?;
@@ -4986,7 +4930,7 @@ pub async fn news_page_htmx_handler(
     tracing::info!("MAUD: Obsługa publicznego URL /nowosci");
 
     // Definiujemy teksty dla tej konkretnej strony
-    let h1_text = "Nowości w secondhand premium – świeże perełki czekają";
+    let h1_text = "Nowości w mess - all that vintage – świeże perełki czekają";
     let h2_text =
         "Sprawdź najnowsze dodatki i ubrania vintage, które właśnie trafiły do naszej kolekcji";
     let seo_header_markup = render_seo_header_maud(h1_text, h2_text);
@@ -5025,7 +4969,7 @@ pub async fn sale_page_htmx_handler(
     OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
     OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
 ) -> Result<Response, AppError> {
-    tracing::info!("MAUD: Obsługa publicznego URL /wyprzedaz");
+    tracing::info!("MAUD: Obsługa publicznego URL /okazje");
     let params = ListingParams {
         on_sale: Some(true),
         status: Some(ProductStatus::Available.as_ref().to_string()),
@@ -5034,7 +4978,7 @@ pub async fn sale_page_htmx_handler(
     };
 
     // Definiujemy teksty dla tej strony
-    let h1_text = "Wyprzedaż – wyjątkowe okazje w modzie vintage";
+    let h1_text = "Wyjątkowe okazje – moda vintage w najlepszych cenach";
     let h2_text = "Upoluj stylowe ubrania i dodatki pre-owned w jeszcze lepszych cenach";
     let seo_header_markup = render_seo_header_maud(h1_text, h2_text);
 
@@ -5047,7 +4991,7 @@ pub async fn sale_page_htmx_handler(
         .unwrap_or_else(Vec::new);
     // --- KONIEC NOWEJ LOGIKI ---
 
-    let title = "Wyprzedaż - sklep mess - all that vintage";
+    let title = "Okazje - sklep mess - all that vintage";
     let product_grid_markup =
         render_product_listing_view(app_state, params, product_ids_in_cart).await?;
     let page_content = html! {
@@ -5829,11 +5773,11 @@ fn render_home_page_hero() -> Markup {
 fn get_seo_headers_for_category(category: &Category) -> (&'static str, &'static str) {
     match category {
         Category::Koszule => (
-            "Stylowe koszule secondhand – moda z klasą",
+            "Stylowe koszule  – moda z klasą",
             "Odkryj wyjątkowe koszule vintage i casual w atrakcyjnych cenach",
         ),
         Category::Spodnie => (
-            "Spodnie secondhand – komfort i styl każdego dnia",
+            "Spodnie od mess – komfort i styl każdego dnia",
             "Wybierz modne spodnie damskie i męskie w duchu slow fashion",
         ),
         Category::Sukienki => (
@@ -5849,7 +5793,7 @@ fn get_seo_headers_for_category(category: &Category) -> (&'static str, &'static 
             "Znajdź sweter idealny na chłodne dni – od oversize po klasykę",
         ),
         Category::Bluzy => (
-            "Bluzy pre-owned – wygoda w dobrym stylu",
+            "Bluzy mess – wygoda w dobrym stylu",
             "Odkryj modne bluzy vintage i streetwear w świetnym stanie",
         ),
         Category::KurtkiPlaszcze => (
@@ -5861,7 +5805,7 @@ fn get_seo_headers_for_category(category: &Category) -> (&'static str, &'static 
             "Wybierz unikalne marynarki vintage i żakiety na każdą okazję",
         ),
         Category::Obuwie => (
-            "Obuwie secondhand – stylowe buty z charakterem",
+            "Obuwie od mess – stylowe buty z charakterem",
             "Znajdź wyjątkowe obuwie w doskonałym stanie i dobrej cenie",
         ),
         Category::Torebki => (
@@ -5869,16 +5813,16 @@ fn get_seo_headers_for_category(category: &Category) -> (&'static str, &'static 
             "Odkryj eleganckie i praktyczne torebki vintage do każdej stylizacji",
         ),
         Category::Akcesoria => (
-            "Akcesoria z drugiego obiegu – detale, które tworzą styl",
+            "Akcesoria typu vintage – detale, które tworzą styl",
             "Dodaj charakteru swoim stylizacjom dzięki wyjątkowym dodatkom",
         ),
         Category::Bielizna => (
-            "Bielizna pre-owned – delikatność i komfort",
+            "Bielizna vintage – subtelność i wygoda na co dzień",
             "Oferujemy starannie wyselekcjonowaną bieliznę w idealnym stanie",
         ),
         Category::StrojeKapielowe => (
             "Stroje kąpielowe vintage – plażowy szyk w duchu slow fashion",
-            "Odkryj unikalne fasony pre-owned idealne na lato",
+            "Odkryj unikalne fasony idealne na lato",
         ),
         Category::Inne => (
             "Rzeczy unikatowe – secondhand, który zaskakuje",
@@ -5928,26 +5872,20 @@ fn highlight_keyword(text: &str, keyword: &str) -> Markup {
 /// Renderuje ostylowany baner "Darmowa dostawa".
 fn render_free_shipping_banner_maud() -> Markup {
     html! {
-        // Zmieniono padding z p-4 sm:p-6 na p-4 dla mniejszego rozmiaru
-        div class="p-4 bg-gradient-to-r from-pink-500 to-purple-500 rounded-xl shadow-lg text-white flex flex-col sm:flex-row items-center justify-center sm:justify-between gap-4" {
-            // Lewa strona (ikona i tekst główny) - bez zmian
-            div class="flex items-center gap-x-4" {
-                div class="flex-shrink-0" {
-                    svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6" {
-                      path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12";
-                    }
-                }
-                div {
-                    p class="text-lg sm:text-xl font-bold text-center sm:text-left" {
-                        "Darmowa dostawa od "
-                        span class="whitespace-nowrap" { "250 zł!" }
-                    }
-                    p class="text-xs sm:text-sm text-pink-100 mt-1 text-center sm:text-left" { "Sprawdź nasze perełki i skorzystaj z okazji." }
+        // Używamy flex, aby wycentrować zawartość w pionie i poziomie
+        div class="p-3 sm:p-4 bg-gradient-to-r from-pink-500 to-purple-500 rounded-xl shadow-lg text-white flex items-center justify-center gap-x-3 sm:gap-x-4 h-full" {
+            // Ikona
+            div class="flex-shrink-0" {
+                svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 sm:w-8 sm:h-8" {
+                  path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12";
                 }
             }
-            // Prawa strona (atuty - widoczne tylko na desktopie) - bez zmian
-            div class="hidden lg:flex items-center gap-x-8 xl:gap-x-12 text-base" {
-                // ... (atuty bez zmian)
+            // Tekst
+            div {
+                // ZMIANA: Dodajemy `whitespace-nowrap` i responsywne rozmiary czcionki
+                p class="font-bold whitespace-nowrap text-base sm:text-lg md:text-xl" {
+                    "Darmowa dostawa od 250 zł!"
+                }
             }
         }
     }
