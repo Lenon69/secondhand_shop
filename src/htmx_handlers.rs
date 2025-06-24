@@ -1144,6 +1144,8 @@ pub async fn list_products_htmx_handler(
         .map(|details| details.items.iter().map(|item| item.product.id).collect())
         .unwrap_or_else(Vec::new);
 
+    // --- NOWA LOGIKA TWORZENIA NAGŁÓWKÓW I TYTUŁU ---
+    let mut seo_header_markup = html! {};
     let mut title_parts: Vec<String> = Vec::new();
 
     // Część tytułu dla płci
@@ -1154,6 +1156,12 @@ pub async fn list_products_htmx_handler(
             "niej"
         };
         title_parts.push(format!("Produkty dla {}", gender_display));
+    }
+
+    if let Some(category) = &params.category {
+        let (h1_text, h2_text) = get_seo_headers_for_category(category);
+        seo_header_markup = render_seo_header_maud(h1_text, h2_text);
+        title_parts.push(category.to_string());
     }
 
     // Dodaj część tytułu dla kategorii
@@ -1173,9 +1181,14 @@ pub async fn list_products_htmx_handler(
     } else {
         title_parts.join(": ")
     };
+    let product_grid_markup =
+        render_product_listing_view(app_state, params, product_ids_in_cart).await?;
 
     let title = format!("{} - sklep mess - all that vintage", dynamic_part);
-    let page_content = render_product_listing_view(app_state, params, product_ids_in_cart).await?;
+    let page_content = html! {
+        (seo_header_markup)
+        (product_grid_markup)
+    };
     let page_builder = PageBuilder::new(&title, page_content, None, None);
     build_response(headers, page_builder).await
 }
@@ -1190,14 +1203,28 @@ pub async fn gender_page_handler(
 ) -> Result<Response, AppError> {
     tracing::info!("MAUD: /htmx/dla-{} - ładowanie strony płci", gender_slug);
 
-    let (current_gender, current_gender_display_name) = match gender_slug.as_str() {
-        "niej" => (ProductGender::Damskie, "Dla niej"),
-        "niego" => (ProductGender::Meskie, "Dla niego"),
+    // --- Definiowanie tekstów H1 i H2 ---
+    let (current_gender, current_gender_display_name, h1_text, h2_text) = match gender_slug.as_str()
+    {
+        "niej" => (
+            ProductGender::Damskie,
+            "Dla niej",
+            "Moda dla niej – stylowe ubrania vintage",
+            "Odkryj wyjątkowe kolekcje pre-owned dla kobiet ceniących oryginalność i jakość",
+        ),
+        "niego" => (
+            ProductGender::Meskie,
+            "Dla niego",
+            "Moda męska w duchu slow fashion",
+            "Znajdź odzież i dodatki vintage, które podkreślą Twój indywidualny styl",
+        ),
         _ => {
             tracing::warn!("MAUD: Nieznany slug płci: {}", gender_slug);
             return Err(AppError::NotFound);
         }
     };
+    // Renderujemy nagłówek SEO za pomocą naszej funkcji pomocniczej
+    let seo_header_markup = render_seo_header_maud(h1_text, h2_text);
 
     // --- NOWA LOGIKA POBIERANIA KOSZYKA ---
     let mut conn = app_state.db_pool.acquire().await?;
@@ -1229,6 +1256,7 @@ pub async fn gender_page_handler(
         build_full_query_string_from_params(&final_params);
 
     let page_content = html! {
+        (seo_header_markup)
         div ."flex flex-col md:flex-row gap-6" {
             // --- Przycisk do rozwijania/zwijania kategorii na mobile ---
             div ."md:hidden p-4 border-b border-gray-200 bg-gray-50" {
@@ -4957,6 +4985,12 @@ pub async fn news_page_htmx_handler(
 ) -> Result<Response, AppError> {
     tracing::info!("MAUD: Obsługa publicznego URL /nowosci");
 
+    // Definiujemy teksty dla tej konkretnej strony
+    let h1_text = "Nowości w secondhand premium – świeże perełki czekają";
+    let h2_text =
+        "Sprawdź najnowsze dodatki i ubrania vintage, które właśnie trafiły do naszej kolekcji";
+    let seo_header_markup = render_seo_header_maud(h1_text, h2_text);
+
     // ZMIANA 2: Pobieramy zawartość koszyka przed renderowaniem widoku
     let mut conn = app_state.db_pool.acquire().await?;
     let cart_details_opt =
@@ -4973,8 +5007,13 @@ pub async fn news_page_htmx_handler(
         ..Default::default()
     };
 
+    let product_grid_markup =
+        render_product_listing_view(app_state, params, product_ids_in_cart).await?;
+    let page_content = html! {
+        (seo_header_markup)
+        (product_grid_markup)
+    };
     let title = "Nowości - sklep mess - all that vintage";
-    let page_content = render_product_listing_view(app_state, params, product_ids_in_cart).await?;
     let page_builder = PageBuilder::new(&title, page_content, None, None);
     build_response(headers, page_builder).await
 }
@@ -4994,6 +5033,11 @@ pub async fn sale_page_htmx_handler(
         ..Default::default()
     };
 
+    // Definiujemy teksty dla tej strony
+    let h1_text = "Wyprzedaż – wyjątkowe okazje w modzie vintage";
+    let h2_text = "Upoluj stylowe ubrania i dodatki pre-owned w jeszcze lepszych cenach";
+    let seo_header_markup = render_seo_header_maud(h1_text, h2_text);
+
     // --- NOWA LOGIKA POBIERANIA KOSZYKA ---
     let mut conn = app_state.db_pool.acquire().await?;
     let cart_details_opt =
@@ -5004,7 +5048,12 @@ pub async fn sale_page_htmx_handler(
     // --- KONIEC NOWEJ LOGIKI ---
 
     let title = "Wyprzedaż - sklep mess - all that vintage";
-    let page_content = render_product_listing_view(app_state, params, product_ids_in_cart).await?;
+    let product_grid_markup =
+        render_product_listing_view(app_state, params, product_ids_in_cart).await?;
+    let page_content = html! {
+        (seo_header_markup)
+        (product_grid_markup)
+    };
     let page_builder = PageBuilder::new(&title, page_content, None, None);
     build_response(headers, page_builder).await
 }
@@ -5771,6 +5820,134 @@ fn render_home_page_hero() -> Markup {
                 p class="mt-4 max-w-2xl mx-auto text-lg text-gray-100" {
                     "Odkryj unikalne perełki z duszą. Ręcznie selekcjonowana odzież z drugiej ręki dla Niej i dla Niego."
                 }
+            }
+        }
+    }
+}
+
+/// Zwraca krotkę z tekstami (H1, H2) dla danej kategorii.
+fn get_seo_headers_for_category(category: &Category) -> (&'static str, &'static str) {
+    match category {
+        Category::Koszule => (
+            "Stylowe koszule secondhand – moda z klasą",
+            "Odkryj wyjątkowe koszule vintage i casual w atrakcyjnych cenach",
+        ),
+        Category::Spodnie => (
+            "Spodnie secondhand – komfort i styl każdego dnia",
+            "Wybierz modne spodnie damskie i męskie w duchu slow fashion",
+        ),
+        Category::Sukienki => (
+            "Sukienki vintage – ponadczasowa elegancja",
+            "Znajdź swoją wymarzoną sukienkę vintage i nadaj jej nowe życie",
+        ),
+        Category::Spodnice => (
+            "Spódnice vintage – kobiecość w stylu retro",
+            "Przeglądaj klasyczne i nowoczesne fasony spódnic",
+        ),
+        Category::Swetry => (
+            "Ciepłe swetry secondhand – styl i wygoda",
+            "Znajdź sweter idealny na chłodne dni – od oversize po klasykę",
+        ),
+        Category::Bluzy => (
+            "Bluzy pre-owned – wygoda w dobrym stylu",
+            "Odkryj modne bluzy vintage i streetwear w świetnym stanie",
+        ),
+        Category::KurtkiPlaszcze => (
+            "Kurtki i płaszcze vintage – klasyka na każdą porę roku",
+            "Postaw na modę z przeszłości – klasyczne płaszcze i modne kurtki",
+        ),
+        Category::MarynarkiZakiety => (
+            "Marynarki i żakiety – szyk i elegancja",
+            "Wybierz unikalne marynarki vintage i żakiety na każdą okazję",
+        ),
+        Category::Obuwie => (
+            "Obuwie secondhand – stylowe buty z charakterem",
+            "Znajdź wyjątkowe obuwie w doskonałym stanie i dobrej cenie",
+        ),
+        Category::Torebki => (
+            "Torebki vintage – wyjątkowe dodatki z historią",
+            "Odkryj eleganckie i praktyczne torebki vintage do każdej stylizacji",
+        ),
+        Category::Akcesoria => (
+            "Akcesoria z drugiego obiegu – detale, które tworzą styl",
+            "Dodaj charakteru swoim stylizacjom dzięki wyjątkowym dodatkom",
+        ),
+        Category::Bielizna => (
+            "Bielizna pre-owned – delikatność i komfort",
+            "Oferujemy starannie wyselekcjonowaną bieliznę w idealnym stanie",
+        ),
+        Category::StrojeKapielowe => (
+            "Stroje kąpielowe vintage – plażowy szyk w duchu slow fashion",
+            "Odkryj unikalne fasony pre-owned idealne na lato",
+        ),
+        Category::Inne => (
+            "Rzeczy unikatowe – secondhand, który zaskakuje",
+            "Znajdź perełki spoza schematów – nietypowe i rzadkie ubrania oraz dodatki",
+        ),
+    }
+}
+
+/// Renderuje ostylowany blok z nagłówkami H1 i H2.
+fn render_seo_header_maud(h1_text: &str, h2_text: &str) -> Markup {
+    // Spróbuj znaleźć słowa kluczowe do podświetlenia
+    let keyword_to_highlight = match true {
+        _ if h1_text.contains("secondhand") => "secondhand",
+        _ if h1_text.contains("vintage") => "vintage",
+        _ if h1_text.contains("pre-owned") => "pre-owned",
+        _ if h1_text.contains("slow fashion") => "slow fashion",
+        _ if h1_text.contains("z drugiego obiegu") => "z drugiego obiegu",
+        _ => "z drugiej ręki",
+    };
+    html! {
+        div class="text-center mb-10 pt-4" {
+            h1 class="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900" {
+                (highlight_keyword(h1_text, keyword_to_highlight))
+            }
+            h2 class="mt-3 text-lg text-gray-600 max-w-2xl mx-auto" { (h2_text) }
+        }
+    }
+}
+
+/// Funkcja pomocnicza do podświetlania słowa kluczowego w tekście.
+fn highlight_keyword(text: &str, keyword: &str) -> Markup {
+    if let Some(index) = text.to_lowercase().find(&keyword.to_lowercase()) {
+        let start = &text[..index];
+        let highlighted = &text[index..index + keyword.len()];
+        let end = &text[index + keyword.len()..];
+        html! {
+            (start)
+            span class="text-pink-600" { (highlighted) }
+            (end)
+        }
+    } else {
+        // Jeśli słowo kluczowe nie zostanie znalezione, zwróć oryginalny tekst.
+        html! { (text) }
+    }
+}
+
+/// Renderuje ostylowany baner "Darmowa dostawa".
+fn render_free_shipping_banner_maud() -> Markup {
+    html! {
+        // Zmieniono padding z p-4 sm:p-6 na p-4 dla mniejszego rozmiaru
+        div class="p-4 bg-gradient-to-r from-pink-500 to-purple-500 rounded-xl shadow-lg text-white flex flex-col sm:flex-row items-center justify-center sm:justify-between gap-4" {
+            // Lewa strona (ikona i tekst główny) - bez zmian
+            div class="flex items-center gap-x-4" {
+                div class="flex-shrink-0" {
+                    svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6" {
+                      path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12";
+                    }
+                }
+                div {
+                    p class="text-lg sm:text-xl font-bold text-center sm:text-left" {
+                        "Darmowa dostawa od "
+                        span class="whitespace-nowrap" { "250 zł!" }
+                    }
+                    p class="text-xs sm:text-sm text-pink-100 mt-1 text-center sm:text-left" { "Sprawdź nasze perełki i skorzystaj z okazji." }
+                }
+            }
+            // Prawa strona (atuty - widoczne tylko na desktopie) - bez zmian
+            div class="hidden lg:flex items-center gap-x-8 xl:gap-x-12 text-base" {
+                // ... (atuty bez zmian)
             }
         }
     }
