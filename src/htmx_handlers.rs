@@ -5766,7 +5766,7 @@ fn render_home_page_hero() -> Markup {
 
             div class="relative z-10 px-4" {
                 h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white" {
-                    "Wyjątkowa Odzież Vintage Online"
+                    "Wyjątkowa odzież vintage online"
                 }
                 p class="mt-4 max-w-2xl mx-auto text-lg text-gray-100" {
                     "Odkryj unikalne perełki z duszą. Ręcznie selekcjonowana odzież z drugiej ręki dla Niej i dla Niego."
