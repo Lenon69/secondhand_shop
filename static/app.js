@@ -154,6 +154,9 @@ function initEventListeners() {
       console.warn(
         `Wygasła sesja (401) dla ścieżki: ${requestPath}. Usuwam token i przeładowuję stronę.`,
       );
+      fetch("/api/auth/logout", { method: "POST" }).catch((err) =>
+        console.error("Błąd podczas serwerowego wylogowania:", err),
+      );
       localStorage.removeItem("jwtToken");
 
       // Poinformuj Alpine.js o zmianie stanu (np. żeby zaktualizował UI)
@@ -168,8 +171,9 @@ function initEventListeners() {
         new CustomEvent("showMessage", {
           detail: {
             message:
-              "Twoja sesja wygasła lub nie masz uprawnień. Zaloguj się ponownie.",
+              "Twoja sesja wygasla lub nie masz uprawnien. Zaloguj sie ponownie.",
             type: "warning",
+            duration: 3000,
           },
         }),
       );
@@ -521,6 +525,14 @@ function clientSideLogout() {
 
   setTimeout(() => {
     window.location.href = "/";
+    const globalSpinner = document.getElementById("global-loading-spinner");
+    if (!globalSpinner) {
+      console.error(
+        "Global spinner element #global-loading-spinner NOT FOUND!",
+      );
+      return;
+    }
+    globalSpinner.classList.add("show");
   }, 0);
 }
 
