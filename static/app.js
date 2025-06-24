@@ -521,7 +521,7 @@ function clientSideLogout() {
 
   setTimeout(() => {
     window.location.href = "/";
-  }, 500);
+  }, 0);
 }
 
 /**
