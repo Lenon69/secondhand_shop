@@ -245,37 +245,52 @@ pub async fn get_product_detail_htmx_handler(
         }
     };
 
-    // Przygotowujemy zoptymalizowane URL-e dla Alpine.js
-    let transformed_main_image_url = product
+    // --- KROK 1: PRZYGOTOWANIE ZOPTymalizowanych URL-i ---
+
+    // Główny obrazek (do pierwszego wyświetlenia) - średnia wielkość
+    let main_image_url = product
         .images
         .get(0)
         .map(|url| transform_cloudinary_url(url, "w_800,f_auto,q_auto"))
         .unwrap_or_else(|| "/static/placeholder.png".to_string());
 
-    let transformed_thumbnails: Vec<String> = product
+    // Małe, kwadratowe miniaturki
+    let thumbnail_urls: Vec<String> = product
         .images
         .iter()
         .map(|url| transform_cloudinary_url(url, "w_150,h_150,c_fill,f_auto,q_auto"))
         .collect();
 
-    // Przygotowujemy dane dla Alpine.js, używając już zoptymalizowanych URL-i
-    let all_large_images_for_modal: Vec<String> = product
+    // Duże obrazki do podmiany po kliknięciu i dla modalu
+    let large_image_urls: Vec<String> = product
         .images
         .iter()
         .map(|url| transform_cloudinary_url(url, "w_1200,f_auto,q_auto"))
         .collect();
 
-    let initial_image_js_literal = serde_json::to_string(&transformed_main_image_url).unwrap();
-    let all_thumbnails_js_array = serde_json::to_string(&transformed_thumbnails).unwrap();
-    let all_large_images_js_array = serde_json::to_string(&all_large_images_for_modal).unwrap();
+    // --- KROK 2: STWORZENIE TAGÓW PRELOAD DLA SEKCJI <head> ---
+
+    let preload_links_markup = html! {
+        // Ta pętla wygeneruje linki, które każą przeglądarce pobrać duże obrazki w tle
+        @for url in &large_image_urls {
+            link rel="preload" as="image" href=(url);
+        }
+    };
+
+    let combined_head_content = html! {
+        (head_scripts)
+        (preload_links_markup)
+    };
+
+    // --- KROK 3: PRZYGOTOWANIE DANYCH DLA ALPINE.JS ---
+
+    let initial_image_js = serde_json::to_string(&main_image_url).unwrap();
+    let thumbnails_js = serde_json::to_string(&thumbnail_urls).unwrap();
+    let large_images_js = serde_json::to_string(&large_image_urls).unwrap();
 
     let x_data_attribute_value = format!(
         "{{ currentMainImage: {}, allThumbnails: {}, allLargeImages: {} }}",
-        initial_image_js_literal, all_thumbnails_js_array, all_large_images_js_array
-    );
-
-    let main_image_click_alpine_action = format!(
-        "if (currentMainImage && currentMainImage !== '') $dispatch('open-alpine-modal', {{ src: currentMainImage, imagesArray: allLargeImages }})",
+        initial_image_js, thumbnails_js, large_images_js
     );
 
     let page_content = html! {
@@ -290,24 +305,30 @@ pub async fn get_product_detail_htmx_handler(
                             alt={"Zdjęcie główne: " (product.name)}
                             class="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity duration-200"
                             loading="lazy"
-                            "@click"=(main_image_click_alpine_action);
+                            "@click"=(main_image_url);
                     }
 
                     @if product.images.len() > 1 {
                         div .grid.grid-cols-3.sm:grid-cols-4.md:grid-cols-3.lg:grid-cols-5.gap-2.sm:gap-3 {
-                            // Używamy allProductImages (camelCase) konsekwentnie
-                            @for (thumbnail_url, index) in transformed_thumbnails.iter().zip(0..) {
+                            @for (thumbnail_url, index) in thumbnail_urls.iter().zip(0..) {
+
                                 @let click_action_str = format!(
-                                    "currentMainImage = allProductImages[{}]; $nextTick(() => window.scrollTo({{ top: 0, behavior: 'auto' }}));",
+                                    "currentMainImage = allLargeImages[{}]",
                                     index
                                 );
-                                @let class_binding_str = format!("currentMainImage === allProductImages[{}] ? 'border-pink-500 ring-2 ring-pink-500' : 'border-gray-200 hover:border-pink-400'", index);
+
+                                @let class_binding_str = format!(
+                                    "currentMainImage === allLargeImages[{}] ? 'border-pink-500 ring-2 ring-pink-500' : 'border-gray-200 hover:border-pink-400'",
+                                    index
+                                );
 
                                 button type="button"
                                     "@click"=(click_action_str)
                                     "x-bind:class"=(class_binding_str)
                                     class="aspect-square block border-2 rounded-md overflow-hidden focus:outline-none focus:border-pink-500 transition-all duration-150 bg-gray-50"
                                     aria-label={"Zmień główne zdjęcie na miniaturkę " (index + 1)} {
+
+                                    // Używamy zoptymalizowanego URL-a dla miniaturki
                                     img src=(thumbnail_url) alt={"Miniaturka " (index + 1) ": " (product.name)} class="w-full h-full object-cover object-center" loading="lazy";
                                 }
                             }
@@ -445,8 +466,12 @@ pub async fn get_product_detail_htmx_handler(
         "{} - Szczegóły produktu - sklep mess - all that vintage",
         product.name
     );
-    let page_builder =
-        PageBuilder::new(&title, page_content, Some(head_scripts), Some(body_scripts));
+    let page_builder = PageBuilder::new(
+        &title,
+        page_content,
+        Some(combined_head_content),
+        Some(body_scripts),
+    );
     build_response(headers, page_builder).await
 }
 
@@ -5855,7 +5880,7 @@ fn highlight_keyword(text: &str, keyword: &str) -> Markup {
 fn render_free_shipping_banner_maud() -> Markup {
     html! {
         // Używamy flex, aby wycentrować zawartość w pionie i poziomie
-        div class="p-3 sm:p-4 bg-gradient-to-r from-pink-500 to-purple-500 rounded-xl shadow-lg text-white flex items-center justify-center gap-x-3 sm:gap-x-4 h-full" {
+        div class="p-3 sm:p-4 bg-gradient-to-r from-pink-500 to-purple-500 rounded-xl shadow-lg text-white flex items-center justify-center gap-x-3 sm:gap-x-4 h-full lg:max-w-2xl mx-auto" {
             // Ikona
             div class="flex-shrink-0" {
                 svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 sm:w-8 sm:h-8" {
