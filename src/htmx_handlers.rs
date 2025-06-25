@@ -5713,8 +5713,16 @@ pub async fn home_page_handler(
 
 /// Renderuje sekcję "hero" z nagłówkiem H1 dla strony głównej.
 fn render_home_page_hero() -> Markup {
+    // KROK 1: Wklej tutaj URL do swojego obrazka tła z Cloudinary
+    let original_hero_url =
+        "https://res.cloudinary.com/dvndapjpc/image/upload/v1750778105/dpf1xb0grl4gtl56gepn.jpg";
+    let transformed_hero_url =
+        transform_cloudinary_url(original_hero_url, "w_1600,c_fill,g_auto,f_auto,q_auto:good");
+
     html! {
-        div class="relative text-center py-20 sm:py-28 bg-[url('/static/main-background.jpg')] bg-cover bg-center rounded-xl shadow-lg border border-gray-300 mb-8 overflow-hidden" {
+        div class="relative text-center py-20 sm:py-28 bg-cover bg-center rounded-xl shadow-lg border border-gray-300 mb-8 overflow-hidden"
+            style=(format!("background-image: url('{}')", transformed_hero_url)) {
+
             div class="absolute inset-0 bg-black/50" {}
 
             div class="relative z-10 px-4" {
