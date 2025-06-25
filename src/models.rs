@@ -81,7 +81,17 @@ pub enum ProductGender {
 }
 
 #[derive(
-    Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display, EnumIter, AsRefStr,
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    PartialEq,
+    Type,
+    EnumString,
+    Display,
+    EnumIter,
+    AsRefStr,
 )]
 #[sqlx(type_name = "category_type")]
 #[strum(ascii_case_insensitive, serialize_all = "kebab-case")]
