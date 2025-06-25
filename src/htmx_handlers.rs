@@ -211,8 +211,6 @@ pub async fn get_product_detail_htmx_handler(
         all_images_js_array_literal // Ten string zostanie wstawiony jako literał tablicy JS
     );
 
-    let return_query_params_str_rust: Option<String> = query_params.return_params;
-
     // --- NOWY BLOK: TWORZENIE DANYCH STRUKTURALNYCH (JSON-LD) ---
     // 1. Mapujemy statusy i stany z naszej aplikacji na standard Schema.org
     let schema_availability = match product.status {
@@ -375,22 +373,36 @@ pub async fn get_product_detail_htmx_handler(
                             @else {
                                 // PRIORYTET 1: Powrót do widoku z zachowanymi filtrami.
                                 // Sprawdzamy, czy `return_params` istnieje i nie jest pustym stringiem.
-                                @if let Some(qs_val) = return_query_params_str_rust.as_deref().filter(|s| !s.is_empty()) {
-                                    @let gender_slug_for_url = if qs_val.contains("gender=Meskie") { "niego" } else { "niej" };
+                                @if let Some(return_params_str) = query_params.return_params.as_deref().filter(|s| !s.is_empty()) {
+                                    @let back_params: ListingParams = serde_qs::from_str(return_params_str).unwrap_or_default();
 
-                                     a href=(format!("/dla-{}?{}", gender_slug_for_url, qs_val))
-                                       hx-get=(format!("/htmx/dla-{}?{}", gender_slug_for_url, qs_val))
+                                    @let return_url = {
+                                        let gender_slug_part = match back_params.gender {
+                                            Some(ProductGender::Damskie) => "dla-niej",
+                                            Some(ProductGender::Meskie) => "dla-niego",
+                                            None => "dla-niej" // Fallback
+                                        };
+
+                                        if let Some(category) = back_params.category {
+                                            format!("/{}/{}?{}", gender_slug_part, category.as_ref(), return_params_str)
+                                        } else {
+                                            format!("/{}?{}", gender_slug_part, return_params_str)
+                                        }
+                                    };
+
+                                    a href=(return_url)
+                                       hx-get=(return_url)
                                        hx-target="#content"
                                        hx-swap="innerHTML"
-                                       hx-push-url=(format!("/dla-{}?{}", gender_slug_for_url, qs_val))
+                                       hx-push-url="true"
                                        class="inline-flex items-center px-4 py-2 border border-pink-200 rounded-md shadow-sm text-sm font-medium text-pink-700 bg-pink-100 hover:bg-pink-200 hover:border-pink-300 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2" {
-
                                         svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2" {
                                             path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3";
                                         }
                                         span { "Wróć do poprzedniego widoku" }
                                     }
                                 }
+
                                 // PRIORYTET 2: Jeśli nie ma filtrów, wróć do ogólnej kategorii płci produktu.
                                 // Ten blok wykona się, jeśli `return_params` to `None` lub `Some("")`.
                                 @else {
@@ -999,10 +1011,10 @@ fn render_product_grid_maud(
                     @for product in products { // Iterujemy po plasterku
                         div ."border rounded-lg p-4 shadow-lg flex flex-col bg-white" {
                             a  href=(format!("/produkty/{}", product.id)) // Link do "pełnej" strony produktu
-                                hx-get=(format!("/htmx/produkt/{}?return_params={}", product.id, urlencoding::encode(current_listing_params_qs)))
-                                hx-target="#content" // Główny cel dla szczegółów produktu
+                                hx-get=(format!("/produkty/{}?return_params={}", product.id, urlencoding::encode(current_listing_params_qs)))
+                                hx-target="#content"
                                 hx-swap="innerHTML"
-                                hx-push-url=(format!("/produkty/{}", product.id)) // Aktualizuj URL na stronie produktu
+                                hx-push-url="true"
                                 class="block mb-2 group" {
                                 @if !product.images.is_empty() {
                                     img src=(product.images[0]) alt=(product.name) class="w-full h-48 sm:h-56 object-cover rounded-md group-hover:opacity-85 transition-opacity duration-200" loading="lazy";
