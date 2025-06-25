@@ -5479,7 +5479,8 @@ pub fn render_admin_product_list_row_maud(
                    hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
                    title="Edytuj produkt" class="block w-12 h-12" {
                     @if let Some(image_url) = product.images.get(0) {
-                        img src=(image_url) alt=(product.name) class="h-full w-full rounded-md object-cover shadow-sm hover:shadow-md transition-shadow";
+                        @let transformed_url = transform_cloudinary_url(image_url, "w_100,h_100,c_fill,f_auto,q_auto");
+                        img src=(transformed_url) alt=(product.name) class="h-full w-full rounded-md object-cover shadow-sm hover:shadow-md transition-shadow";
                     } @else {
                         div class="h-full w-full rounded-md bg-gray-200 flex items-center justify-center text-xs text-gray-400" { "N/A" }
                     }
