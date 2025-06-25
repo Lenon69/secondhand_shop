@@ -869,14 +869,6 @@ pub async fn remove_item_from_cart_htmx_handler(
         AppError::InternalServerError("Błąd serwera przy aktualizacji koszyka".to_string())
     })?;
 
-    let product_ids_in_cart: Vec<Uuid> = cart_details
-        .items
-        .iter()
-        .map(|item| item.product.id)
-        .collect();
-    let cart_product_ids_json =
-        serde_json::to_string(&product_ids_in_cart).unwrap_or_else(|_| "[]".to_string());
-
     // 5. Przygotuj nagłówek HX-Trigger
     let mut headers = HeaderMap::new();
     let trigger_payload = serde_json::json!({
@@ -5896,7 +5888,7 @@ fn render_seo_header_maud(h1_text: &str, h2_text: &str) -> Markup {
         _ => "z drugiej ręki",
     };
     html! {
-        div class="text-center mb-4" {
+        div class="text-center -mt-4 mb-6 md:mb-12" {
             h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900" {
                 (highlight_keyword(h1_text, keyword_to_highlight))
             }

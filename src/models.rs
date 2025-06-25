@@ -576,6 +576,7 @@ pub struct ResetPasswordPayload {
     pub confirm_password: String,
 }
 
+#[allow(dead_code)]
 #[derive(sqlx::FromRow, Debug)]
 struct ProductWithTotalCount {
     // Wszystkie pola z modelu Product
