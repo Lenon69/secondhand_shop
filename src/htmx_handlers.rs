@@ -1160,11 +1160,12 @@ pub async fn gender_page_handler(
 ) -> Result<Response, AppError> {
     tracing::info!("MAUD: /htmx/dla-{} - ładowanie strony płci", gender_slug);
 
-    let (current_gender, current_gender_display_name) = match gender_slug.as_str() {
-        "niej" => (ProductGender::Damskie, "Dla niej"),
-        "niego" => (ProductGender::Meskie, "Dla niego"),
-        _ => return Err(AppError::NotFound),
-    };
+    let (current_gender, mobile_gender_display_name, desktop_gender_display_name) =
+        match gender_slug.as_str() {
+            "niej" => (ProductGender::Damskie, "dla Niej", "dla Niej"),
+            "niego" => (ProductGender::Meskie, "dla Niego", "dla Niego"),
+            _ => return Err(AppError::NotFound),
+        };
 
     // --- NOWA LOGIKA POBIERANIA KOSZYKA ---
     let mut conn = app_state.db_pool.acquire().await?;
@@ -1175,7 +1176,6 @@ pub async fn gender_page_handler(
         .map(|details| details.items.iter().map(|item| item.product.id).collect())
         .unwrap_or_else(Vec::new);
 
-    let current_category = params.category();
     let final_params = ListingParams {
         gender: Some(current_gender.clone()),
         category: params.category,
@@ -1196,7 +1196,17 @@ pub async fn gender_page_handler(
     let current_listing_params_qs_for_initial_grid =
         build_full_query_string_from_params(&final_params);
 
+    let mut seo_header_markup = html! {}; // Domyślnie puste
+    // Sprawdzamy, czy w parametrach URL jest wybrana kategoria
+    if let Some(category) = &params.category {
+        // Jeśli tak, pobieramy dla niej odpowiednie teksty
+        let (h1_text, h2_text) = get_seo_headers_for_category(category);
+        // I renderujemy gotowy blok HTML
+        seo_header_markup = render_seo_header_maud(h1_text, h2_text);
+    }
+
     let page_content = html! {
+        (seo_header_markup)
         // Renderujemy baner na samej górze. Będzie on widoczny na mobile i desktopie.
         div class="mb-4 md:-mt-6" {
             (render_free_shipping_banner_maud())
@@ -1206,11 +1216,12 @@ pub async fn gender_page_handler(
         div ."flex flex-col md:flex-row gap-6" {
             // --- Przycisk do rozwijania/zwijania kategorii na mobile ---
             div ."md:hidden p-4 border-b border-gray-200 bg-gray-50" {
-                @let mobile_title = if let Some(cat) = &current_category {
-                    format!("{} {}", cat.to_string(), current_gender_display_name.to_lowercase())
+                @let mobile_title = if let Some(cat) = &params.category { // Używamy params.category
+                    format!("{} {}", cat.to_string(), mobile_gender_display_name)
                 } else {
-                    format!("Wszystkie {}", current_gender_display_name.to_lowercase())
+                    format!("Wszystko {}", mobile_gender_display_name) // Zmieniono "Wszystkie" na "Wszystko"
                 };
+
                 button type="button"
                        "@click"="isCategorySidebarOpen = !isCategorySidebarOpen"
                        class="w-full flex justify-center items-center px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 focus:outline-none font-semibold" {
@@ -1231,43 +1242,48 @@ pub async fn gender_page_handler(
                   x-bind:class="{ '!block': isCategorySidebarOpen }" x-cloak {
 
                 div class="p-4 md:p-0" {
-                    h2 ."text-xl font-semibold mb-4 text-gray-800 hidden md:block text-center" { "Kategorie " (current_gender_display_name) }
+                    h2 ."text-xl font-semibold mb-4 text-gray-800 hidden md:block text-center" { "Kategorie " (desktop_gender_display_name) }
                     nav {
                         ul ."space-y-1" {
                             li {
-                                // ZMIANA: Dodajemy warunek sprawdzający, czy kategoria jest `None`
-                                @let all_classes = if final_params.category.is_none() {
-                                    "flex items-center justify-center px-3 py-2 rounded-md transition-colors bg-pink-100 text-pink-700 font-bold"
-                                } else {
-                                    "flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
-                                };
-                                a href="#"
-                                   hx-get=(format!("/htmx/products?gender={}", current_gender.to_string()))
-                                   hx-target="#main-content-area" hx-swap="innerHTML"
-                                   hx-push-url=(format!("/dla-{}", gender_slug))
-                                   "@click"="if (window.innerWidth < 768) isCategorySidebarOpen = false"
-                                   class=(all_classes)
-                                   "_"="on htmx:afterSwap remove .font-bold,.bg-pink-100,.text-pink-700 from #category-sidebar a; add .font-bold,.bg-pink-100,.text-pink-700 to me" {
+                                // Sprawdzamy, czy w parametrach URL nie ma wybranej kategorii
+                                @let active_class = "flex items-center justify-center px-3 py-2 rounded-md transition-colors bg-pink-100 text-pink-700 font-bold";
+                                @let inactive_class = "flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors";
+
+                                @let all_classes = if params.category.is_none() { active_class } else { inactive_class };
+
+                                a href=(format!("/dla-{}", gender_slug))
+                                    // POPRAWKA: hx-get wskazuje na główny handler, a nie handler listy produktów
+                                    hx-get=(format!("/htmx/dla-{}", gender_slug))
+                                    // POPRAWKA: hx-target wskazuje na #content, czyli główny kontener strony
+                                    hx-target="#content"
+                                    hx-swap="innerHTML"
+                                    hx-push-url=(format!("/dla-{}", gender_slug))
+                                    "@click"="if (window.innerWidth < 768) isCategorySidebarOpen = false"
+                                    class=(all_classes) {
                                     "Wszystkie"
                                 }
                             }
                             @for category_item in &categories {
                                 li {
-                                     // ZMIANA: Dodajemy warunek sprawdzający, czy kategoria jest taka sama jak w pętli
-                                    @let category_classes = if final_params.category.as_ref() == Some(category_item) {
-                                        "flex items-center justify-center px-3 py-2 rounded-md transition-colors bg-pink-100 text-pink-700 font-bold"
-                                    } else {
-                                        "flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
-                                    };
+                                    // Sprawdzamy, czy kategoria w pętli jest tą samą, która została wybrana
+                                    @let active_class = "flex items-center justify-center px-3 py-2 rounded-md transition-colors bg-pink-100 text-pink-700 font-bold";
+                                    @let inactive_class = "flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors";
+
+                                    @let category_classes = if params.category.as_ref() == Some(category_item) { active_class } else { inactive_class };
+
                                     @let category_param = category_item.as_ref();
                                     @let category_display_name = category_item.to_string();
-                                    a href="#"
-                                       hx-get=(format!("/htmx/products?gender={}&category={}", current_gender.to_string(), category_item.as_ref()))
-                                       hx-target="#main-content-area" hx-swap="innerHTML"
-                                       hx-push-url=(format!("/dla-{}/{}", gender_slug, category_param))
-                                       "@click"="if (window.innerWidth < 768) { isCategorySidebarOpen = false; }"
-                                       class=(category_classes)
-                                       "_"="on htmx:afterSwap remove .font-bold,.bg-pink-100,.text-pink-700 from #category-sidebar a; add .font-bold,.bg-pink-100,.text-pink-700 to me" {
+
+                                    a href=(format!("/dla-{}/{}", gender_slug, category_param))
+                                        // POPRAWKA: hx-get z parametrem, aby 'params' w handlerze było poprawne
+                                        hx-get=(format!("/htmx/dla-{}?category={}", gender_slug, category_param))
+                                        // POPRAWKA: hx-target wskazuje na #content
+                                        hx-target="#content"
+                                        hx-swap="innerHTML"
+                                        hx-push-url=(format!("/dla-{}/{}", gender_slug, category_param))
+                                        "@click"="if (window.innerWidth < 768) { isCategorySidebarOpen = false; }"
+                                        class=(category_classes) {
                                         (category_display_name)
                                     }
                                 }
@@ -1315,11 +1331,12 @@ pub async fn gender_with_category_page_handler(
         category_slug
     );
 
-    let (current_gender, current_gender_display_name) = match gender_slug.as_str() {
-        "niej" => (ProductGender::Damskie, "dla niej"),
-        "niego" => (ProductGender::Meskie, "dla niego"),
-        _ => return Err(AppError::NotFound),
-    };
+    let (current_gender, mobile_gender_display_name, desktop_gender_display_name) =
+        match gender_slug.as_str() {
+            "niej" => (ProductGender::Damskie, "dla Niej", "dla Niej"),
+            "niego" => (ProductGender::Meskie, "dla Niego", "dla Niego"),
+            _ => return Err(AppError::NotFound),
+        };
 
     let current_category = Category::from_str(&category_slug).map_err(|_| AppError::NotFound)?;
     let current_category_string = current_category.clone().to_string();
@@ -1365,11 +1382,16 @@ pub async fn gender_with_category_page_handler(
     let paginated_response: PaginatedProductsResponse = paginated_response_json.0;
     let categories: Vec<Category> = Category::iter().collect();
 
+    let (h1_text, h2_text) = get_seo_headers_for_category(&current_category);
+    let seo_header_markup = render_seo_header_maud(h1_text, h2_text);
+
     let page_content = html! {
+        (seo_header_markup)
+
         div ."flex flex-col md:flex-row gap-6" {
             // --- Przycisk do rozwijania/zwijania kategorii na mobile ---
             div ."md:hidden p-4 border-b border-gray-200 bg-gray-50" {
-                @let mobile_title = format!("{} {}", current_category.to_string(), current_gender_display_name);
+                @let mobile_title = format!("{} {}", current_category.to_string(), mobile_gender_display_name);
 
                 button type="button"
                        "@click"="isCategorySidebarOpen = !isCategorySidebarOpen"
@@ -1391,35 +1413,43 @@ pub async fn gender_with_category_page_handler(
                   x-bind:class="{ '!block': isCategorySidebarOpen }" x-cloak {
 
                 div class="p-4 md:p-0" {
-                    h2 ."text-xl font-semibold mb-4 text-gray-800 hidden md:block text-center" { "Kategorie " (current_gender_display_name) }
+                    h2 ."text-xl font-semibold mb-4 text-gray-800 hidden md:block text-center" { "Kategorie " (desktop_gender_display_name) }
                     nav {
                         ul ."space-y-1" {
+                            @let active_class = "flex items-center justify-center px-3 py-2 rounded-md transition-colors bg-pink-100 text-pink-700 font-bold";
+                            @let inactive_class = "flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors";
+
                             li {
-                                a href="#"
-                                   hx-get=(format!("/htmx/products?gender={}", current_gender.to_string()))
-                                   hx-target="#product-listing-area" hx-swap="innerHTML"
-                                   hx-push-url=(format!("/dla-{}", gender_slug))
-                                   "@click"="if (window.innerWidth < 768) isCategorySidebarOpen = false"
-                                   class="flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
-                                   "_"="on htmx:afterSwap remove .font-bold,.bg-pink-100,.text-pink-700 from #category-sidebar a; add .font-bold,.bg-pink-100,.text-pink-700 to me" {
+                                // W tym widoku (".../kategoria") link "Wszystkie" nigdy nie jest aktywny.
+                                a href=(format!("/dla-{}", gender_slug))
+                                    hx-get=(format!("/htmx/dla-{}", gender_slug))
+                                    hx-target="#content"
+                                    hx-swap="innerHTML"
+                                    hx-push-url=(format!("/dla-{}", gender_slug))
+                                    "@click"="if (window.innerWidth < 768) isCategorySidebarOpen = false"
+                                    class=(inactive_class) {
                                     "Wszystkie"
                                 }
                             }
                             @for category_item in &categories {
                                 li {
                                     @let category_classes = if current_category == *category_item {
-                                        "flex items-center justify-center px-3 py-2 rounded-md transition-colors bg-pink-100 text-pink-700 font-bold"
+                                        active_class
                                     } else {
-                                        "flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
-                                    };                                    @let category_param = category_item.as_ref();
+                                        inactive_class
+                                    };
+
+                                    @let category_param = category_item.as_ref();
                                     @let category_display_name = category_item.to_string();
-                                    a href="#"
-                                       hx-get=(format!("/htmx/products?gender={}&category={}", current_gender.to_string(), category_item.as_ref()))
-                                       hx-target="#product-listing-area" hx-swap="innerHTML"
-                                       hx-push-url=(format!("/dla-{}/{}", gender_slug, category_param))
-                                       "@click"="if (window.innerWidth < 768) { isCategorySidebarOpen = false; }"
-                                       class=(category_classes)
-                                       "_"="on htmx:afterSwap remove .font-bold,.bg-pink-100,.text-pink-700 from #category-sidebar a; add .font-bold,.bg-pink-100,.text-pink-700 to me" {
+
+                                    a href=(format!("/dla-{}/{}", gender_slug, category_param))
+                                        // Linki HTMX pozostają bez zmian - są poprawne
+                                        hx-get=(format!("/htmx/dla-{}?category={}", gender_slug, category_param))
+                                        hx-target="#content"
+                                        hx-swap="innerHTML"
+                                        hx-push-url=(format!("/dla-{}/{}", gender_slug, category_param))
+                                        "@click"="if (window.innerWidth < 768) { isCategorySidebarOpen = false; }"
+                                        class=(category_classes) {
                                         (category_display_name)
                                     }
                                 }
@@ -1514,7 +1544,7 @@ pub async fn about_us_page_handler(headers: HeaderMap) -> Result<Response, AppEr
                     p ."text-xl text-gray-700 mb-4" {
                         "Dziękujemy, że jesteś z nami! Rozejrzyj się, zainspiruj i znajdź coś, co idealnie odda Twój styl."
                     }
-                    a href="/" hx-get="/htmx/products?limit=8" hx-target="#content" hx-swap="innerHTML" hx-push-url="/"
+                    a href="/" hx-get="/" hx-target="#content" hx-swap="innerHTML" hx-push-url="/"
                        class="inline-block bg-pink-600 text-white font-semibold py-3 px-8 rounded-lg shadow-md hover:bg-pink-700 transition-all duration-200 ease-in-out text-lg" {
                         "Odkrywaj nasze kolekcje"
                     }
