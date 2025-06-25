@@ -1198,11 +1198,10 @@ pub async fn gender_page_handler(
     }
 
     let page_content = html! {
-        (seo_header_markup)
-        // Renderujemy baner na samej górze. Będzie on widoczny na mobile i desktopie.
         div class="mb-4 md:-mt-6" {
             (render_free_shipping_banner_maud())
         }
+        (seo_header_markup)
 
         // Główny kontener z panelem bocznym
         div ."flex flex-col md:flex-row gap-6" {
@@ -1378,6 +1377,10 @@ pub async fn gender_with_category_page_handler(
     let seo_header_markup = render_seo_header_maud(h1_text, h2_text);
 
     let page_content = html! {
+                div class="mb-6 md:mb-12" { // <-- Dodajemy baner jako pierwszy
+            (render_free_shipping_banner_maud())
+        }
+
         (seo_header_markup)
 
         div ."flex flex-col md:flex-row gap-6" {
@@ -5888,7 +5891,7 @@ fn render_seo_header_maud(h1_text: &str, h2_text: &str) -> Markup {
         _ => "z drugiej ręki",
     };
     html! {
-        div class="text-center -mt-4 mb-6 md:mb-12" {
+        div class="text-center mb-6 md:mb-12" {
             h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900" {
                 (highlight_keyword(h1_text, keyword_to_highlight))
             }
