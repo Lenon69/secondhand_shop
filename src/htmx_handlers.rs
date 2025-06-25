@@ -998,7 +998,7 @@ fn render_product_grid_maud(
 ) -> Markup {
     html! {
 
-        div #products-grid-container { // Ten ID jest ważny dla hx-target paginacji
+        div #products-grid-container {
            // Wyświetlaj baner tylko na pierwszej stronie listy produktów
             @if current_page == 1 {}
 
@@ -1010,20 +1010,35 @@ fn render_product_grid_maud(
                 } @else {
                     @for product in products { // Iterujemy po plasterku
                         div ."border rounded-lg p-4 shadow-lg flex flex-col bg-white" {
-                            a  href=(format!("/produkty/{}", product.id)) // Link do "pełnej" strony produktu
+                            a  href=(format!("/produkty/{}", product.id))
                                 hx-get=(format!("/produkty/{}?return_params={}", product.id, urlencoding::encode(current_listing_params_qs)))
                                 hx-target="#content"
                                 hx-swap="innerHTML"
                                 hx-push-url="true"
                                 class="block mb-2 group" {
-                                @if !product.images.is_empty() {
-                                    img src=(product.images[0]) alt=(product.name) class="w-full h-48 sm:h-56 object-cover rounded-md group-hover:opacity-85 transition-opacity duration-200" loading="lazy";
-                                } @else {
+
+                                // Sprawdzamy, czy produkt ma jakiekolwiek zdjęcia
+                                @if let Some(image_url) = product.images.get(0) {
+                                    // Jeśli tak, bierzemy pierwsze zdjęcie i tworzymy dla niego URL z transformacjami
+                                    // za pomocą naszej nowej funkcji pomocniczej.
+                                    @let transformed_url = transform_cloudinary_url(
+                                        image_url,
+                                        "w_400,h_400,c_fill,f_auto,q_auto" // Parametry transformacji
+                                    );
+
+                                    img src=(transformed_url)
+                                        alt=(product.name)
+                                        class="w-full h-48 sm:h-56 object-cover rounded-md group-hover:opacity-85 transition-opacity duration-200"
+                                        loading="lazy";
+                                }
+                                // Jeśli produkt nie ma żadnych zdjęć, pokazujemy placeholder.
+                                @else {
                                     div ."w-full h-48 sm:h-56 bg-gray-200 rounded-md flex items-center justify-center group-hover:opacity-85 transition-opacity duration-200" {
                                         span ."text-gray-500 text-sm" { "Brak zdjęcia" }
                                     }
                                 }
                             }
+
                             div ."flex-grow" {
                                 h2 ."text-lg font-semibold mb-1 text-gray-800 group-hover:text-pink-600 transition-colors duration-200" {
                                     a href=(format!("/produkty/{}", product.id))
@@ -5918,5 +5933,35 @@ fn render_category_sidebar_maud(
                 }
             }
         }
+    }
+}
+
+/// Transformuje URL z Cloudinary, dodając podane parametry we właściwym miejscu.
+fn transform_cloudinary_url(original_url: &str, transformations: &str) -> String {
+    // Definiujemy stały "marker", którego szukamy w URL-u.
+    const UPLOAD_MARKER: &str = "/upload/";
+
+    if let Some(upload_index) = original_url.find(UPLOAD_MARKER) {
+        // Dzielimy URL na dwie części względem markera "/upload/":
+
+        // 1. Część bazowa (wszystko przed "/upload/")
+        // np. "https://res.cloudinary.com/dvndapjpc/image"
+        let base_part = &original_url[..upload_index];
+
+        // 2. Reszta ścieżki (wszystko po "/upload/")
+        // np. "v1747674210/zeyli8kvgdvvipvgt6y2.jpg"
+        let path_part = &original_url[upload_index + UPLOAD_MARKER.len()..];
+
+        // Składamy nowy, poprawny URL
+        format!(
+            "{}{}{}/{}",
+            base_part,       // Część 1: https://.../image
+            UPLOAD_MARKER,   // /upload/
+            transformations, // w_400,h_400,c_fill...
+            path_part        // Część 2: v174.../image.jpg
+        )
+    } else {
+        // Jeśli URL nie ma standardowej struktury (fallback), zwracamy go bez zmian.
+        original_url.to_string()
     }
 }
