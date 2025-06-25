@@ -156,10 +156,15 @@ async fn main() {
         .route("/api/session/guest/init", post(init_guest_session_handler))
         // Trasa główna i jej aliasy
         .route("/", get(home_page_handler))
+        .route("/dla-niej", get(dla_niej_handler))
+        .route("/dla-niego", get(dla_niego_handler))
+        .route(
+            "/dla-{gender_slug}/{category}",
+            get(gender_with_category_page_handler),
+        )
         .route("/kategoria", get(list_products_htmx_handler))
         .route("/nowosci", get(news_page_htmx_handler))
         .route("/okazje", get(sale_page_htmx_handler))
-        .route("/dla-{gender_slug}", get(gender_page_handler))
         .route(
             "/produkty/{product_id}",
             get(get_product_detail_htmx_handler),
@@ -175,15 +180,6 @@ async fn main() {
         )
         .route("/moje-konto/dane", get(my_account_data_htmx_handler))
         .route("/checkout", get(checkout_page_handler))
-        .route("/htmx/dla-{gender_slug}", get(gender_page_handler))
-        .route(
-            "/dla-{gender_slug}/{category_slug}",
-            get(gender_with_category_page_handler),
-        )
-        .route(
-            "/htmx/dla-{gender_slug}/{category_slug}",
-            get(gender_with_category_page_handler),
-        )
         .route("/wyszukiwanie", get(search_page_handler))
         .route(
             "/htmx/cart/add/{product_id}",

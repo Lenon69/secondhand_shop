@@ -71,7 +71,17 @@ impl ProductStatus {
 }
 
 #[derive(
-    Debug, Clone, Serialize, Deserialize, PartialEq, Type, EnumString, Display, EnumIter, AsRefStr,
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    PartialEq,
+    Type,
+    EnumString,
+    Display,
+    EnumIter,
+    AsRefStr,
 )]
 #[sqlx(type_name = "product_gender")]
 #[strum(ascii_case_insensitive)]

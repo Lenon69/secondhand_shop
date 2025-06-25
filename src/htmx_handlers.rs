@@ -1142,22 +1142,18 @@ pub async fn list_products_htmx_handler(
     build_response(headers, page_builder).await
 }
 
-pub async fn gender_page_handler(
-    headers: HeaderMap,
+pub async fn render_gender_page_content(
     State(app_state): State<AppState>,
-    Path(gender_slug): Path<String>,
+    gender: ProductGender,
     Query(params): Query<ListingParams>,
     OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
     OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
-) -> Result<Response, AppError> {
+) -> Result<Markup, AppError> {
+    let (gender_slug, _mobile_gender_display_name, _desktop_gender_display_name) = match gender {
+        ProductGender::Damskie => ("niej", "dla Niej", "dla Niej"),
+        ProductGender::Meskie => ("niego", "dla Niego", "dla Niego"),
+    };
     tracing::info!("MAUD: /htmx/dla-{} - ładowanie strony płci", gender_slug);
-
-    let (current_gender, mobile_gender_display_name, desktop_gender_display_name) =
-        match gender_slug.as_str() {
-            "niej" => (ProductGender::Damskie, "dla Niej", "dla Niej"),
-            "niego" => (ProductGender::Meskie, "dla Niego", "dla Niego"),
-            _ => return Err(AppError::NotFound),
-        };
 
     // --- NOWA LOGIKA POBIERANIA KOSZYKA ---
     let mut conn = app_state.db_pool.acquire().await?;
@@ -1167,9 +1163,10 @@ pub async fn gender_page_handler(
     let product_ids_in_cart: Vec<Uuid> = cart_details_opt
         .map(|details| details.items.iter().map(|item| item.product.id).collect())
         .unwrap_or_else(Vec::new);
+    let current_category = params.category();
 
     let final_params = ListingParams {
-        gender: Some(current_gender.clone()),
+        gender: Some(gender),
         category: params.category,
         limit: params.limit.or(Some(8)),
         offset: params.offset,
@@ -1183,19 +1180,16 @@ pub async fn gender_page_handler(
         crate::handlers::list_products(State(app_state.clone()), Query(final_params.clone()))
             .await?;
     let paginated_response: PaginatedProductsResponse = paginated_response_axum_json.0;
-    let categories: Vec<Category> = Category::iter().collect();
     let filter_query_string_for_initial_grid = build_filter_only_query_string(&final_params);
     let current_listing_params_qs_for_initial_grid =
         build_full_query_string_from_params(&final_params);
 
-    let mut seo_header_markup = html! {}; // Domyślnie puste
-    // Sprawdzamy, czy w parametrach URL jest wybrana kategoria
-    if let Some(category) = &params.category {
-        // Jeśli tak, pobieramy dla niej odpowiednie teksty
-        let (h1_text, h2_text) = get_seo_headers_for_category(category);
-        // I renderujemy gotowy blok HTML
-        seo_header_markup = render_seo_header_maud(h1_text, h2_text);
-    }
+    let seo_header_markup = if let Some(category) = &final_params.category {
+        let (h1, h2) = get_seo_headers_for_category(category);
+        render_seo_header_maud(h1, h2)
+    } else {
+        html! {}
+    };
 
     let page_content = html! {
         div class="mb-4 md:-mt-6" {
@@ -1205,78 +1199,8 @@ pub async fn gender_page_handler(
 
         // Główny kontener z panelem bocznym
         div ."flex flex-col md:flex-row gap-6" {
-            // --- Przycisk do rozwijania/zwijania kategorii na mobile ---
-            div ."md:hidden p-4 border-b border-gray-200 bg-gray-50" {
-                button type="button"
-                       "@click"="isCategorySidebarOpen = !isCategorySidebarOpen"
-                       class="w-full flex justify-center items-center px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 focus:outline-none font-semibold" {
-                    span { "Kategorie " }
-                    svg "x-show"="!isCategorySidebarOpen" class="w-5 h-5 transform transition-transform duration-200" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
-                        path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
-                    }
-                    svg "x-show"="isCategorySidebarOpen" "x-cloak" class="w-5 h-5 transform transition-transform duration-200 rotate-180" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
-                        path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
-                    }
-                }
-            }
-
             // --- Panel boczny z kategoriami ---
-            aside #category-sidebar
-                  class="w-full md:w-1/4 lg:w-1/5 bg-gray-50 md:p-4 md:border md:border-gray-200 md:rounded-lg md:shadow-sm md:sticky md:top-20 md:self-start transition-all duration-300 ease-in-out hidden md:block"
-                  style="max-height: calc(100vh - 100px); overflow-y: auto;"
-                  x-bind:class="{ '!block': isCategorySidebarOpen }" x-cloak {
-
-                div class="p-4 md:p-0" {
-                    h2 ."text-xl font-semibold mb-4 text-gray-800 hidden md:block text-center" { "Kategorie " }
-                    nav {
-                        ul ."space-y-1" {
-                            li {
-                                // Sprawdzamy, czy w parametrach URL nie ma wybranej kategorii
-                                @let active_class = "flex items-center justify-center px-3 py-2 rounded-md transition-colors bg-pink-100 text-pink-700 font-bold";
-                                @let inactive_class = "flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors";
-
-                                @let all_classes = if params.category.is_none() { active_class } else { inactive_class };
-
-                                a href=(format!("/dla-{}", gender_slug))
-                                    // POPRAWKA: hx-get wskazuje na główny handler, a nie handler listy produktów
-                                    hx-get=(format!("/htmx/dla-{}", gender_slug))
-                                    // POPRAWKA: hx-target wskazuje na #content, czyli główny kontener strony
-                                    hx-target="#content"
-                                    hx-swap="innerHTML"
-                                    hx-push-url=(format!("/dla-{}", gender_slug))
-                                    "@click"="if (window.innerWidth < 768) isCategorySidebarOpen = false"
-                                    class=(all_classes) {
-                                    "Wszystkie"
-                                }
-                            }
-                            @for category_item in &categories {
-                                li {
-                                    // Sprawdzamy, czy kategoria w pętli jest tą samą, która została wybrana
-                                    @let active_class = "flex items-center justify-center px-3 py-2 rounded-md transition-colors bg-pink-100 text-pink-700 font-bold";
-                                    @let inactive_class = "flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors";
-
-                                    @let category_classes = if params.category.as_ref() == Some(category_item) { active_class } else { inactive_class };
-
-                                    @let category_param = category_item.as_ref();
-                                    @let category_display_name = category_item.to_string();
-
-                                    a href=(format!("/dla-{}/{}", gender_slug, category_param))
-                                        // POPRAWKA: hx-get z parametrem, aby 'params' w handlerze było poprawne
-                                        hx-get=(format!("/htmx/dla-{}?category={}", gender_slug, category_param))
-                                        // POPRAWKA: hx-target wskazuje na #content
-                                        hx-target="#content"
-                                        hx-swap="innerHTML"
-                                        hx-push-url=(format!("/dla-{}/{}", gender_slug, category_param))
-                                        "@click"="if (window.innerWidth < 768) { isCategorySidebarOpen = false; }"
-                                        class=(category_classes) {
-                                        (category_display_name)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            (render_category_sidebar_maud(gender_slug, current_category.as_ref()))
 
             // --- Główny obszar na listę produktów ---
             div #main-content-area ."w-full md:w-3/4 lg:w-4/5" {
@@ -1293,10 +1217,48 @@ pub async fn gender_page_handler(
         }
     };
 
-    let title = format!(
-        "Produkty dla {} - sklep mess - all that vintage",
-        gender_slug
-    );
+    Ok(page_content)
+}
+
+// KROK 2: DWA NOWE, PROSTE HANDLERY
+pub async fn dla_niej_handler(
+    State(app_state): State<AppState>,
+    Query(params): Query<ListingParams>,
+    headers: HeaderMap,
+    user_claims_opt: OptionalTokenClaims,
+    guest_cart_id_opt: OptionalGuestCartId,
+) -> Result<Response, AppError> {
+    let page_content = render_gender_page_content(
+        State(app_state),
+        ProductGender::Damskie,
+        Query(params),
+        user_claims_opt,
+        guest_cart_id_opt,
+    )
+    .await?;
+
+    let title = "Produkty dla Niej - sklep mess - all that vintage";
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    build_response(headers, page_builder).await
+}
+
+pub async fn dla_niego_handler(
+    State(app_state): State<AppState>,
+    Query(params): Query<ListingParams>,
+    headers: HeaderMap,
+    user_claims_opt: OptionalTokenClaims,
+    guest_cart_id_opt: OptionalGuestCartId,
+) -> Result<Response, AppError> {
+    let page_content = render_gender_page_content(
+        State(app_state),
+        ProductGender::Meskie,
+        Query(params),
+        user_claims_opt,
+        guest_cart_id_opt,
+    )
+    .await?;
+
+    let title = "Produkty dla Niego - sklep mess - all that vintage";
     let page_builder = PageBuilder::new(&title, page_content, None, None);
     build_response(headers, page_builder).await
 }
@@ -1316,7 +1278,7 @@ pub async fn gender_with_category_page_handler(
         category_slug
     );
 
-    let (current_gender, mobile_gender_display_name, desktop_gender_display_name) =
+    let (current_gender, _mobile_gender_display_name, _desktop_gender_display_name) =
         match gender_slug.as_str() {
             "niej" => (ProductGender::Damskie, "dla Niej", "dla Niej"),
             "niego" => (ProductGender::Meskie, "dla Niego", "dla Niego"),
@@ -1365,86 +1327,19 @@ pub async fn gender_with_category_page_handler(
     let paginated_response_json =
         crate::handlers::list_products(State(app_state.clone()), Query(final_params)).await?;
     let paginated_response: PaginatedProductsResponse = paginated_response_json.0;
-    let categories: Vec<Category> = Category::iter().collect();
-
     let (h1_text, h2_text) = get_seo_headers_for_category(&current_category);
     let seo_header_markup = render_seo_header_maud(h1_text, h2_text);
 
     let page_content = html! {
-                div class="mb-6 md:mb-12" { // <-- Dodajemy baner jako pierwszy
+                div class="mb-6 md:mb-12" {
             (render_free_shipping_banner_maud())
         }
 
         (seo_header_markup)
 
         div ."flex flex-col md:flex-row gap-6" {
-            // --- Przycisk do rozwijania/zwijania kategorii na mobile ---
-            div ."md:hidden p-4 border-b border-gray-200 bg-gray-50" {
-                button type="button"
-                       "@click"="isCategorySidebarOpen = !isCategorySidebarOpen"
-                       class="w-full flex justify-between items-center px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 focus:outline-none font-semibold" {
-                    span { "Kategorie " }
-                    svg "x-show"="!isCategorySidebarOpen" class="w-5 h-5 transform transition-transform duration-200" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
-                        path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
-                    }
-                    svg "x-show"="isCategorySidebarOpen" "x-cloak" class="w-5 h-5 transform transition-transform duration-200 rotate-180" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
-                        path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
-                    }
-                }
-            }
-
             // --- Panel boczny z kategoriami ---
-            aside #category-sidebar
-                  class="w-full md:w-1/4 lg:w-1/5 bg-gray-50 md:p-4 md:border md:border-gray-200 md:rounded-lg md:shadow-sm md:sticky md:top-20 md:self-start transition-all duration-300 ease-in-out hidden md:block"
-                  style="max-height: calc(100vh - 100px); overflow-y: auto;"
-                  x-bind:class="{ '!block': isCategorySidebarOpen }" x-cloak {
-
-                div class="p-4 md:p-0" {
-                    h2 ."text-xl font-semibold mb-4 text-gray-800 hidden md:block text-center" { "Kategorie " }
-                    nav {
-                        ul ."space-y-1" {
-                            @let active_class = "flex items-center justify-center px-3 py-2 rounded-md transition-colors bg-pink-100 text-pink-700 font-bold";
-                            @let inactive_class = "flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors";
-
-                            li {
-                                // W tym widoku (".../kategoria") link "Wszystkie" nigdy nie jest aktywny.
-                                a href=(format!("/dla-{}", gender_slug))
-                                    hx-get=(format!("/htmx/dla-{}", gender_slug))
-                                    hx-target="#content"
-                                    hx-swap="innerHTML"
-                                    hx-push-url=(format!("/dla-{}", gender_slug))
-                                    "@click"="if (window.innerWidth < 768) isCategorySidebarOpen = false"
-                                    class=(inactive_class) {
-                                    "Wszystkie"
-                                }
-                            }
-                            @for category_item in &categories {
-                                li {
-                                    @let category_classes = if current_category == *category_item {
-                                        active_class
-                                    } else {
-                                        inactive_class
-                                    };
-
-                                    @let category_param = category_item.as_ref();
-                                    @let category_display_name = category_item.to_string();
-
-                                    a href=(format!("/dla-{}/{}", gender_slug, category_param))
-                                        // Linki HTMX pozostają bez zmian - są poprawne
-                                        hx-get=(format!("/htmx/dla-{}?category={}", gender_slug, category_param))
-                                        hx-target="#content"
-                                        hx-swap="innerHTML"
-                                        hx-push-url=(format!("/dla-{}/{}", gender_slug, category_param))
-                                        "@click"="if (window.innerWidth < 768) { isCategorySidebarOpen = false; }"
-                                        class=(category_classes) {
-                                        (category_display_name)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            (render_category_sidebar_maud(&gender_slug, Some(&current_category)))
 
             // --- Główny obszar na listę produktów ---
             section #product-listing-area ."w-full md:w-3/4 lg:w-4/5" {
@@ -5873,13 +5768,13 @@ fn get_seo_headers_for_category(category: &Category) -> (&'static str, &'static 
 fn render_seo_header_maud(h1_text: &str, h2_text: &str) -> Markup {
     // Spróbuj znaleźć słowa kluczowe do podświetlenia
     let keyword_to_highlight = match true {
+        _ if h1_text.contains("mess") => "mess",
         _ if h1_text.contains("secondhand") => "secondhand",
         _ if h1_text.contains("vintage") => "vintage",
         _ if h1_text.contains("pre-owned") => "pre-owned",
         _ if h1_text.contains("slow fashion") => "slow fashion",
         _ if h1_text.contains("moda z klasą") => "moda z klasą",
         _ if h1_text.contains("z drugiego obiegu") => "z drugiego obiegu",
-        _ if h1_text.contains("mess") => "mess",
         _ => "z drugiej ręki",
     };
     html! {
@@ -5925,6 +5820,89 @@ fn render_free_shipping_banner_maud() -> Markup {
                 // ZMIANA: Dodajemy `whitespace-nowrap` i responsywne rozmiary czcionki
                 p class="font-bold whitespace-nowrap text-base sm:text-lg md:text-xl" {
                     "Darmowa dostawa od 250 zł!"
+                }
+            }
+        }
+    }
+}
+
+/// Renderuje w pełni funkcjonalny, responsywny i reużywalny panel boczny z kategoriami.
+fn render_category_sidebar_maud(
+    gender_slug: &str,
+    current_category: Option<&Category>, // Przyjmuje opcjonalną referencję do aktywnej kategorii
+) -> Markup {
+    let categories: Vec<Category> = Category::iter().collect();
+
+    html! {
+        // --- GŁÓWNY KONTENER PANELU ---
+        // Jest widoczny jako blok na desktopie (`md:block`) i lepki (`md:sticky`)
+        aside #category-sidebar
+              class="w-full md:w-1/4 lg:w-1/5 bg-white md:bg-gray-50 md:p-4 md:border md:border-gray-200 md:rounded-lg md:shadow-sm md:sticky md:top-20 md:self-start" {
+
+            // --- PRZYCISK WIDOCZNY TYLKO NA MOBILE ---
+            // Służy do rozwijania/zwijania listy kategorii.
+            div ."md:hidden p-4 border-b border-gray-200 bg-gray-50" {
+                button type="button"
+                       "@click"="isCategorySidebarOpen = !isCategorySidebarOpen"
+                       class="w-full flex justify-center items-center px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 focus:outline-none font-semibold" {
+                    span { "Kategorie " }
+                    svg class="w-5 h-5 ml-2 transform transition-transform duration-300"
+                        x-bind:class="{ 'rotate-180': isCategorySidebarOpen }"
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {
+                        path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7";
+                    }
+                }
+            }
+
+            // --- WEWNĘTRZNY KONTENER Z ANIMACJĄ I TREŚCIĄ ---
+            // Ten kontener jest widoczny na desktopie LUB gdy jest rozwinięty na mobile.
+            // Posiada dyrektywy `x-transition` dla płynnej animacji akordeonu.
+            div class="p-4 md:p-0"
+                x-show="isCategorySidebarOpen || window.innerWidth >= 768" x-cloak
+                x-transition:enter="transition ease-out duration-300"
+                x-transition:enter-start="opacity-0 max-h-0"
+                x-transition:enter-end="opacity-100 max-h-[1000px]" // Duża wartość, aby zmieścić wszystkie kategorie
+                x-transition:leave="transition ease-in duration-200"
+                x-transition:leave-start="opacity-100 max-h-[1000px]"
+                x-transition:leave-end="opacity-0 max-h-0"
+                style="overflow: hidden;" {
+
+                // Tytuł widoczny tylko na desktopie
+                h2 ."text-xl font-semibold mb-4 text-gray-800 hidden md:block text-center" { "Kategorie" }
+
+                nav {
+                    ul ."space-y-1" {
+                        // Definicje klas dla linków dla czystszego kodu
+                        @let active_class = "flex items-center justify-center px-3 py-2 rounded-md transition-colors bg-pink-100 text-pink-700 font-bold";
+                        @let inactive_class = "flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors";
+
+                        // --- Link "Wszystkie" ---
+                        li {
+                            @let all_classes = if current_category.is_none() { active_class } else { inactive_class };
+                            a href=(format!("/dla-{}", gender_slug))
+                                hx-get=(format!("/dla-{}", gender_slug))
+                                hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+                                class=(all_classes)
+                                "@click"="isCategorySidebarOpen = false" {
+                                { "Wszystkie" }
+                            }
+                        }
+
+                        // --- Pętla po wszystkich kategoriach ---
+                        @for category_item in &categories {
+                            li {
+                                @let category_classes = if current_category == Some(category_item) { active_class } else { inactive_class };
+                                @let category_param = category_item.as_ref();
+                                a href=(format!("/dla-{}/{}", gender_slug, category_param))
+                                    hx-get=(format!("/dla-{}/{}", gender_slug, category_param))
+                                    hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+                                    class=(category_classes)
+                                    "@click"="isCategorySidebarOpen = false" {
+                                    { (category_item.to_string()) }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
