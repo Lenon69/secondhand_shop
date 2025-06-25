@@ -612,8 +612,6 @@ function restoreScrollPosition() {
       console.log(
         `Znaleziono zapisaną pozycję: ${savedPosition} dla URL: ${url}. Przywracam...`,
       );
-      // Używamy małego opóźnienia, aby upewnić się, że cała treść (zwłaszcza ta z HTMX)
-      // została załadowana i strona ma odpowiednią wysokość do przewinięcia.
       setTimeout(() => {
         window.scrollTo({ top: savedPosition, behavior: "smooth" });
       }, 250); // 100ms to zazwyczaj bezpieczna wartość

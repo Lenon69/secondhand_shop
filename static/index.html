@@ -139,17 +139,30 @@
         isMobileMenuOpen: false,
         currentMobilePage: '', 
         isCategorySidebarOpen: false,
+        
+        // --- Właściwości dla modalu ze zdjęciami ---
         activeImageModal: {
             isOpen: false,
             currentSrc: '',
             images: [],
             currentIndex: 0
         },
+        
+        // --- Właściwości przeniesione z komponentu powiadomień ---
+        toast: {
+            show: false,
+            message: '',
+            type: 'info',
+            timeout: 2000,
+            hideTimeoutId: null
+        },
 
         // --- Metody (logika) komponentu ---
 
         // Metoda inicjalizacyjna, uruchamiana przez x-init
         init() {
+            if (window.alpineBodyInitialized) return;
+            window.alpineBodyInitialized = true;
             console.log('✅ Alpine.js poprawnie zainicjalizowany!');
             
             // 1. Ustaw stan autoryzacji
@@ -174,9 +187,21 @@
             });
 
             // 5. Nasłuchuj na globalne zdarzenia z innych części aplikacji
+            this.addGlobalEventListeners();
+        },
+        
+        // --- Metody pomocnicze ---
+        addGlobalEventListeners() {
             window.addEventListener('authChangedClient', event => {
                 console.log('[Alpine] Odebrano authChangedClient, isAuthenticated:', event.detail.isAuthenticated);
                 this.isAuthenticated = event.detail.isAuthenticated;
+            });
+
+            // Zdarzenie do pokazywania powiadomień (toastów)
+            window.addEventListener('showMessage', event => {
+                if (event.detail && event.detail.message) {
+                    this.showToast(event.detail.message, event.detail.type);
+                }
             });
 
             document.body.addEventListener('htmx:afterOnLoad', (event) => {
@@ -223,6 +248,18 @@
             window.addEventListener('logoutClient', () => {
                 this.clientSideLogout();
             });
+        },
+        
+       showToast(message, type = 'info') {
+          this.toast.message = message;
+          this.toast.type = type;
+          this.toast.show = true;
+
+          if (this.toast.hideTimeoutId) clearTimeout(this.toast.hideTimeoutId);
+
+          this.toast.hideTimeoutId = setTimeout(() => {
+              this.toast.show = false;
+          }, this.toast.timeout);
         },
 
         // Metoda do inicjalizacji sesji gościa
@@ -1155,29 +1192,7 @@
       </button>
     </div>
     <div
-      x-data="{
-        show: false,
-        message: '',
-        type: 'info',
-        timeout: 1500,
-        hideTimeoutId: null
-      }"
-      x-init="
-        console.log('🔥 Alpine zainicjalizowany!');
-        window.addEventListener('showMessage', (event) => {
-          if (event.detail && event.detail.message) {
-            message = event.detail.message;
-            type = event.detail.type || 'info';
-            show = true;
-
-            if (hideTimeoutId) clearTimeout(hideTimeoutId);
-            hideTimeoutId = setTimeout(() => {
-              show = false;
-            }, timeout);
-          }
-        });
-      "
-      x-show="show"
+      x-show="toast.show"
       x-transition:enter="transition ease-out duration-300"
       x-transition:enter-start="opacity-0 transform translate-y-2"
       x-transition:enter-end="opacity-100 transform translate-y-0"
@@ -1186,16 +1201,15 @@
       x-transition:leave-end="opacity-0 transform translate-y-2"
       class="fixed bottom-5 right-5 text-white px-4 py-3 rounded-md shadow-lg z-[100] text-sm"
       :class="{
-        'bg-green-600': type === 'success',
-        'bg-red-600': type === 'error',
-        'bg-sky-600': type === 'info',
-        'bg-yellow-500 text-black': type === 'warning'
+        'bg-green-600': toast.type === 'success',
+        'bg-red-600': toast.type === 'error',
+        'bg-sky-600': toast.type === 'info',
+        'bg-yellow-500 text-black': toast.type === 'warning'
       }"
       role="alert"
       x-cloak
     >
-      <p x-text="message"></p>
-
+      <p x-text="toast.message"></p>
     </div>
     <div id="body-scripts-placeholder"></div>
   </body>
