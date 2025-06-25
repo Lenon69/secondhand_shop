@@ -247,31 +247,29 @@ pub async fn get_product_detail_htmx_handler(
 
     // --- KROK 1: PRZYGOTOWANIE ZOPTymalizowanych URL-i ---
 
-    // Główny obrazek (do pierwszego wyświetlenia) - średnia wielkość
-    let main_image_url = product
+    // Zestaw DUŻYCH obrazków (dla widoku głównego i modala)
+    let large_image_urls: Vec<String> = product
         .images
-        .get(0)
-        .map(|url| transform_cloudinary_url(url, "w_800,f_auto,q_auto"))
-        .unwrap_or_else(|| "/static/placeholder.png".to_string());
+        .iter()
+        .map(|url| transform_cloudinary_url(url, "w_1000,f_auto,q_auto"))
+        .collect();
 
-    // Małe, kwadratowe miniaturki
+    // Zestaw MAŁYCH miniaturek (do klikania)
     let thumbnail_urls: Vec<String> = product
         .images
         .iter()
         .map(|url| transform_cloudinary_url(url, "w_150,h_150,c_fill,f_auto,q_auto"))
         .collect();
 
-    // Duże obrazki do podmiany po kliknięciu i dla modalu
-    let large_image_urls: Vec<String> = product
-        .images
-        .iter()
-        .map(|url| transform_cloudinary_url(url, "w_1200,f_auto,q_auto"))
-        .collect();
+    // Początkowy główny obrazek (pierwszy z listy dużych)
+    let initial_main_image_url = large_image_urls
+        .get(0)
+        .cloned()
+        .unwrap_or_else(|| "/static/placeholder.png".to_string());
 
-    // --- KROK 2: STWORZENIE TAGÓW PRELOAD DLA SEKCJI <head> ---
-
+    // === KROK 2: STWORZENIE TAGÓW PRELOAD ===
+    // Wstępnie ładujemy wszystkie duże obrazki, aby klikanie było natychmiastowe
     let preload_links_markup = html! {
-        // Ta pętla wygeneruje linki, które każą przeglądarce pobrać duże obrazki w tle
         @for url in &large_image_urls {
             link rel="preload" as="image" href=(url);
         }
@@ -283,53 +281,51 @@ pub async fn get_product_detail_htmx_handler(
     };
 
     // --- KROK 3: PRZYGOTOWANIE DANYCH DLA ALPINE.JS ---
-
-    let initial_image_js = serde_json::to_string(&main_image_url).unwrap();
-    let thumbnails_js = serde_json::to_string(&thumbnail_urls).unwrap();
-    let large_images_js = serde_json::to_string(&large_image_urls).unwrap();
-
-    let x_data_attribute_value = format!(
-        "{{ currentMainImage: {}, allThumbnails: {}, allLargeImages: {} }}",
-        initial_image_js, thumbnails_js, large_images_js
-    );
+    let large_images_json = serde_json::to_string(&large_image_urls).unwrap();
+    let thumbnails_json = serde_json::to_string(&thumbnail_urls).unwrap();
 
     let page_content = html! {
-    div #product-detail-view "x-data"=(x_data_attribute_value)
+    div #product-detail-view
+        "data-initial-image"=(initial_main_image_url)
+        "data-large-images"=(large_images_json)
+        "data-thumbnails"=(thumbnails_json)
+        x-data="{
+            currentMainImage: '',
+            allLargeImages: [],
+            allThumbnails: []
+        }"
+        x-init="
+            currentMainImage = $el.dataset.initialImage;
+            allLargeImages = JSON.parse($el.dataset.largeImages);
+            allThumbnails = JSON.parse($el.dataset.thumbnails);
+        "
+
         class="bg-white p-4 sm:p-6 lg:p-8 rounded-lg shadow-xl" {
         div ."grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12" {
             // --- Kolumna z obrazkami ---
             div ."space-y-4" {
                 @if !product.images.is_empty() {
                     div ."aspect-w-4 aspect-h-3 sm:aspect-w-1 sm:aspect-h-1 rounded-lg overflow-hidden border border-gray-200 shadow-sm bg-gray-50 flex items-center justify-center" {
-                        img "x-bind:src"="currentMainImage && currentMainImage !== '' ? currentMainImage : '/static/placeholder.png'"
+
+                        img "x-bind:src"="currentMainImage"
                             alt={"Zdjęcie główne: " (product.name)}
-                            class="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity duration-200"
                             loading="lazy"
-                            "@click"=(main_image_url);
-                    }
+                            "@click"="$dispatch('open-alpine-modal', { src: currentMainImage, imagesArray: allLargeImages })"
+                            class="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity duration-200";
+                        }
+
 
                     @if product.images.len() > 1 {
                         div .grid.grid-cols-3.sm:grid-cols-4.md:grid-cols-3.lg:grid-cols-5.gap-2.sm:gap-3 {
-                            @for (thumbnail_url, index) in thumbnail_urls.iter().zip(0..) {
-
-                                @let click_action_str = format!(
-                                    "currentMainImage = allLargeImages[{}]",
-                                    index
-                                );
-
-                                @let class_binding_str = format!(
-                                    "currentMainImage === allLargeImages[{}] ? 'border-pink-500 ring-2 ring-pink-500' : 'border-gray-200 hover:border-pink-400'",
-                                    index
-                                );
-
+                            template x-for="(thumbnailUrl, index) in allThumbnails" x-bind:key="index" {
                                 button type="button"
-                                    "@click"=(click_action_str)
-                                    "x-bind:class"=(class_binding_str)
-                                    class="aspect-square block border-2 rounded-md overflow-hidden focus:outline-none focus:border-pink-500 transition-all duration-150 bg-gray-50"
-                                    aria-label={"Zmień główne zdjęcie na miniaturkę " (index + 1)} {
-
-                                    // Używamy zoptymalizowanego URL-a dla miniaturki
-                                    img src=(thumbnail_url) alt={"Miniaturka " (index + 1) ": " (product.name)} class="w-full h-full object-cover object-center" loading="lazy";
+                                    "@click"="currentMainImage = allLargeImages[index]"
+                                    "x-bind:class"="currentMainImage === allLargeImages[index] ? 'border-pink-500 ring-2 ring-pink-500' : 'border-gray-200 hover:border-pink-400'"
+                                    class="aspect-square block border-2 rounded-md overflow-hidden focus:outline-none focus:border-pink-500 transition-all duration-150 bg-gray-50" {
+                                    img "x-bind:src"="thumbnailUrl"
+                                        x-bind:alt="'Miniaturka ' + (index + 1)"
+                                        class="w-full h-full object-cover object-center"
+                                        loading="lazy";
                                 }
                             }
                         }
