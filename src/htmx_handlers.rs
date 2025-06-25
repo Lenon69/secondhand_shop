@@ -190,27 +190,6 @@ pub async fn get_product_detail_htmx_handler(
     let is_in_cart = product_ids_in_cart.contains(&product.id);
     let formatted_price = format_price_maud(product.price);
 
-    let initial_image_url_str: &str = product.images.get(0).map_or("", |url| url.as_str());
-
-    // 1. Te stringi są już poprawnymi literałami JS dzięki serde_json::to_string
-    let initial_image_js_literal =
-        serde_json::to_string(initial_image_url_str).unwrap_or_else(|_| String::from("\"\""));
-
-    let all_images_js_array_literal: String =
-        serde_json::to_string(&product.images).unwrap_or_else(|_| String::from("[]"));
-    // 2. Zbuduj string dla x-data. Zauważ, że klucze obiektu JS nie potrzebują cudzysłowów, jeśli są prostymi identyfikatorami.
-    let x_data_attribute_value = format!(
-        "{{ currentMainImage: {val1}, allProductImages: {val2} }}", // Zmieniono na allProductImages (camelCase)
-        val1 = initial_image_js_literal,
-        val2 = all_images_js_array_literal
-    );
-
-    let main_image_click_alpine_action = format!(
-        // Użyj klucza imagesArray, a wartość to już gotowa tablica JS
-        "if (currentMainImage && currentMainImage !== '') $dispatch('open-alpine-modal', {{ src: currentMainImage, imagesArray: {} }})",
-        all_images_js_array_literal // Ten string zostanie wstawiony jako literał tablicy JS
-    );
-
     // --- NOWY BLOK: TWORZENIE DANYCH STRUKTURALNYCH (JSON-LD) ---
     // 1. Mapujemy statusy i stany z naszej aplikacji na standard Schema.org
     let schema_availability = match product.status {
@@ -266,7 +245,38 @@ pub async fn get_product_detail_htmx_handler(
         }
     };
 
-    // --- KONIEC NOWEGO BLOKU ---
+    // Przygotowujemy zoptymalizowane URL-e dla Alpine.js
+    let transformed_main_image_url = product
+        .images
+        .get(0)
+        .map(|url| transform_cloudinary_url(url, "w_800,f_auto,q_auto"))
+        .unwrap_or_else(|| "/static/placeholder.png".to_string());
+
+    let transformed_thumbnails: Vec<String> = product
+        .images
+        .iter()
+        .map(|url| transform_cloudinary_url(url, "w_150,h_150,c_fill,f_auto,q_auto"))
+        .collect();
+
+    // Przygotowujemy dane dla Alpine.js, używając już zoptymalizowanych URL-i
+    let all_large_images_for_modal: Vec<String> = product
+        .images
+        .iter()
+        .map(|url| transform_cloudinary_url(url, "w_1200,f_auto,q_auto"))
+        .collect();
+
+    let initial_image_js_literal = serde_json::to_string(&transformed_main_image_url).unwrap();
+    let all_thumbnails_js_array = serde_json::to_string(&transformed_thumbnails).unwrap();
+    let all_large_images_js_array = serde_json::to_string(&all_large_images_for_modal).unwrap();
+
+    let x_data_attribute_value = format!(
+        "{{ currentMainImage: {}, allThumbnails: {}, allLargeImages: {} }}",
+        initial_image_js_literal, all_thumbnails_js_array, all_large_images_js_array
+    );
+
+    let main_image_click_alpine_action = format!(
+        "if (currentMainImage && currentMainImage !== '') $dispatch('open-alpine-modal', {{ src: currentMainImage, imagesArray: allLargeImages }})",
+    );
 
     let page_content = html! {
     div #product-detail-view "x-data"=(x_data_attribute_value)
@@ -276,8 +286,7 @@ pub async fn get_product_detail_htmx_handler(
             div ."space-y-4" {
                 @if !product.images.is_empty() {
                     div ."aspect-w-4 aspect-h-3 sm:aspect-w-1 sm:aspect-h-1 rounded-lg overflow-hidden border border-gray-200 shadow-sm bg-gray-50 flex items-center justify-center" {
-                        img
-                            "x-bind:src"="currentMainImage && currentMainImage !== '' ? currentMainImage : '/static/placeholder.png'"
+                        img "x-bind:src"="currentMainImage && currentMainImage !== '' ? currentMainImage : '/static/placeholder.png'"
                             alt={"Zdjęcie główne: " (product.name)}
                             class="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity duration-200"
                             loading="lazy"
@@ -287,18 +296,19 @@ pub async fn get_product_detail_htmx_handler(
                     @if product.images.len() > 1 {
                         div .grid.grid-cols-3.sm:grid-cols-4.md:grid-cols-3.lg:grid-cols-5.gap-2.sm:gap-3 {
                             // Używamy allProductImages (camelCase) konsekwentnie
-                            @for (image_url_loop_item, index) in product.images.iter().zip(0..) {
+                            @for (thumbnail_url, index) in transformed_thumbnails.iter().zip(0..) {
                                 @let click_action_str = format!(
                                     "currentMainImage = allProductImages[{}]; $nextTick(() => window.scrollTo({{ top: 0, behavior: 'auto' }}));",
                                     index
-                                );                                @let class_binding_str = format!("currentMainImage === allProductImages[{}] ? 'border-pink-500 ring-2 ring-pink-500' : 'border-gray-200 hover:border-pink-400'", index);
+                                );
+                                @let class_binding_str = format!("currentMainImage === allProductImages[{}] ? 'border-pink-500 ring-2 ring-pink-500' : 'border-gray-200 hover:border-pink-400'", index);
 
                                 button type="button"
                                     "@click"=(click_action_str)
                                     "x-bind:class"=(class_binding_str)
                                     class="aspect-square block border-2 rounded-md overflow-hidden focus:outline-none focus:border-pink-500 transition-all duration-150 bg-gray-50"
                                     aria-label={"Zmień główne zdjęcie na miniaturkę " (index + 1)} {
-                                    img src=(image_url_loop_item) alt={"Miniaturka " (index + 1) ": " (product.name)} class="w-full h-full object-cover object-center" loading="lazy";
+                                    img src=(thumbnail_url) alt={"Miniaturka " (index + 1) ": " (product.name)} class="w-full h-full object-cover object-center" loading="lazy";
                                 }
                             }
                         }
@@ -529,7 +539,8 @@ pub async fn get_cart_details_htmx_handler(
                    class="h-20 w-20 flex-shrink-0 overflow-hidden rounded-md border border-gray-200 block group"
                    aria-label={"Zobacz szczegóły produktu " (item.product.name)} {
                     @if !item.product.images.is_empty() {
-                        img src=(item.product.images[0]) alt=(item.product.name) class="h-full w-full object-cover object-center group-hover:opacity-85 transition-opacity" loading="lazy";
+                        @let transformed_url = transform_cloudinary_url(&item.product.images[0], "w_100,h_100,c_fill,f_auto,q_auto");
+                        img src=(transformed_url) alt=(item.product.name) class="h-full w-full object-cover object-center group-hover:opacity-85 transition-opacity" loading="lazy";
                     } @else {
                         div ."h-full w-full bg-gray-100 flex items-center justify-center text-xs text-gray-400 group-hover:opacity-85 transition-opacity" { "Brak foto" }
                     }
