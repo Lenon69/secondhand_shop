@@ -1198,7 +1198,7 @@ pub async fn gender_page_handler(
 
     let page_content = html! {
         // Renderujemy baner na samej górze. Będzie on widoczny na mobile i desktopie.
-        div class="mb-4" {
+        div class="mb-4 md:-mt-6" {
             (render_free_shipping_banner_maud())
         }
 
