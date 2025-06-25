@@ -1175,6 +1175,7 @@ pub async fn gender_page_handler(
         .map(|details| details.items.iter().map(|item| item.product.id).collect())
         .unwrap_or_else(Vec::new);
 
+    let current_category = params.category();
     let final_params = ListingParams {
         gender: Some(current_gender.clone()),
         category: params.category,
@@ -1197,7 +1198,7 @@ pub async fn gender_page_handler(
 
     let page_content = html! {
         // Renderujemy baner na samej górze. Będzie on widoczny na mobile i desktopie.
-        div class="mb-6 lg:mb-8" {
+        div class="mb-4" {
             (render_free_shipping_banner_maud())
         }
 
@@ -1205,10 +1206,15 @@ pub async fn gender_page_handler(
         div ."flex flex-col md:flex-row gap-6" {
             // --- Przycisk do rozwijania/zwijania kategorii na mobile ---
             div ."md:hidden p-4 border-b border-gray-200 bg-gray-50" {
+                @let mobile_title = if let Some(cat) = &current_category {
+                    format!("{} {}", cat.to_string(), current_gender_display_name.to_lowercase())
+                } else {
+                    format!("Wszystkie {}", current_gender_display_name.to_lowercase())
+                };
                 button type="button"
                        "@click"="isCategorySidebarOpen = !isCategorySidebarOpen"
                        class="w-full flex justify-center items-center px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 focus:outline-none font-semibold" {
-                    span { (current_gender_display_name) ": Kategorie" }
+                    span { (mobile_title) }
                     svg "x-show"="!isCategorySidebarOpen" class="w-5 h-5 transform transition-transform duration-200" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
                         path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
                     }
@@ -1225,22 +1231,34 @@ pub async fn gender_page_handler(
                   x-bind:class="{ '!block': isCategorySidebarOpen }" x-cloak {
 
                 div class="p-4 md:p-0" {
-                    h2 ."text-xl font-semibold mb-4 text-gray-800 hidden md:block" { "Kategorie " (current_gender_display_name) }
+                    h2 ."text-xl font-semibold mb-4 text-gray-800 hidden md:block text-center" { "Kategorie " (current_gender_display_name) }
                     nav {
                         ul ."space-y-1" {
                             li {
+                                // ZMIANA: Dodajemy warunek sprawdzający, czy kategoria jest `None`
+                                @let all_classes = if final_params.category.is_none() {
+                                    "flex items-center justify-center px-3 py-2 rounded-md transition-colors bg-pink-100 text-pink-700 font-bold"
+                                } else {
+                                    "flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
+                                };
                                 a href="#"
                                    hx-get=(format!("/htmx/products?gender={}", current_gender.to_string()))
                                    hx-target="#main-content-area" hx-swap="innerHTML"
                                    hx-push-url=(format!("/dla-{}", gender_slug))
                                    "@click"="if (window.innerWidth < 768) isCategorySidebarOpen = false"
-                                   class="flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
-                                   "_"="on htmx:afterSwap remove .font-bold .text-pink-700 from #category-sidebar a add .font-bold .text-pink-700 to me" {
+                                   class=(all_classes)
+                                   "_"="on htmx:afterSwap remove .font-bold,.bg-pink-100,.text-pink-700 from #category-sidebar a; add .font-bold,.bg-pink-100,.text-pink-700 to me" {
                                     "Wszystkie"
                                 }
                             }
                             @for category_item in &categories {
                                 li {
+                                     // ZMIANA: Dodajemy warunek sprawdzający, czy kategoria jest taka sama jak w pętli
+                                    @let category_classes = if final_params.category.as_ref() == Some(category_item) {
+                                        "flex items-center justify-center px-3 py-2 rounded-md transition-colors bg-pink-100 text-pink-700 font-bold"
+                                    } else {
+                                        "flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
+                                    };
                                     @let category_param = category_item.as_ref();
                                     @let category_display_name = category_item.to_string();
                                     a href="#"
@@ -1248,8 +1266,8 @@ pub async fn gender_page_handler(
                                        hx-target="#main-content-area" hx-swap="innerHTML"
                                        hx-push-url=(format!("/dla-{}/{}", gender_slug, category_param))
                                        "@click"="if (window.innerWidth < 768) { isCategorySidebarOpen = false; }"
-                                       class="flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
-                                       "_"="on htmx:afterSwap remove .font-bold .text-pink-700 from #category-sidebar a add .font-bold .text-pink-700 to me" {
+                                       class=(category_classes)
+                                       "_"="on htmx:afterSwap remove .font-bold,.bg-pink-100,.text-pink-700 from #category-sidebar a; add .font-bold,.bg-pink-100,.text-pink-700 to me" {
                                         (category_display_name)
                                     }
                                 }
@@ -1330,34 +1348,33 @@ pub async fn gender_with_category_page_handler(
     // Tworzymy parametry do zapytania, ustawiając płeć i kategorię z URL
     let final_params = ListingParams {
         gender: Some(current_gender.clone()),
-        category: Some(current_category),
+        category: Some(current_category.clone()),
         limit: params.limit.or(Some(8)),
         status: None, // Używamy domyślnego filtra (Available, Reserved)
-        // Zachowujemy inne parametry (sortowanie, offset), jeśli przyszły w URL
         sort_by: params.sort_by,
         order: params.order,
         offset: params.offset,
         ..Default::default()
     };
 
-    let paginated_response_json =
-        crate::handlers::list_products(State(app_state.clone()), Query(final_params.clone()))
-            .await?;
-    let paginated_response: PaginatedProductsResponse = paginated_response_json.0;
-
-    let categories: Vec<Category> = Category::iter().collect();
-    let filter_query_string_for_initial_grid = build_filter_only_query_string(&final_params);
     let current_listing_params_qs_for_initial_grid =
         build_full_query_string_from_params(&final_params);
+    let filter_query_string_for_initial_grid = build_filter_only_query_string(&final_params);
+    let paginated_response_json =
+        crate::handlers::list_products(State(app_state.clone()), Query(final_params)).await?;
+    let paginated_response: PaginatedProductsResponse = paginated_response_json.0;
+    let categories: Vec<Category> = Category::iter().collect();
 
     let page_content = html! {
         div ."flex flex-col md:flex-row gap-6" {
             // --- Przycisk do rozwijania/zwijania kategorii na mobile ---
             div ."md:hidden p-4 border-b border-gray-200 bg-gray-50" {
+                @let mobile_title = format!("{} {}", current_category.to_string(), current_gender_display_name);
+
                 button type="button"
                        "@click"="isCategorySidebarOpen = !isCategorySidebarOpen"
                        class="w-full flex justify-between items-center px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 focus:outline-none font-semibold" {
-                    span { (current_gender_display_name) ": Kategorie" }
+                    span { (mobile_title) }
                     svg "x-show"="!isCategorySidebarOpen" class="w-5 h-5 transform transition-transform duration-200" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
                         path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
                     }
@@ -1374,7 +1391,7 @@ pub async fn gender_with_category_page_handler(
                   x-bind:class="{ '!block': isCategorySidebarOpen }" x-cloak {
 
                 div class="p-4 md:p-0" {
-                    h2 ."text-xl font-semibold mb-4 text-gray-800 hidden md:block" { "Kategorie " (current_gender_display_name) }
+                    h2 ."text-xl font-semibold mb-4 text-gray-800 hidden md:block text-center" { "Kategorie " (current_gender_display_name) }
                     nav {
                         ul ."space-y-1" {
                             li {
@@ -1383,22 +1400,26 @@ pub async fn gender_with_category_page_handler(
                                    hx-target="#product-listing-area" hx-swap="innerHTML"
                                    hx-push-url=(format!("/dla-{}", gender_slug))
                                    "@click"="if (window.innerWidth < 768) isCategorySidebarOpen = false"
-                                   class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
-                                   "_"="on htmx:afterSwap remove .font-bold .text-pink-700 from #category-sidebar a add .font-bold .text-pink-700 to me" {
+                                   class="flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
+                                   "_"="on htmx:afterSwap remove .font-bold,.bg-pink-100,.text-pink-700 from #category-sidebar a; add .font-bold,.bg-pink-100,.text-pink-700 to me" {
                                     "Wszystkie"
                                 }
                             }
                             @for category_item in &categories {
                                 li {
-                                    @let category_param = category_item.as_ref();
+                                    @let category_classes = if current_category == *category_item {
+                                        "flex items-center justify-center px-3 py-2 rounded-md transition-colors bg-pink-100 text-pink-700 font-bold"
+                                    } else {
+                                        "flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
+                                    };                                    @let category_param = category_item.as_ref();
                                     @let category_display_name = category_item.to_string();
                                     a href="#"
                                        hx-get=(format!("/htmx/products?gender={}&category={}", current_gender.to_string(), category_item.as_ref()))
                                        hx-target="#product-listing-area" hx-swap="innerHTML"
                                        hx-push-url=(format!("/dla-{}/{}", gender_slug, category_param))
                                        "@click"="if (window.innerWidth < 768) { isCategorySidebarOpen = false; }"
-                                       class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors"
-                                       "_"="on htmx:afterSwap remove .font-bold .text-pink-700 from #category-sidebar a add .font-bold .text-pink-700 to me" {
+                                       class=(category_classes)
+                                       "_"="on htmx:afterSwap remove .font-bold,.bg-pink-100,.text-pink-700 from #category-sidebar a; add .font-bold,.bg-pink-100,.text-pink-700 to me" {
                                         (category_display_name)
                                     }
                                 }
@@ -5789,7 +5810,7 @@ fn get_seo_headers_for_category(category: &Category) -> (&'static str, &'static 
             "Przeglądaj klasyczne i nowoczesne fasony spódnic",
         ),
         Category::Swetry => (
-            "Ciepłe swetry secondhand – styl i wygoda",
+            "Ciepłe swetry – styl i wygoda",
             "Znajdź sweter idealny na chłodne dni – od oversize po klasykę",
         ),
         Category::Bluzy => (
@@ -5839,6 +5860,7 @@ fn render_seo_header_maud(h1_text: &str, h2_text: &str) -> Markup {
         _ if h1_text.contains("vintage") => "vintage",
         _ if h1_text.contains("pre-owned") => "pre-owned",
         _ if h1_text.contains("slow fashion") => "slow fashion",
+        _ if h1_text.contains("moda z klasą") => "moda z klasą",
         _ if h1_text.contains("z drugiego obiegu") => "z drugiego obiegu",
         _ => "z drugiej ręki",
     };

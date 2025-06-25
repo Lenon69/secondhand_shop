@@ -565,3 +565,22 @@ pub struct ResetPasswordPayload {
     #[validate(must_match(other = "new_password", message = "Hasła muszą być takie same."))]
     pub confirm_password: String,
 }
+
+#[derive(sqlx::FromRow, Debug)]
+struct ProductWithTotalCount {
+    // Wszystkie pola z modelu Product
+    id: Uuid,
+    name: String,
+    description: String,
+    price: i64,
+    gender: ProductGender,
+    condition: ProductCondition,
+    category: Category,
+    status: ProductStatus,
+    images: Vec<String>,
+    on_sale: bool,
+    created_at: chrono::DateTime<chrono::Utc>,
+    updated_at: chrono::DateTime<chrono::Utc>,
+    // Dodatkowe pole z całkowitą liczbą
+    total_count: Option<i64>,
+}
