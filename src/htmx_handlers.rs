@@ -5813,7 +5813,7 @@ fn render_home_page_hero() -> Markup {
                     "Wyjątkowa odzież vintage online"
                 }
                 p class="mt-4 max-w-2xl mx-auto text-lg text-gray-100" {
-                    "Odkryj unikalne perełki z duszą. Ręcznie selekcjonowana odzież z drugiej ręki dla Niej i dla Niego."
+                    "Odkryj unikalne perełki z duszą. Ręcznie selekcjonowana odzież dla Niej i dla Niego."
                 }
             }
         }
