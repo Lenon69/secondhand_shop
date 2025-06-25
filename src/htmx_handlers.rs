@@ -1207,16 +1207,10 @@ pub async fn gender_page_handler(
         div ."flex flex-col md:flex-row gap-6" {
             // --- Przycisk do rozwijania/zwijania kategorii na mobile ---
             div ."md:hidden p-4 border-b border-gray-200 bg-gray-50" {
-                @let mobile_title = if let Some(cat) = &params.category { // Używamy params.category
-                    format!("{} {}", cat.to_string(), mobile_gender_display_name)
-                } else {
-                    format!("Wszystko {}", mobile_gender_display_name) // Zmieniono "Wszystkie" na "Wszystko"
-                };
-
                 button type="button"
                        "@click"="isCategorySidebarOpen = !isCategorySidebarOpen"
                        class="w-full flex justify-center items-center px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 focus:outline-none font-semibold" {
-                    span { (mobile_title) }
+                    span { "Kategorie " }
                     svg "x-show"="!isCategorySidebarOpen" class="w-5 h-5 transform transition-transform duration-200" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
                         path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
                     }
@@ -1233,7 +1227,7 @@ pub async fn gender_page_handler(
                   x-bind:class="{ '!block': isCategorySidebarOpen }" x-cloak {
 
                 div class="p-4 md:p-0" {
-                    h2 ."text-xl font-semibold mb-4 text-gray-800 hidden md:block text-center" { "Kategorie " (desktop_gender_display_name) }
+                    h2 ."text-xl font-semibold mb-4 text-gray-800 hidden md:block text-center" { "Kategorie " }
                     nav {
                         ul ."space-y-1" {
                             li {
@@ -1386,12 +1380,10 @@ pub async fn gender_with_category_page_handler(
         div ."flex flex-col md:flex-row gap-6" {
             // --- Przycisk do rozwijania/zwijania kategorii na mobile ---
             div ."md:hidden p-4 border-b border-gray-200 bg-gray-50" {
-                @let mobile_title = format!("{} {}", current_category.to_string(), mobile_gender_display_name);
-
                 button type="button"
                        "@click"="isCategorySidebarOpen = !isCategorySidebarOpen"
                        class="w-full flex justify-between items-center px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 focus:outline-none font-semibold" {
-                    span { (mobile_title) }
+                    span { "Kategorie " }
                     svg "x-show"="!isCategorySidebarOpen" class="w-5 h-5 transform transition-transform duration-200" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
                         path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
                     }
@@ -1408,7 +1400,7 @@ pub async fn gender_with_category_page_handler(
                   x-bind:class="{ '!block': isCategorySidebarOpen }" x-cloak {
 
                 div class="p-4 md:p-0" {
-                    h2 ."text-xl font-semibold mb-4 text-gray-800 hidden md:block text-center" { "Kategorie " (desktop_gender_display_name) }
+                    h2 ."text-xl font-semibold mb-4 text-gray-800 hidden md:block text-center" { "Kategorie " }
                     nav {
                         ul ."space-y-1" {
                             @let active_class = "flex items-center justify-center px-3 py-2 rounded-md transition-colors bg-pink-100 text-pink-700 font-bold";
