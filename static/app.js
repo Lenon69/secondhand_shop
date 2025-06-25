@@ -614,7 +614,7 @@ function restoreScrollPosition() {
       );
       setTimeout(() => {
         window.scrollTo({ top: savedPosition, behavior: "smooth" });
-      }, 250); // 100ms to zazwyczaj bezpieczna wartość
+      }, 150); // 100ms to zazwyczaj bezpieczna wartość
     }
   } catch (e) {
     console.error("Nie udało się przywrócić pozycji przewijania:", e);
