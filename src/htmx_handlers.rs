@@ -319,7 +319,7 @@ pub async fn get_product_detail_htmx_handler(
                         div .grid.grid-cols-3.sm:grid-cols-4.md:grid-cols-3.lg:grid-cols-5.gap-2.sm:gap-3 {
                             template x-for="(thumbnailUrl, index) in allThumbnails" x-bind:key="index" {
                                 button type="button"
-                                    "@click"="currentMainImage = allLargeImages[index]"
+                                    "@click"="currentMainImage = allLargeImages[index]; $nextTick(() => window.scrollTo({ top: 0, behavior: 'auto' }))"
                                     "x-bind:class"="currentMainImage === allLargeImages[index] ? 'border-pink-500 ring-2 ring-pink-500' : 'border-gray-200 hover:border-pink-400'"
                                     class="aspect-square block border-2 rounded-md overflow-hidden focus:outline-none focus:border-pink-500 transition-all duration-150 bg-gray-50" {
                                     img "x-bind:src"="thumbnailUrl"
