@@ -565,3 +565,84 @@ function checkSession() {
     );
   }
 }
+
+/**
+ * ========================================================================
+ * IV. ZARZĄDZANIE POZYCJĄ PRZEWIJANIA
+ * ========================================================================
+ * Mechanizm zapisywania i przywracania pozycji przewijania, aby nawigacja
+ * "Wstecz" była bardziej naturalna, nawet przy pełnym przeładowaniu.
+ */
+
+const SCROLL_POSITION_STORAGE_KEY = "scrollPositions";
+
+/**
+ * Zapisuje aktualną pozycję przewijania dla bieżącego URL w sessionStorage.
+ */
+function saveScrollPosition() {
+  try {
+    const positions =
+      JSON.parse(sessionStorage.getItem(SCROLL_POSITION_STORAGE_KEY)) || {};
+    const url = window.location.href;
+    positions[url] = window.scrollY;
+    sessionStorage.setItem(
+      SCROLL_POSITION_STORAGE_KEY,
+      JSON.stringify(positions),
+    );
+    console.log(
+      `Zapisano pozycję przewijania: ${window.scrollY} dla URL: ${url}`,
+    );
+  } catch (e) {
+    console.error("Nie udało się zapisać pozycji przewijania:", e);
+  }
+}
+
+/**
+ * Odczytuje i przywraca zapisaną pozycję przewijania dla bieżącego URL.
+ * Używa setTimeout, aby dać stronie czas na wyrenderowanie pełnej wysokości.
+ */
+function restoreScrollPosition() {
+  try {
+    const positions =
+      JSON.parse(sessionStorage.getItem(SCROLL_POSITION_STORAGE_KEY)) || {};
+    const url = window.location.href;
+    const savedPosition = positions[url];
+
+    if (typeof savedPosition === "number") {
+      console.log(
+        `Znaleziono zapisaną pozycję: ${savedPosition} dla URL: ${url}. Przywracam...`,
+      );
+      // Używamy małego opóźnienia, aby upewnić się, że cała treść (zwłaszcza ta z HTMX)
+      // została załadowana i strona ma odpowiednią wysokość do przewinięcia.
+      setTimeout(() => {
+        window.scrollTo({ top: savedPosition, behavior: "smooth" });
+      }, 250); // 100ms to zazwyczaj bezpieczna wartość
+    }
+  } catch (e) {
+    console.error("Nie udało się przywrócić pozycji przewijania:", e);
+  }
+}
+
+// --- PODPIĘCIE FUNKCJI DO ZDARZEŃ ---
+
+// 1. Zapisuj pozycję tuż przed opuszczeniem strony lub przed nowym żądaniem HTMX.
+// Zdarzenie 'beforeunload' jest bardziej niezawodne niż htmx:beforeRequest dla tego celu.
+window.addEventListener("beforeunload", saveScrollPosition);
+
+// 2. Przywracaj pozycję po każdym załadowaniu strony.
+// To zadziała zarówno przy pierwszym wejściu, jak i po twardym przeładowaniu (F5, "Wstecz").
+document.addEventListener("DOMContentLoaded", restoreScrollPosition);
+
+// 3. Dodatkowo, przywracaj pozycję po udanym swapie HTMX, który nie był odświeżeniem.
+// To obsłuży przypadki, gdy `DOMContentLoaded` nie wystarczy.
+document.body.addEventListener("htmx:afterOnLoad", function (event) {
+  // Sprawdzamy, czy to nie jest pełne przeładowanie (które obsługuje DOMContentLoaded)
+  // tylko standardowy swap, który może zmienić wysokość strony.
+  // W tym przypadku nie chcemy przywracać, bo to by psuło nawigację wewnątrz strony.
+  // Dlatego ten listener na razie zostawiamy pusty lub go usuwamy.
+  // 'DOMContentLoaded' i 'beforeunload' powinny w pełni obsłużyć przypadek.
+});
+
+// Ten nowy system nie wymaga już twardego przeładowania
+// do poprawnego działania, choć będzie działał również z nim.
+// Usunięcie go sprawi, że nawigacja "wstecz" będzie znacznie płynniejsza (bez białego ekranu).

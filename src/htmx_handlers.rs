@@ -5876,7 +5876,7 @@ fn get_seo_headers_for_category(category: &Category) -> (&'static str, &'static 
             "Odkryj unikalne fasony idealne na lato",
         ),
         Category::Inne => (
-            "Rzeczy unikatowe – secondhand, który zaskakuje",
+            "Rzeczy unikatowe od mess - sklep, który zaskakuje",
             "Znajdź perełki spoza schematów – nietypowe i rzadkie ubrania oraz dodatki",
         ),
     }
@@ -5892,11 +5892,12 @@ fn render_seo_header_maud(h1_text: &str, h2_text: &str) -> Markup {
         _ if h1_text.contains("slow fashion") => "slow fashion",
         _ if h1_text.contains("moda z klasą") => "moda z klasą",
         _ if h1_text.contains("z drugiego obiegu") => "z drugiego obiegu",
+        _ if h1_text.contains("mess") => "mess",
         _ => "z drugiej ręki",
     };
     html! {
-        div class="text-center mb-10 pt-4" {
-            h1 class="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900" {
+        div class="text-center mb-8" {
+            h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900" {
                 (highlight_keyword(h1_text, keyword_to_highlight))
             }
             h2 class="mt-3 text-lg text-gray-600 max-w-2xl mx-auto" { (h2_text) }
