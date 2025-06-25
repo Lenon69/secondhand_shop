@@ -5896,7 +5896,7 @@ fn render_seo_header_maud(h1_text: &str, h2_text: &str) -> Markup {
         _ => "z drugiej ręki",
     };
     html! {
-        div class="text-center mb-8" {
+        div class="text-center mb-4" {
             h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900" {
                 (highlight_keyword(h1_text, keyword_to_highlight))
             }
