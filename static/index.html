@@ -156,6 +156,12 @@
             timeout: 2000,
             hideTimeoutId: null
         },
+        
+        // --- NOWE WŁAŚCIWOŚCI DO OBSŁUGI GESTU SWIPE ---
+        touchStartX: 0,
+        touchEndX: 0,
+        swipeThreshold: 50, // Minimalna odległość w pikselach, aby uznać gest za swipe
+        
 
         // --- Metody (logika) komponentu ---
 
@@ -323,6 +329,46 @@
                 this.activeImageModal.currentSrc = this.activeImageModal.images[this.activeImageModal.currentIndex];
             }
         },
+       
+        // --- NOWE METODY DO OBSŁUGI GESTU SWIPE ---
+
+        // Wywoływana na początku dotknięcia ekranu
+        handleTouchStart(event) {
+            // Zapisujemy pozycję startową dotyku
+            this.touchStartX = event.touches[0].clientX;
+        },
+
+        // Wywoływana podczas przesuwania palcem po ekranie
+        handleTouchMove(event) {
+            // Aktualizujemy pozycję końcową dotyku
+            this.touchEndX = event.touches[0].clientX;
+        },
+
+        // Wywoływana po oderwaniu palca od ekranu
+        handleTouchEnd() {
+            // Jeśli nie było ruchu w poziomie, zignoruj (to było np. tapnięcie)
+            if (this.touchEndX === 0) return;
+
+            const deltaX = this.touchEndX - this.touchStartX;
+
+            // Sprawdzamy, czy ruch był wystarczająco duży, aby uznać go za swipe
+            if (Math.abs(deltaX) > this.swipeThreshold) {
+                if (deltaX < 0) {
+                    // Przesunięcie w lewo -> następne zdjęcie
+                    console.log('Swipe w lewo - następne zdjęcie');
+                    this.nextImageModal();
+                } else {
+                    // Przesunięcie w prawo -> poprzednie zdjęcie
+                    console.log('Swipe w prawo - poprzednie zdjęcie');
+                    this.prevImageModal();
+                }
+            }
+
+            // Resetujemy pozycje na potrzeby następnego gestu
+            this.touchStartX = 0;
+            this.touchEndX = 0;
+        },
+        
         clientSideLogout() {
             console.log('Wykonywanie clientSideLogout.');
             localStorage.removeItem('jwtToken');
@@ -1110,8 +1156,14 @@
       x-transition:leave="transition-opacity ease-in-out duration-200"
       x-transition:leave-start="opacity-100"
       x-transition:leave-end="opacity-0"
+      
       class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-auto"
       @click="closeImageModal()"
+      
+      @touchstart="handleTouchStart($event)"
+      @touchmove="handleTouchMove($event)"
+      @touchend="handleTouchEnd()"      
+      
       role="dialog"
       aria-modal="true"
       aria-labelledby="fullscreen-image-alt"

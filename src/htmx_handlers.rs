@@ -251,7 +251,7 @@ pub async fn get_product_detail_htmx_handler(
     let large_image_urls: Vec<String> = product
         .images
         .iter()
-        .map(|url| transform_cloudinary_url(url, "w_1000,f_auto,q_auto"))
+        .map(|url| transform_cloudinary_url(url, "w_1000,f_auto,q_auto:best"))
         .collect();
 
     // Zestaw MAŁYCH miniaturek (do klikania)
