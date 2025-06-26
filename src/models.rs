@@ -587,21 +587,20 @@ pub struct ResetPasswordPayload {
 }
 
 #[allow(dead_code)]
-#[derive(sqlx::FromRow, Debug)]
-struct ProductWithTotalCount {
-    // Wszystkie pola z modelu Product
-    id: Uuid,
-    name: String,
-    description: String,
-    price: i64,
-    gender: ProductGender,
-    condition: ProductCondition,
-    category: Category,
-    status: ProductStatus,
-    images: Vec<String>,
-    on_sale: bool,
-    created_at: chrono::DateTime<chrono::Utc>,
-    updated_at: chrono::DateTime<chrono::Utc>,
-    // Dodatkowe pole z całkowitą liczbą
-    total_count: Option<i64>,
+#[derive(Debug, sqlx::FromRow)]
+pub struct ProductWithTotalCount {
+    pub id: Uuid,
+    pub name: String,
+    pub description: String,
+    pub price: i64,
+    pub gender: ProductGender,
+    pub condition: ProductCondition,
+    pub category: Category,
+    pub status: ProductStatus,
+    pub images: Vec<String>,
+    pub on_sale: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    // Dodatkowe pole, które zwróci nam funkcja okna COUNT(*) OVER()
+    pub total_count: Option<i64>,
 }

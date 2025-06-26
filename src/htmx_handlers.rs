@@ -5914,7 +5914,7 @@ fn render_category_sidebar_maud(
                        "@click"="isCategorySidebarOpen = !isCategorySidebarOpen"
                        class="w-full flex justify-center items-center px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 focus:outline-none font-semibold" {
                     span { "Kategorie " }
-                    svg class="w-5 h-5 ml-2 transform transition-transform duration-300"
+                    svg class="w-5 h-5 ml-2 transform transition-transform duration-250"
                         x-bind:class="{ 'rotate-180': isCategorySidebarOpen }"
                         fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {
                         path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7";
@@ -5927,7 +5927,7 @@ fn render_category_sidebar_maud(
             // Posiada dyrektywy `x-transition` dla płynnej animacji akordeonu.
             div class="p-4 md:p-0"
                 x-show="isCategorySidebarOpen || window.innerWidth >= 768" x-cloak
-                x-transition:enter="transition ease-out duration-300"
+                x-transition:enter="transition ease-out duration-250"
                 x-transition:enter-start="opacity-0 max-h-0"
                 x-transition:enter-end="opacity-100 max-h-[1000px]" // Duża wartość, aby zmieścić wszystkie kategorie
                 x-transition:leave="transition ease-in duration-200"

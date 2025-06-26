@@ -47,7 +47,7 @@ pub async fn get_product_details(
     Path(product_id): Path<Uuid>,
 ) -> Result<Json<Product>, AppError> {
     let product_result = sqlx::query_as::<_, Product>(
-        r#"SELECT id, name, description, price, gender, condition, category, status, images, on_sale, created_at, updated_at
+        r#"SELECT *
            FROM products
            WHERE id = $1"#,
     )
@@ -84,73 +84,61 @@ pub async fn list_products(
     let limit = params.limit();
     let offset = params.offset();
 
-    // --- Budowanie zapytania COUNT ---
-    let mut count_builder: QueryBuilder<Postgres> =
-        QueryBuilder::new("SELECT COUNT(*) FROM products");
-    let mut count_added_where = false;
+    let mut query_builder: QueryBuilder<Postgres> =
+        QueryBuilder::new("SELECT *, COUNT(*) OVER() as total_count FROM products");
 
-    let mut append_where_or_and_count = |builder: &mut QueryBuilder<Postgres>| {
-        if !count_added_where {
+    let mut conditions_added = false;
+    let mut append_where_or_and = |builder: &mut QueryBuilder<Postgres>| {
+        if !conditions_added {
             builder.push(" WHERE ");
-            count_added_where = true;
+            conditions_added = true;
         } else {
             builder.push(" AND ");
         }
     };
 
+    // --- KROK 2: Dodajemy wszystkie filtry (klauzule WHERE) ---
     if let Some(gender) = params.gender() {
-        append_where_or_and_count(&mut count_builder);
-        count_builder.push("gender = ").push_bind(gender);
+        append_where_or_and(&mut query_builder);
+        query_builder.push("gender = ").push_bind(gender);
     }
     if let Some(category) = params.category() {
-        append_where_or_and_count(&mut count_builder);
-        count_builder.push("category = ").push_bind(category);
+        append_where_or_and(&mut query_builder);
+        query_builder.push("category = ").push_bind(category);
     }
     if let Some(condition) = params.condition() {
-        append_where_or_and_count(&mut count_builder);
-        count_builder.push("condition = ").push_bind(condition);
+        append_where_or_and(&mut query_builder);
+        query_builder.push("condition = ").push_bind(condition);
     }
-
-    // === NOWA, BARDZIEJ ROZBUDOWANA LOGIKA FILTROWANIA STATUSU (dla count_builder) ===
     match params.status.as_deref() {
-        Some("all") => {
-            // Admin wybrał "Wszystkie" - nie dodajemy żadnego filtra statusu.
-        }
+        Some("all") => {}
         Some(status_str) => {
-            // Podano konkretny status, próbujemy go sparsować.
             if let Ok(status_enum) = ProductStatus::from_str(status_str) {
-                append_where_or_and_count(&mut count_builder);
-                count_builder.push("status = ").push_bind(status_enum);
+                append_where_or_and(&mut query_builder);
+                query_builder.push("status = ").push_bind(status_enum);
             }
         }
         None => {
-            // Domyślne zachowanie dla publicznych widoków.
-            append_where_or_and_count(&mut count_builder);
-            count_builder
-                .push("status IN (")
-                .push_bind(ProductStatus::Available)
-                .push(", ")
-                .push_bind(ProductStatus::Reserved)
-                .push(")");
+            append_where_or_and(&mut query_builder);
+            query_builder.push("status IN ('Available', 'Reserved')");
         }
     }
-
     if let Some(price_min) = params.price_min() {
-        append_where_or_and_count(&mut count_builder);
-        count_builder.push("price >= ").push_bind(price_min);
+        append_where_or_and(&mut query_builder);
+        query_builder.push("price >= ").push_bind(price_min);
     }
     if let Some(price_max) = params.price_max() {
-        append_where_or_and_count(&mut count_builder);
-        count_builder.push("price <= ").push_bind(price_max);
+        append_where_or_and(&mut query_builder);
+        query_builder.push("price <= ").push_bind(price_max);
     }
     if let Some(on_sale_filter) = params.on_sale() {
-        append_where_or_and_count(&mut count_builder);
-        count_builder.push("on_sale = ").push_bind(on_sale_filter);
+        append_where_or_and(&mut query_builder);
+        query_builder.push("on_sale = ").push_bind(on_sale_filter);
     }
     if let Some(search_term) = params.search() {
-        append_where_or_and_count(&mut count_builder);
+        append_where_or_and(&mut query_builder);
         let like_pattern = format!("%{}%", search_term);
-        count_builder
+        query_builder
             .push("(name ILIKE ")
             .push_bind(like_pattern.clone())
             .push(" OR description ILIKE ")
@@ -158,111 +146,49 @@ pub async fn list_products(
             .push(")");
     }
 
-    let total_items = count_builder
-        .build_query_scalar::<i64>()
-        .fetch_one(&app_state.db_pool)
-        .await
-        .map_err(|e| {
-            tracing::error!(
-                "Błąd bazy danych podczas liczenia produktów (filtrowane): {:?}",
-                e
-            );
-            AppError::SqlxError(e)
-        })?;
-
-    // --- Budowanie zapytania o DANE ---
-    let mut data_builder: QueryBuilder<Postgres> = QueryBuilder::new(
-        "SELECT id, name, description, price, gender, condition, category, status, images, on_sale, created_at, updated_at FROM products",
-    );
-    let mut data_added_where = false;
-    let mut append_where_or_and_data = |builder: &mut QueryBuilder<Postgres>| {
-        if !data_added_where {
-            builder.push(" WHERE ");
-            data_added_where = true;
-        } else {
-            builder.push(" AND ");
-        }
-    };
-
-    if let Some(gender) = params.gender() {
-        append_where_or_and_data(&mut data_builder);
-        data_builder.push("gender = ").push_bind(gender);
-    }
-    if let Some(category) = params.category() {
-        append_where_or_and_data(&mut data_builder);
-        data_builder.push("category = ").push_bind(category);
-    }
-    if let Some(condition) = params.condition() {
-        append_where_or_and_data(&mut data_builder);
-        data_builder.push("condition = ").push_bind(condition);
-    }
-
-    // === NOWA, BARDZIEJ ROZBUDOWANA LOGIKA FILTROWANIA STATUSU (dla data_builder) ===
-    match params.status.as_deref() {
-        Some("all") => {
-            // Admin wybrał "Wszystkie" - nie dodajemy żadnego filtra statusu.
-        }
-        Some(status_str) => {
-            // Podano konkretny status, próbujemy go sparsować.
-            if let Ok(status_enum) = ProductStatus::from_str(status_str) {
-                append_where_or_and_data(&mut data_builder);
-                data_builder.push("status = ").push_bind(status_enum);
-            }
-        }
-        None => {
-            // Domyślne zachowanie dla publicznych widoków.
-            append_where_or_and_data(&mut data_builder);
-            data_builder
-                .push("status IN (")
-                .push_bind(ProductStatus::Available)
-                .push(", ")
-                .push_bind(ProductStatus::Reserved)
-                .push(")");
-        }
-    }
-
-    if let Some(price_min) = params.price_min() {
-        append_where_or_and_data(&mut data_builder);
-        data_builder.push("price >= ").push_bind(price_min);
-    }
-    if let Some(price_max) = params.price_max() {
-        append_where_or_and_data(&mut data_builder);
-        data_builder.push("price <= ").push_bind(price_max);
-    }
-    if let Some(on_sale_filter) = params.on_sale() {
-        append_where_or_and_data(&mut data_builder);
-        data_builder.push("on_sale = ").push_bind(on_sale_filter);
-    }
-    if let Some(search_term) = params.search() {
-        append_where_or_and_data(&mut data_builder);
-        let like_pattern = format!("%{}%", search_term);
-        data_builder
-            .push("(name ILIKE ")
-            .push_bind(like_pattern.clone())
-            .push(" OR description ILIKE ")
-            .push_bind(like_pattern)
-            .push(")");
-    }
-
+    // --- KROK 3: Dodajemy sortowanie i paginację ---
     let sort_by_column = match params.sort_by() {
         "price" => "price",
         "created_at" => "created_at",
         "name" | _ => "name",
     };
-    let order_direction = params.order();
-
-    data_builder.push(format!(
+    query_builder.push(format!(
         " ORDER BY {} {}, id ASC",
-        sort_by_column, order_direction
+        sort_by_column,
+        params.order()
     ));
-    data_builder.push(" LIMIT ").push_bind(limit);
-    data_builder.push(" OFFSET ").push_bind(offset);
+    query_builder.push(" LIMIT ").push_bind(limit);
+    query_builder.push(" OFFSET ").push_bind(offset);
 
-    let products = data_builder
-        .build_query_as::<Product>()
+    // --- KROK 4: Wykonujemy zapytanie i mapujemy wyniki ---
+    let products_with_count: Vec<ProductWithTotalCount> = query_builder
+        .build_query_as()
         .fetch_all(&app_state.db_pool)
         .await?;
 
+    let total_items = products_with_count
+        .first()
+        .map_or(0, |row| row.total_count.unwrap_or(0));
+
+    let products: Vec<Product> = products_with_count
+        .into_iter()
+        .map(|p_wc| Product {
+            id: p_wc.id,
+            name: p_wc.name,
+            description: p_wc.description,
+            price: p_wc.price,
+            gender: p_wc.gender,
+            condition: p_wc.condition,
+            category: p_wc.category,
+            status: p_wc.status,
+            images: p_wc.images,
+            on_sale: p_wc.on_sale,
+            created_at: p_wc.created_at,
+            updated_at: p_wc.updated_at,
+        })
+        .collect();
+
+    // --- KROK 5: Obliczamy paginację i zwracamy odpowiedź ---
     let total_pages = if total_items == 0 {
         0
     } else {
