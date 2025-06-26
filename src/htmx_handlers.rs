@@ -403,30 +403,43 @@ pub async fn get_product_detail_htmx_handler(
                                 @if let Some(return_params_str) = query_params.return_params.as_deref().filter(|s| !s.is_empty()) {
                                     @let back_params: ListingParams = serde_qs::from_str(return_params_str).unwrap_or_default();
 
-                                    @let return_url = {
-                                        let gender_slug_part = match back_params.gender {
-                                            Some(ProductGender::Damskie) => "dla-niej",
-                                            Some(ProductGender::Meskie) => "dla-niego",
-                                            None => "dla-niej" // Fallback
-                                        };
-
-                                        if let Some(category) = back_params.category {
-                                            format!("/{}/{}?{}", gender_slug_part, category.as_ref(), return_params_str)
-                                        } else {
-                                            format!("/{}?{}", gender_slug_part, return_params_str)
+                                    // Budujemy URL powrotny na podstawie nowych reguł
+                                    @let (return_url, return_text) = {
+                                        // REGUŁA 1: Sprawdź, czy źródłem są Nowości lub Okazje
+                                        if let Some(source) = &back_params.source {
+                                            match source.as_str() {
+                                                "nowosci" => (format!("/nowosci?{}", return_params_str), "Wróć do Nowości".to_string()),
+                                                "okazje" => (format!("/okazje?{}", return_params_str), "Wróć do Okazji".to_string()),
+                                                _ => (String::new(), String::new()) // Fallback, jeśli source jest inne
+                                            }
+                                        }
+                                        // REGUŁA 2: Jeśli nie, użyj starej logiki opartej na płci i kategorii
+                                        else {
+                                            let gender_slug_part = match back_params.gender {
+                                                Some(ProductGender::Meskie) => "dla-niego",
+                                                _ => "dla-niej",
+                                            };
+                                            if let Some(category) = back_params.category {
+                                                (format!("/{}/{}?{}", gender_slug_part, category.as_ref(), return_params_str), "Wróć do listy".to_string())
+                                            } else {
+                                                (format!("/{}?{}", gender_slug_part, return_params_str), "Wróć do listy".to_string())
+                                            }
                                         }
                                     };
 
-                                    a href=(return_url)
-                                       hx-get=(return_url)
-                                       hx-target="#content"
-                                       hx-swap="innerHTML"
-                                       hx-push-url="true"
-                                       class="inline-flex items-center px-4 py-2 border border-pink-200 rounded-md shadow-sm text-sm font-medium text-pink-700 bg-pink-100 hover:bg-pink-200 hover:border-pink-300 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2" {
-                                        svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2" {
-                                            path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3";
+                                    // Renderuj przycisk, jeśli udało się zbudować URL
+                                    @if !return_url.is_empty() {
+                                        a href=(return_url)
+                                           hx-get=(return_url)
+                                           hx-target="#content"
+                                           hx-swap="innerHTML"
+                                           hx-push-url="true"
+                                           class="inline-flex items-center px-4 py-2 border border-pink-200 rounded-md shadow-sm text-sm font-medium text-pink-700 bg-pink-100 hover:bg-pink-200 hover:border-pink-300 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2" {
+                                            svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2" {
+                                                path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3";
+                                            }
+                                            span { (return_text) }
                                         }
-                                        span { "Wróć do poprzedniego widoku" }
                                     }
                                 }
 
@@ -4912,7 +4925,7 @@ fn get_order_status_badge_classes(status: OrderStatus) -> &'static str {
     }
 }
 
-// NOWA FUNKCJA
+/// Funkcja, która renderuje stronę 'Nowości'
 pub async fn news_page_htmx_handler(
     headers: HeaderMap,
     State(app_state): State<AppState>,
@@ -4940,6 +4953,7 @@ pub async fn news_page_htmx_handler(
         order: Some("desc".to_string()),
         limit: Some(8),
         status: None,
+        source: Some("nowosci".to_string()),
         ..Default::default()
     };
 
@@ -4966,6 +4980,7 @@ pub async fn sale_page_htmx_handler(
         on_sale: Some(true),
         status: Some(ProductStatus::Available.as_ref().to_string()),
         limit: Some(8),
+        source: Some("okazje".to_string()),
         ..Default::default()
     };
 

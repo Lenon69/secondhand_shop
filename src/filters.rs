@@ -60,6 +60,8 @@ pub struct ListingParams {
     pub created_at: Option<DateTime<Utc>>,
     #[serde(default)]
     pub updated_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub source: Option<String>,
 }
 
 #[allow(dead_code)]
@@ -205,6 +207,7 @@ impl ListingParams {
             search: self.search.clone(),
             created_at: self.created_at.clone(),
             updated_at: self.updated_at.clone(),
+            source: self.source.clone(),
         }
     }
 
