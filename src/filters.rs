@@ -188,6 +188,11 @@ impl ListingParams {
                 query_parts.push(format!("search={}", urlencoding::encode(val)));
             }
         }
+        if !skip_params.contains(&"source") {
+            if let Some(val) = &self.source {
+                query_parts.push(format!("source={}", val));
+            }
+        }
         query_parts.join("&")
     }
 
@@ -240,6 +245,9 @@ impl ListingParams {
         }
         if let Some(on_sale_val) = self.on_sale {
             query_parts.push(format!("on-sale={}", on_sale_val));
+        }
+        if let Some(source) = &self.source {
+            query_parts.push(format!("source={}", source));
         }
 
         // Sortowanie: użyj metod, które zwracają domyślne wartości

@@ -81,6 +81,9 @@ fn build_full_query_string_from_params(params: &ListingParams) -> String {
             query_parts.push(format!("search={}", urlencoding::encode(&s)));
         }
     }
+    if let Some(source) = &params.source {
+        query_parts.push(format!("source={}", source));
+    }
     query_parts.push(format!("sort_by={}", params.sort_by()));
     query_parts.push(format!("order={}", params.order()));
     query_parts.join("&")
@@ -110,6 +113,9 @@ fn build_filter_only_query_string(params: &ListingParams) -> String {
         if !s.is_empty() {
             filter_parts.push(format!("search={}", urlencoding::encode(&s)));
         }
+    }
+    if let Some(source) = &params.source {
+        filter_parts.push(format!("source={}", source));
     }
     filter_parts.push(format!("sort_by={}", params.sort_by()));
     filter_parts.push(format!("order={}", params.order()));
@@ -379,25 +385,43 @@ pub async fn get_product_detail_htmx_handler(
                                 "Produkt obecnie niedostępny"
                             }
                         }
-                        // --- Logika linku powrotnego ---
-                        div ."mt-4 text-center sm:text-left" {
-                            // --- GŁÓWNY, PRECYZYJNY LINK POWROTNY ---
-                            // Ten link jest generowany, gdy przechodzimy np. ze szczegółów zamówienia.
-                            @if let (Some(url), Some(text)) = (&query_params.return_url, &query_params.return_text) {
-                                a href=(url.replace("/htmx", ""))
-                                   hx-get=(url)
-                                   hx-target=(query_params.return_target.as_deref().unwrap_or("#content"))
-                                   hx-swap="innerHTML"
-                                   hx-push-url=(url.replace("/htmx", ""))
-                                   class="inline-flex items-center px-4 py-2 border border-pink-200 rounded-md shadow-sm text-sm font-medium text-pink-700 bg-pink-100 hover:bg-pink-200 hover:border-pink-300 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2" {
-                                   svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2" {
-                                   path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3";
-                                   }
-                                   span { (text) }
-                                }
-                            }
-                            // --- FALLBACK (LOGIKA ZASTĘPCZA), GDY NIE MA PRECYZYJNEGO LINKU ---
-                            @else {
+                                            // --- Logika linku powrotnego ---
+                            div ."mt-4 text-center sm:text-left" {
+                                @if let Some(return_params_str) = query_params.return_params.as_deref().filter(|s| !s.is_empty()) {
+                                    @let back_params: ListingParams = serde_qs::from_str(return_params_str).unwrap_or_default();
+
+                                    // Określ ścieżkę bazową dla publicznego URL
+                                    @let (base_path, return_text) = match back_params.source.as_deref() {
+                                        Some("nowosci") => ("/nowosci".to_string(), "Wróć do Nowości".to_string()),
+                                        Some("okazje") => ("/okazje".to_string(), "Wróć do Okazji".to_string()),
+                                        _ => { // Logika zastępcza
+                                            let gender_slug = match back_params.gender {
+                                                Some(ProductGender::Meskie) => "dla-niego",
+                                                _ => "dla-niej",
+                                            };
+                                            let path = if let Some(category) = &back_params.category {
+                                                format!("/{}/{}", gender_slug, category.as_ref())
+                                            } else {
+                                                format!("/{}", gender_slug)
+                                            };
+                                            (path, "Wróć do listy".to_string())
+                                        }
+                                    };
+
+                                    @let return_url_with_params = format!("{}?{}", base_path, return_params_str);
+
+                                    a href=(return_url_with_params)
+                                        hx-get=(return_url_with_params) // Używamy pełnego, publicznego URL
+                                        hx-target="#content"
+                                        hx-swap="innerHTML"
+                                        hx-push-url="true"
+                                       class="inline-flex items-center px-4 py-2 border border-pink-200 rounded-md shadow-sm text-sm font-medium text-pink-700 bg-pink-100 hover:bg-pink-200 hover:border-pink-300 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2" {
+                                       svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2" {
+                                       path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3";
+                                       }
+                                        span { (return_text) }
+                                    }
+                                } @else {
                                 // PRIORYTET 1: Powrót do widoku z zachowanymi filtrami.
                                 // Sprawdzamy, czy `return_params` istnieje i nie jest pustym stringiem.
                                 @if let Some(return_params_str) = query_params.return_params.as_deref().filter(|s| !s.is_empty()) {
@@ -1034,19 +1058,36 @@ pub async fn remove_item_from_cart_htmx_handler(
 
 fn render_product_grid_maud(
     products: &[Product],
-    current_page: i64,
-    total_pages: i64,
-    per_page: i64,
-    filter_query_string: &str,
-    current_listing_params_qs: &str,
+    paginated_response: &PaginatedProductsResponse,
+    params: &ListingParams,
     product_ids_in_cart: &[Uuid],
 ) -> Markup {
+    let current_page = paginated_response.current_page;
+    let total_pages = paginated_response.total_pages;
+    let per_page = paginated_response.per_page;
+    let filter_query_string = build_filter_only_query_string(params);
+    let current_listing_params_qs = build_full_query_string_from_params(params);
+
+    // Określ ścieżkę bazową dla publicznego URL
+    let base_path = match params.source.as_deref() {
+        Some("nowosci") => "/nowosci".to_string(),
+        Some("okazje") => "/okazje".to_string(),
+        _ => {
+            let gender_slug = match params.gender {
+                Some(ProductGender::Meskie) => "dla-niego",
+                _ => "dla-niej",
+            };
+            if let Some(category) = &params.category {
+                format!("/{}/{}", gender_slug, category.as_ref())
+            } else {
+                format!("/{}", gender_slug)
+            }
+        }
+    };
+
     html! {
 
         div #products-grid-container {
-           // Wyświetlaj baner tylko na pierwszej stronie listy produktów
-            @if current_page == 1 {}
-
             div #products-container .grid.grid-cols-1.sm:grid-cols-2.lg:grid-cols-3.xl:grid-cols-4.gap-6 {
                 @if products.is_empty() {
                     p ."col-span-full text-center text-gray-500 py-8" {
@@ -1056,38 +1097,26 @@ fn render_product_grid_maud(
                     @for product in products { // Iterujemy po plasterku
                         div ."border rounded-lg p-4 shadow-lg flex flex-col bg-white" {
                             a  href=(format!("/produkty/{}", product.id))
-                                hx-get=(format!("/produkty/{}?return_params={}", product.id, urlencoding::encode(current_listing_params_qs)))
+                                hx-get=(format!("/produkty/{}?return_params={}", product.id, urlencoding::encode(&current_listing_params_qs)))
                                 hx-target="#content"
                                 hx-swap="innerHTML"
                                 hx-push-url="true"
                                 class="block mb-2 group" {
-
-                                // Sprawdzamy, czy produkt ma jakiekolwiek zdjęcia
                                 @if let Some(image_url) = product.images.get(0) {
-                                    // Jeśli tak, bierzemy pierwsze zdjęcie i tworzymy dla niego URL z transformacjami
-                                    // za pomocą naszej nowej funkcji pomocniczej.
-                                    @let transformed_url = transform_cloudinary_url(
-                                        image_url,
-                                        "w_400,h_400,c_fill,f_auto,q_auto" // Parametry transformacji
-                                    );
-
-                                    img src=(transformed_url)
-                                        alt=(product.name)
-                                        class="w-full h-48 sm:h-56 object-cover rounded-md group-hover:opacity-85 transition-opacity duration-200"
-                                        loading="lazy";
-                                }
-                                // Jeśli produkt nie ma żadnych zdjęć, pokazujemy placeholder.
-                                @else {
+                                    @let transformed_url = transform_cloudinary_url(image_url, "w_400,h_400,c_fill,f_auto,q_auto");
+                                    img src=(transformed_url) alt=(product.name) class="w-full h-48 sm:h-56 object-cover rounded-md group-hover:opacity-85 transition-opacity duration-200" loading="lazy";
+                                } @else {
                                     div ."w-full h-48 sm:h-56 bg-gray-200 rounded-md flex items-center justify-center group-hover:opacity-85 transition-opacity duration-200" {
                                         span ."text-gray-500 text-sm" { "Brak zdjęcia" }
                                     }
+
                                 }
                             }
 
                             div ."flex-grow" {
                                 h2 ."text-lg font-semibold mb-1 text-gray-800 group-hover:text-pink-600 transition-colors duration-200" {
                                     a href=(format!("/produkty/{}", product.id))
-                                       hx-get=(format!("/htmx/produkt/{}?return_params={}", product.id, urlencoding::encode(current_listing_params_qs)))
+                                       hx-get=(format!("/htmx/produkt/{}?return_params={}", product.id, urlencoding::encode(&current_listing_params_qs)))
                                        hx-target="#content" hx-swap="innerHTML"
                                        hx-push-url=(format!("/produkty/{}", product.id)) {
                                         (product.name)
@@ -1111,38 +1140,88 @@ fn render_product_grid_maud(
                 }
             }
 
+            // === SEKCJA PAGINACJI (W PEŁNI POPRAWIONA) ===
             @if total_pages > 1 {
-                div #pagination-controls ."mt-8 flex justify-center items-center space-x-1 sm:space-x-2" {
-                    @if current_page > 1 {
-                        button hx-get=(format!("/htmx/products?offset={}&limit={}{}", (current_page - 2) * per_page, per_page, filter_query_string))
-                               hx-target="#products-grid-container" hx-swap="outerHTML" hx-push-url="true" // Celujemy w kontener siatki + paginacji
-                               class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500" {
-                            "Poprzednia"
-                        }
-                    } @else {
-                        span class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-400 bg-gray-50 cursor-not-allowed" { "Poprzednia" }
-                    }
-                    @for page_num in 1..=total_pages {
-                        @if page_num == current_page {
-                            span class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-white bg-pink-600 z-10" { (page_num) }
-                        } @else if page_num == 1 || page_num == total_pages || (page_num >= current_page - 2 && page_num <= current_page + 2) { // Prostsza logika wyświetlania numerów
-                            button hx-get=(format!("/htmx/products?offset={}&limit={}{}", (page_num - 1) * per_page, per_page, filter_query_string))
-                                   hx-target="#products-grid-container" hx-swap="outerHTML" hx-push-url="true"
+                nav class="mt-8 flex items-center justify-center" aria-label="Paginacja" {
+                    div class="flex items-center space-x-1 sm:space-x-2" {
+
+                        // --- Przycisk "Poprzednia strona" ---
+                        @if current_page > 1 {
+                            @let prev_offset = (current_page - 2) * per_page;
+                            @let get_url = format!("/htmx/products?offset={}&limit={}{}", prev_offset, per_page, filter_query_string);
+                            @let push_url = format!("{}?offset={}&limit={}{}", base_path, prev_offset, per_page, filter_query_string);
+
+                            button type="button"
+                                   hx-get=(get_url)
+                                   hx-push-url=(push_url)
+                                   hx-target="#products-grid-container"
+                                   hx-swap="outerHTML"
+                                   hx-scroll="window:top"
                                    class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500" {
-                                (page_num)
+                                "Poprzednia"
                             }
-                        } @else if page_num == current_page - 3 || page_num == current_page + 3 { // Dla kropek
-                             span class="px-1 sm:px-2 py-2 text-sm text-gray-500" { "..." }
+                        } @else {
+                            // --- Wyłączony przycisk "Poprzednia strona" ---
+                            span class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-400 bg-gray-50 cursor-not-allowed" {
+                                "Poprzednia"
+                            }
                         }
-                    }
-                    @if current_page < total_pages {
-                        button hx-get=(format!("/htmx/products?offset={}&limit={}{}", current_page * per_page, per_page, filter_query_string))
-                               hx-target="#products-grid-container" hx-swap="outerHTML" hx-push-url="true"
-                               class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500" {
-                            "Następna"
+
+                        // --- Numery stron wygenerowane PRZED makrem ---
+                        @let pagination_items = generate_pagination_items(current_page, total_pages, 2); // 2 to "okno" po bokach
+                        @for item in pagination_items {
+                            @match item {
+                                PaginationItem::Page(page_num) => {
+                                    @if page_num == current_page {
+                                        // --- Aktywna (bieżąca) strona ---
+                                        span class="z-10 px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-white bg-pink-600" aria-current="page" {
+                                            (page_num)
+                                        }
+                                    } @else {
+                                        // --- Klikalny numer strony ---
+                                        @let offset = (page_num - 1) * per_page;
+                                        @let get_url = format!("/htmx/products?offset={}&limit={}{}", offset, per_page, filter_query_string);
+                                        @let push_url = format!("{}?offset={}&limit={}{}", base_path, offset, per_page, filter_query_string);
+
+                                        button type="button"
+                                               hx-get=(get_url)
+                                               hx-push-url=(push_url)
+                                               hx-target="#products-grid-container"
+                                               hx-swap="outerHTML"
+                                               hx-scroll="window:top"
+                                               class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500" {
+                                            (page_num)
+                                        }
+                                    }
+                                },
+                                PaginationItem::Dots => {
+                                    // --- Kropki jako separator ---
+                                    span class="px-1 sm:px-2 py-2 text-sm text-gray-500" { "..." }
+                                }
+                            }
                         }
-                    } @else {
-                        span class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-400 bg-gray-50 cursor-not-allowed" { "Następna" }
+
+                        // --- Przycisk "Następna strona" ---
+                        @if current_page < total_pages {
+                            @let next_offset = current_page * per_page;
+                            @let get_url = format!("/htmx/products?offset={}&limit={}{}", next_offset, per_page, filter_query_string);
+                            @let push_url = format!("{}?offset={}&limit={}{}", base_path, next_offset, per_page, filter_query_string);
+
+                            button type="button"
+                                   hx-get=(get_url)
+                                   hx-push-url=(push_url)
+                                   hx-target="#products-grid-container"
+                                   hx-swap="outerHTML"
+                                   hx-scroll="window:top"
+                                   class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500" {
+                                "Następna"
+                            }
+                        } @else {
+                            // --- Wyłączony przycisk "Następna strona" ---
+                            span class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-400 bg-gray-50 cursor-not-allowed" {
+                                "Następna"
+                            }
+                        }
                     }
                 }
             }
@@ -1252,9 +1331,6 @@ pub async fn render_gender_page_content(
         crate::handlers::list_products(State(app_state.clone()), Query(final_params.clone()))
             .await?;
     let paginated_response: PaginatedProductsResponse = paginated_response_axum_json.0;
-    let filter_query_string_for_initial_grid = build_filter_only_query_string(&final_params);
-    let current_listing_params_qs_for_initial_grid =
-        build_full_query_string_from_params(&final_params);
 
     let seo_header_markup = if let Some(category) = &final_params.category {
         let (h1, h2) = get_seo_headers_for_category(category);
@@ -1278,11 +1354,8 @@ pub async fn render_gender_page_content(
             div #main-content-area ."w-full md:w-3/4 lg:w-4/5" {
                 (render_product_grid_maud(
                     &paginated_response.data,
-                    paginated_response.current_page,
-                    paginated_response.total_pages,
-                    paginated_response.per_page,
-                    &filter_query_string_for_initial_grid,
-                    &current_listing_params_qs_for_initial_grid,
+                    &paginated_response,
+                    &final_params,
                     &product_ids_in_cart
                 ))
             }
@@ -1393,11 +1466,9 @@ pub async fn gender_with_category_page_handler(
         ..Default::default()
     };
 
-    let current_listing_params_qs_for_initial_grid =
-        build_full_query_string_from_params(&final_params);
-    let filter_query_string_for_initial_grid = build_filter_only_query_string(&final_params);
     let paginated_response_json =
-        crate::handlers::list_products(State(app_state.clone()), Query(final_params)).await?;
+        crate::handlers::list_products(State(app_state.clone()), Query(final_params.clone()))
+            .await?;
     let paginated_response: PaginatedProductsResponse = paginated_response_json.0;
     let (h1_text, h2_text) = get_seo_headers_for_category(&current_category);
     let seo_header_markup = render_seo_header_maud(h1_text, h2_text);
@@ -1417,11 +1488,8 @@ pub async fn gender_with_category_page_handler(
             section #product-listing-area ."w-full md:w-3/4 lg:w-4/5" {
                 (render_product_grid_maud(
                     &paginated_response.data,
-                    paginated_response.current_page,
-                    paginated_response.total_pages,
-                    paginated_response.per_page,
-                    &filter_query_string_for_initial_grid,
-                    &current_listing_params_qs_for_initial_grid,
+                    &paginated_response,
+                    &final_params,
                     &product_ids_in_cart
                 ))
             }
@@ -4929,6 +4997,7 @@ fn get_order_status_badge_classes(status: OrderStatus) -> &'static str {
 pub async fn news_page_htmx_handler(
     headers: HeaderMap,
     State(app_state): State<AppState>,
+    Query(params): Query<ListingParams>,
     OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
     OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
 ) -> Result<Response, AppError> {
@@ -4948,17 +5017,18 @@ pub async fn news_page_htmx_handler(
         .map(|details| details.items.iter().map(|item| item.product.id).collect())
         .unwrap_or_else(Vec::new);
 
-    let params = ListingParams {
-        sort_by: Some("created_at".to_string()),
-        order: Some("desc".to_string()),
-        limit: Some(8),
-        status: None,
-        source: Some("nowosci".to_string()),
-        ..Default::default()
+    // Łączymy parametry z URL z tymi wymaganymi dla "Nowości"
+    let final_params = ListingParams {
+        sort_by: params.sort_by.or_else(|| Some("created_at".to_string())),
+        order: params.order.or_else(|| Some("desc".to_string())),
+        limit: params.limit.or(Some(8)),
+        offset: params.offset,
+        source: Some("nowosci".to_string()), // Ustawiamy źródło
+        ..params                             // Klonujemy resztę parametrów z URL
     };
 
     let product_grid_markup =
-        render_product_listing_view(app_state, params, product_ids_in_cart).await?;
+        render_product_listing_view(app_state, final_params, product_ids_in_cart).await?;
     let page_content = html! {
         (seo_header_markup)
         (product_grid_markup)
@@ -4972,18 +5042,19 @@ pub async fn news_page_htmx_handler(
 pub async fn sale_page_htmx_handler(
     headers: HeaderMap,
     State(app_state): State<AppState>,
+    Query(params): Query<ListingParams>,
     OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
     OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
 ) -> Result<Response, AppError> {
     tracing::info!("MAUD: Obsługa publicznego URL /okazje");
-    let params = ListingParams {
+    let final_params = ListingParams {
         on_sale: Some(true),
         status: Some(ProductStatus::Available.as_ref().to_string()),
-        limit: Some(8),
-        source: Some("okazje".to_string()),
-        ..Default::default()
+        limit: params.limit.or(Some(8)),
+        offset: params.offset,
+        source: Some("okazje".to_string()), // Ustawiamy źródło
+        ..params                            // Klonujemy resztę
     };
-
     // Definiujemy teksty dla tej strony
     let h1_text = "Wyjątkowe okazje – moda vintage w najlepszych cenach";
     let h2_text = "Upoluj stylowe ubrania i dodatki pre-owned w jeszcze lepszych cenach";
@@ -5000,7 +5071,7 @@ pub async fn sale_page_htmx_handler(
 
     let title = "Okazje - sklep mess - all that vintage";
     let product_grid_markup =
-        render_product_listing_view(app_state, params, product_ids_in_cart).await?;
+        render_product_listing_view(app_state, final_params, product_ids_in_cart).await?;
     let page_content = html! {
         (seo_header_markup)
         (product_grid_markup)
@@ -5018,10 +5089,6 @@ pub async fn render_product_listing_view(
     let paginated_response_axum_json =
         crate::handlers::list_products(State(app_state), Query(params.clone())).await?;
     let paginated_response: PaginatedProductsResponse = paginated_response_axum_json.0;
-
-    let filter_query_string = build_filter_only_query_string(&params);
-    let current_listing_params_qs = build_full_query_string_from_params(&params);
-
     let cart_product_ids_json =
         serde_json::to_string(&product_ids_in_cart).unwrap_or_else(|_| "[]".to_string());
 
@@ -5031,11 +5098,8 @@ pub async fn render_product_listing_view(
         }
         (render_product_grid_maud(
         &paginated_response.data,
-        paginated_response.current_page,
-        paginated_response.total_pages,
-        paginated_response.per_page,
-        &filter_query_string,
-        &current_listing_params_qs,
+        &paginated_response,
+        &params,
         &product_ids_in_cart,
     ))
     ))
