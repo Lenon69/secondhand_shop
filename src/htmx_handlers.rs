@@ -131,12 +131,12 @@ fn build_filter_only_query_string(params: &ListingParams) -> String {
 pub struct DetailViewParams {
     #[serde(default)]
     pub return_params: Option<String>,
-    // #[serde(default)]
-    // pub return_url: Option<String>,
-    // #[serde(default)]
-    // pub return_text: Option<String>,
-    // #[serde(default)]
-    // pub return_target: Option<String>,
+    #[serde(default)]
+    pub return_url: Option<String>,
+    #[serde(default)]
+    pub return_text: Option<String>,
+    #[serde(default)]
+    pub return_target: Option<String>,
 }
 
 fn format_price_maud(price: i64) -> String {
@@ -385,74 +385,46 @@ pub async fn get_product_detail_htmx_handler(
                                 "Produkt obecnie niedostępny"
                             }
                         }
-                                            // --- Logika linku powrotnego ---
-                            div ."mt-4 text-center sm:text-left" {
-                                @if let Some(return_params_str) = query_params.return_params.as_deref().filter(|s| !s.is_empty()) {
-                                    @let back_params: ListingParams = serde_qs::from_str(return_params_str).unwrap_or_default();
 
-                                    // Określ ścieżkę bazową dla publicznego URL
-                                    @let (base_path, return_text) = match back_params.source.as_deref() {
-                                        Some("nowosci") => ("/nowosci".to_string(), "Wróć do Nowości".to_string()),
-                                        Some("okazje") => ("/okazje".to_string(), "Wróć do Okazji".to_string()),
-                                        _ => { // Logika zastępcza
-                                            let gender_slug = match back_params.gender {
-                                                Some(ProductGender::Meskie) => "dla-niego",
-                                                _ => "dla-niej",
-                                            };
-                                            let path = if let Some(category) = &back_params.category {
-                                                format!("/{}/{}", gender_slug, category.as_ref())
-                                            } else {
-                                                format!("/{}", gender_slug)
-                                            };
-                                            (path, "Wróć do listy".to_string())
-                                        }
-                                    };
-
-                                    @let return_url_with_params = format!("{}?{}", base_path, return_params_str);
-
-                                    a href=(return_url_with_params)
-                                        hx-get=(return_url_with_params) // Używamy pełnego, publicznego URL
-                                        hx-target="#content"
-                                        hx-swap="innerHTML"
-                                        hx-push-url="true"
-                                       class="inline-flex items-center px-4 py-2 border border-pink-200 rounded-md shadow-sm text-sm font-medium text-pink-700 bg-pink-100 hover:bg-pink-200 hover:border-pink-300 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2" {
-                                       svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2" {
+                        // --- Logika linku powrotnego (WERSJA OSTATECZNA) ---
+                        div ."mt-4 text-center sm:text-left" {
+                            @if let (Some(url), Some(text)) = (&query_params.return_url, &query_params.return_text) {
+                                // Ta część obsługuje specyficzne powroty, np. ze szczegółów zamówienia
+                                a href=(url.replace("/htmx", ""))
+                                   hx-get=(url)
+                                   hx-target=(query_params.return_target.as_deref().unwrap_or("#content"))
+                                   hx-swap="innerHTML"
+                                   hx-push-url=(url.replace("/htmx", ""))
+                                   class="inline-flex items-center px-4 py-2 border border-pink-200 rounded-md shadow-sm text-sm font-medium text-pink-700 bg-pink-100 hover:bg-pink-200 hover:border-pink-300 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2" {
+                                   svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2" {
                                        path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3";
-                                       }
-                                        span { (return_text) }
-                                    }
-                                } @else {
-                                // PRIORYTET 1: Powrót do widoku z zachowanymi filtrami.
-                                // Sprawdzamy, czy `return_params` istnieje i nie jest pustym stringiem.
+                                   }
+                                   span { (text) }
+                                }
+                            } @else {
+                                // Ta część obsługuje powroty z list produktów
                                 @if let Some(return_params_str) = query_params.return_params.as_deref().filter(|s| !s.is_empty()) {
                                     @let back_params: ListingParams = serde_qs::from_str(return_params_str).unwrap_or_default();
 
-                                    // Budujemy URL powrotny na podstawie nowych reguł
                                     @let (return_url, return_text) = {
-                                        // REGUŁA 1: Sprawdź, czy źródłem są Nowości lub Okazje
                                         if let Some(source) = &back_params.source {
                                             match source.as_str() {
-                                                "nowosci" => (format!("/nowosci?{}", return_params_str), "Wróć do Nowości".to_string()),
-                                                "okazje" => (format!("/okazje?{}", return_params_str), "Wróć do Okazji".to_string()),
-                                                "search" => (format!("/wyszukiwanie?{}", return_params_str), "Wróc do wyników wyszukiwania".to_string()),
-                                                _ => (String::new(), String::new()) // Fallback, jeśli source jest inne
+                                                "home" => (format!("/?{}", return_params_str), "Wróć na stronę główną".to_string()),
+                                                "nowosci" => (format!("/nowosci?{}", return_params_str), "Wróć do Nowości".to_string()),                                              "okazje" => (format!("/okazje?{}", return_params_str), "Wróć do Okazji".to_string()),
+                                                "search" => (format!("/wyszukiwanie?{}", return_params_str), "Wróć do wyników wyszukiwania".to_string()),
+                                                _ => (String::new(), String::new())
                                             }
-                                        }
-                                        // REGUŁA 2: Jeśli nie, użyj starej logiki opartej na płci i kategorii
-                                        else {
-                                            let gender_slug_part = match back_params.gender {
-                                                Some(ProductGender::Meskie) => "dla-niego",
-                                                _ => "dla-niej",
-                                            };
+                                        } else {
+                                            // Logika dla kategorii (jeśli brak `source`)
+                                            let gender_slug = if back_params.gender == Some(ProductGender::Meskie) { "dla-niego" } else { "dla-niej" };
                                             if let Some(category) = back_params.category {
-                                                (format!("/{}/{}?{}", gender_slug_part, category.as_ref(), return_params_str), "Wróć do listy".to_string())
+                                                (format!("/{}/{}?{}", gender_slug, category.as_ref(), return_params_str), "Wróć do listy".to_string())
                                             } else {
-                                                (format!("/{}?{}", gender_slug_part, return_params_str), "Wróć do listy".to_string())
+                                                (format!("/{}?{}", gender_slug, return_params_str), "Wróć do listy".to_string())
                                             }
                                         }
                                     };
 
-                                    // Renderuj przycisk, jeśli udało się zbudować URL
                                     @if !return_url.is_empty() {
                                         a href=(return_url)
                                            hx-get=(return_url)
@@ -466,25 +438,18 @@ pub async fn get_product_detail_htmx_handler(
                                             span { (return_text) }
                                         }
                                     }
-                                }
-
-                                // PRIORYTET 2: Jeśli nie ma filtrów, wróć do ogólnej kategorii płci produktu.
-                                // Ten blok wykona się, jeśli `return_params` to `None` lub `Some("")`.
-                                @else {
+                                } @else {
+                                    // Domyślny przycisk powrotu, jeśli nie ma żadnych parametrów
                                     @let (return_path, return_text) = if product.gender == crate::models::ProductGender::Damskie {
                                         ("/dla-niej", "Damskie")
                                     } else {
                                         ("/dla-niego", "Męskie")
                                     };
                                     a href=(return_path) hx-get=(format!("/htmx{}", return_path)) hx-target="#content" hx-swap="innerHTML" hx-push-url=(return_path)
-                                       // NOWE KLASY TAILWIND DLA STYLU PRZYCISKU
                                        class="inline-flex items-center px-4 py-2 border border-pink-200 rounded-md shadow-sm text-sm font-medium text-pink-700 bg-pink-100 hover:bg-pink-200 hover:border-pink-300 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2" {
-
-                                        // POPRAWIONA IKONA SVG (zgodna z maud)
                                         svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2" {
                                             path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3";
                                         }
-                                        // Tekst przycisku
                                         span { "Wróć do " (return_text) }
                                     }
                                 }
@@ -5684,13 +5649,18 @@ pub async fn live_search_handler(
     let search_params = ListingParams {
         search: Some(search_query),
         limit: Some(5),
+        source: Some("search".to_string()),
         ..Default::default()
     };
 
     // Używamy `list_products`, aby uniknąć duplikacji logiki zapytań do bazy
     let products_response =
-        crate::handlers::list_products(State(app_state), Query(search_params)).await?;
+        crate::handlers::list_products(State(app_state), Query(search_params.clone())).await?;
     let products = products_response.0.data;
+
+    // Przygotowujemy parametry powrotu DLA WSZYSTKICH linków w tej odpowiedzi
+    let return_params_qs = build_full_query_string_from_params(&search_params);
+    let encoded_return_params = urlencoding::encode(&return_params_qs);
 
     Ok(html! {
         @if products.is_empty() {
@@ -5704,7 +5674,7 @@ pub async fn live_search_handler(
                 @for product in products {
                     li {
                         a href=(format!("/produkty/{}", product.id))
-                           hx-get=(format!("/htmx/produkt/{}", product.id))
+                           hx-get=(format!("/htmx/produkt/{}?return_params={}", product.id, encoded_return_params))
                            hx-target="#content"
                            hx-swap="innerHTML"
                            hx-push-url=(format!("/produkty/{}", product.id))
@@ -5785,6 +5755,7 @@ pub async fn search_page_handler(
 pub async fn home_page_handler(
     headers: HeaderMap,
     State(app_state): State<AppState>,
+    Query(params): Query<ListingParams>,
     OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
     OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
 ) -> Result<Response, AppError> {
@@ -5799,12 +5770,16 @@ pub async fn home_page_handler(
         .map(|details| details.items.iter().map(|item| item.product.id).collect())
         .unwrap_or_else(Vec::new);
 
-    // Krok 2: Przygotuj parametry dla początkowej listy produktów na stronie głównej.
-    let home_page_params = ListingParams {
-        limit: Some(8),
-        ..Default::default() // Używamy domyślnych wartości dla reszty (np. brak filtrów)
+    // Przygotowujemy parametry powrotu dla produktów na stronie głównej
+    let final_params = ListingParams {
+        source: Some("home".to_string()),
+        // Zachowujemy `limit` i `offset` z URL, jeśli istnieją.
+        // Jeśli nie, ustawiamy domyślne wartości.
+        limit: params.limit.or(Some(8)),
+        offset: params.offset,
+        // Klonujemy pozostałe możliwe parametry (choć na głownej nie są używane)
+        ..params
     };
-
     // Krok 3: Wyrenderuj zawartość strony (Markup).
     let page_content = html! {
         // Renderujemy sekcję "hero" z nagłówkiem H1 dla SEO i lepszego UX.
@@ -5813,13 +5788,13 @@ pub async fn home_page_handler(
         // Renderujemy siatkę produktów, przekazując pobrany stan koszyka.
         (render_product_listing_view(
             app_state.clone(),
-            home_page_params,
+            final_params,
             product_ids_in_cart,
         ).await?)
     };
 
     // Krok 4: Zdefiniuj tytuł strony.
-    let title = "mess - all that vintage - Sklep Vintage Online";
+    let title = "mess - all that vintage - Twój sklep vintage online";
 
     // Krok 5: Zbuduj i zwróć pełną odpowiedź HTTP za pomocą swojej funkcji pomocniczej.
     let page_builder = PageBuilder::new(&title, page_content, None, None);
