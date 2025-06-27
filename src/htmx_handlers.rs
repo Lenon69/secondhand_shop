@@ -131,12 +131,12 @@ fn build_filter_only_query_string(params: &ListingParams) -> String {
 pub struct DetailViewParams {
     #[serde(default)]
     pub return_params: Option<String>,
-    #[serde(default)]
-    pub return_url: Option<String>,
-    #[serde(default)]
-    pub return_text: Option<String>,
-    #[serde(default)]
-    pub return_target: Option<String>,
+    // #[serde(default)]
+    // pub return_url: Option<String>,
+    // #[serde(default)]
+    // pub return_text: Option<String>,
+    // #[serde(default)]
+    // pub return_target: Option<String>,
 }
 
 fn format_price_maud(price: i64) -> String {
@@ -434,6 +434,7 @@ pub async fn get_product_detail_htmx_handler(
                                             match source.as_str() {
                                                 "nowosci" => (format!("/nowosci?{}", return_params_str), "Wróć do Nowości".to_string()),
                                                 "okazje" => (format!("/okazje?{}", return_params_str), "Wróć do Okazji".to_string()),
+                                                "search" => (format!("/wyszukiwanie?{}", return_params_str), "Wróc do wyników wyszukiwania".to_string()),
                                                 _ => (String::new(), String::new()) // Fallback, jeśli source jest inne
                                             }
                                         }
@@ -5733,7 +5734,7 @@ pub async fn live_search_handler(
 pub async fn search_page_handler(
     headers: HeaderMap,
     State(app_state): State<AppState>,
-    Query(params): Query<ListingParams>, // Pobiera parametry z URL, np. ?search=Biała
+    Query(mut params): Query<ListingParams>, // Pobiera parametry z URL, np. ?search=Biała
     OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
     OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
 ) -> Result<Response, AppError> {
@@ -5742,6 +5743,8 @@ pub async fn search_page_handler(
         "MAUD: Obsługa strony wyszukiwania dla frazy: '{}'",
         search_term
     );
+    // KLUCZOWA ZMIANA: Ustawiamy źródło na "search"
+    params.source = Some("search".to_string());
 
     // Pobieramy stan koszyka, aby przyciski "Dodaj do koszyka" miały poprawny stan
     let mut conn = app_state.db_pool.acquire().await?;
