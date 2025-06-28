@@ -160,7 +160,8 @@
         // --- NOWE WŁAŚCIWOŚCI DO OBSŁUGI GESTU SWIPE ---
         touchStartX: 0,
         touchEndX: 0,
-        swipeThreshold: 100, // Minimalna odległość w pikselach, aby uznać gest za swipe
+        swipeThreshold: 65, // Minimalna odległość w pikselach, aby uznać gest za swipe
+        isSwiping: false,
         
 
         // --- Metody (logika) komponentu ---
@@ -332,42 +333,50 @@
        
         // --- NOWE METODY DO OBSŁUGI GESTU SWIPE ---
 
-        // Wywoływana na początku dotknięcia ekranu
         handleTouchStart(event) {
-            // Zapisujemy pozycję startową dotyku
-            this.touchStartX = event.touches[0].clientX;
+            // Rozpoczynaj gest tylko jeśli na ekranie jest DOKŁADNIE jeden palec
+            if (event.touches.length === 1) {
+                this.isSwiping = true;
+                this.touchStartX = event.touches[0].clientX;
+                // Resetujemy pozycję końcową na starcie gestu
+                this.touchEndX = event.touches[0].clientX; 
+            } else {
+                // Jeśli jest więcej palców, to na pewno nie jest swipe (np. zoom)
+                this.isSwiping = false;
+            }
         },
 
         // Wywoływana podczas przesuwania palcem po ekranie
         handleTouchMove(event) {
-            // Aktualizujemy pozycję końcową dotyku
-            this.touchEndX = event.touches[0].clientX;
+            // Kontynuuj śledzenie tylko jeśli jesteśmy w trakcie prawidłowego swipe'u
+            if (this.isSwiping && event.touches.length === 1) {
+                this.touchEndX = event.touches[0].clientX;
+            } else {
+                // Jeśli użytkownik dodał drugi palec w trakcie, anuluj swipe
+                this.isSwiping = false;
+            }
         },
 
         // Wywoływana po oderwaniu palca od ekranu
         handleTouchEnd() {
-            // Jeśli nie było ruchu w poziomie, zignoruj (to było np. tapnięcie)
-            if (this.touchEndX === 0) return;
-
-            const deltaX = this.touchEndX - this.touchStartX;
-
-            // Sprawdzamy, czy ruch był wystarczająco duży, aby uznać go za swipe
-            if (Math.abs(deltaX) > this.swipeThreshold) {
-                if (deltaX < 0) {
-                    // Przesunięcie w lewo -> następne zdjęcie
-                    console.log('Swipe w lewo - następne zdjęcie');
-                    this.nextImageModal();
-                } else {
-                    // Przesunięcie w prawo -> poprzednie zdjęcie
-                    console.log('Swipe w prawo - poprzednie zdjęcie');
-                    this.prevImageModal();
+            // Zmień zdjęcie tylko jeśli gest był poprawnym swipe'em od początku do końca
+            if (this.isSwiping) {
+                const deltaX = this.touchEndX - this.touchStartX;
+                if (Math.abs(deltaX) > this.swipeThreshold) {
+                    if (deltaX < 0) {
+                        console.log('Swipe w lewo - następne zdjęcie');
+                        this.nextImageModal();
+                    } else {
+                        console.log('Swipe w prawo - poprzednie zdjęcie');
+                        this.prevImageModal();
+                    }
                 }
             }
-
-            // Resetujemy pozycje na potrzeby następnego gestu
+            // Zawsze resetuj stan po zakończeniu gestu
+            this.isSwiping = false;
             this.touchStartX = 0;
             this.touchEndX = 0;
-        },
+        },        
         
         clientSideLogout() {
             console.log('Wykonywanie clientSideLogout.');
