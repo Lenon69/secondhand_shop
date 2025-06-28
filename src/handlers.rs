@@ -996,7 +996,7 @@ pub async fn login_handler(
                 .path("/") // Ciasteczko będzie dostępne na całej stronie
                 .http_only(true) // Ważne: ciasteczko niedostępne dla JavaScript po stronie klienta
                 .secure(true) // Wysyłane tylko przez HTTPS
-                .same_site(SameSite::None) // Dobra ochrona przed atakami CSRF - Lax
+                .same_site(SameSite::Lax) // Dobra ochrona przed atakami CSRF - Lax
                 .max_age(time::Duration::days(365))
                 .build();
 
@@ -2550,7 +2550,7 @@ pub async fn logout_handler() -> Result<(StatusCode, HeaderMap), AppError> {
         .path("/")
         .http_only(true)
         .secure(true)
-        .same_site(SameSite::None)
+        .same_site(SameSite::Lax)
         .max_age(time::Duration::ZERO) // Ustawia Max-Age=0, co każe przeglądarce usunąć ciasteczko
         .finish();
 
