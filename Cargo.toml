@@ -41,6 +41,7 @@ lol_html = "2.4.0"
 aws-lc-rs = "1.13.1"
 serde_qs = { version = "0.15.0", features = ["axum"] }
 time = { version = "0.3.41", features = ["serde"] }
+url = "2.5.4"
 
 
 [profile.release]

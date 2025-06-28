@@ -475,6 +475,7 @@ pub async fn get_product_detail_htmx_handler(
 }
 
 pub async fn get_cart_details_htmx_handler(
+    headers: HeaderMap,
     State(app_state): State<AppState>,
     user_claims_result: Result<TokenClaims, AppError>, // Wynik ekstrakcji JWT (może być błąd, jeśli brak tokenu)
     guest_cart_id_header: Option<TypedHeader<XGuestCartId>>,
@@ -516,7 +517,39 @@ pub async fn get_cart_details_htmx_handler(
                 Some(cart_utils::build_cart_details_response(&cart, &mut conn).await?);
         }
     }
-    // Jeśli ani zalogowany, ani gość z ID, cart_details_response pozostanie None (pusty koszyk)
+
+    // --- NOWA LOGIKA: Budowanie kontekstu powrotu na podstawie nagłówka ---
+    let mut return_params_qs = String::new();
+    if let Some(current_url_header) = headers.get(axum::http::header::HeaderName::from_static(
+        "hx-current-url",
+    )) {
+        if let Ok(current_url_str) = current_url_header.to_str() {
+            // Parsujemy pełny URL, który podesłał HTMX
+            if let Ok(current_url) = url::Url::parse(current_url_str) {
+                let path = current_url.path();
+                let query = current_url.query().unwrap_or("");
+
+                // Tworzymy parametry na podstawie query stringa z bieżącego URL
+                let mut back_params: ListingParams = serde_qs::from_str(query).unwrap_or_default();
+
+                // Uzupełniamy `source` na podstawie ścieżki
+                if path.starts_with("/nowosci") {
+                    back_params.source = Some("nowosci".to_string());
+                } else if path.starts_with("/okazje") {
+                    back_params.source = Some("okazje".to_string());
+                } else if path.starts_with("/wyszukiwanie") {
+                    back_params.source = Some("search".to_string());
+                } else if path == "/" {
+                    back_params.source = Some("home".to_string());
+                }
+
+                // Budujemy kompletny string `return_params`
+                return_params_qs = build_full_query_string_from_params(&back_params);
+            }
+        }
+    }
+    let encoded_return_params = urlencoding::encode(&return_params_qs);
+    // --- KONIEC NOWEJ LOGIKI ---
 
     let items = cart_details_response
         .as_ref()
@@ -555,7 +588,7 @@ pub async fn get_cart_details_htmx_handler(
             li ."flex py-4 px-4 sm:px-0" {
                 // --- Obrazek jako link ---
                 a href=(format!("/produkty/{}", item.product.id)) // Fallback URL
-                   hx-get=(format!("/htmx/produkt/{}", item.product.id)) // Endpoint HTMX
+                   hx-get=(format!("/htmx/produkt/{}?return_params={}", item.product.id, encoded_return_params))
                    hx-target="#content"                                 // Cel podmiany
                    hx-swap="innerHTML"
                    hx-push-url=(format!("/produkty/{}", item.product.id)) // Aktualizacja URL w przeglądarce
@@ -575,7 +608,7 @@ pub async fn get_cart_details_htmx_handler(
                         div ."flex justify-between text-sm font-medium text-gray-800" {
                             h3 ."group" {
                                 a href=(format!("/produkty/{}", item.product.id)) // Fallback URL
-                                   hx-get=(format!("/htmx/produkt/{}", item.product.id))
+                                   hx-get=(format!("/htmx/produkt/{}?return_params={}", item.product.id, encoded_return_params))
                                    hx-target="#content"
                                    hx-swap="innerHTML"
                                    hx-push-url=(format!("/produkty/{}", item.product.id))
