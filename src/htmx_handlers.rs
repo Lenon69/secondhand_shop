@@ -313,7 +313,8 @@ pub async fn get_product_detail_htmx_handler(
                 @if !product.images.is_empty() {
                     div ."aspect-w-4 aspect-h-3 sm:aspect-w-1 sm:aspect-h-1 rounded-lg overflow-hidden border border-gray-200 shadow-sm bg-gray-50 flex items-center justify-center" {
 
-                        img "x-bind:src"="currentMainImage"
+                        img src=(initial_main_image_url)
+                            "x-bind:src"="currentMainImage"
                             alt={"Zdjęcie główne: " (product.name)}
                             loading="lazy"
                             "@click"="$dispatch('open-alpine-modal', { src: currentMainImage, imagesArray: allLargeImages })"
