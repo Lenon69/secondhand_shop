@@ -6263,25 +6263,59 @@ fn transform_cloudinary_url(original_url: &str, transformations: &str) -> String
     }
 }
 
-pub async fn gender_category_page_handler(
+/// Handler, który obsługuje wszystkie strony kategorii:
+/// - /dla-niej
+/// - /dla-niego
+/// - /dla-niej/koszule
+/// - /dla-niego/spodnie
+/// Implementuje cachowanie tylko dla pierwszej strony każdej kategorii.
+/// Handler, który obsługuje wszystkie strony kategorii:
+/// - /dla-niej
+/// - /dla-niego
+/// - /dla-niej/koszule
+/// - /dla-niego/spodnie
+/// Implementuje cachowanie tylko dla pierwszej strony każdej kategorii.
+pub async fn unified_gender_page_handler(
     headers: HeaderMap,
     State(app_state): State<AppState>,
-    Path(path_params): Option<Path<(String, String)>>, // (gender_slug, category_slug)
+    path_params: Option<Path<(String, String)>>,
     Query(params): Query<ListingParams>,
-    OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
-    OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
+    user_claims_opt: OptionalTokenClaims,
+    guest_cart_id_opt: OptionalGuestCartId,
 ) -> Result<Response, AppError> {
-    // ... (logika do parsowania gender_slug i category_slug z `path_params` i `params`)
+    let (gender_slug, category_slug_opt) = match path_params {
+        Some(Path((gender, category))) => (gender, Some(category)),
+        None => ("niej".to_string(), None),
+    };
 
-    // Budowanie dynamicznego klucza cache'u
+    let current_gender = match gender_slug.as_str() {
+        "niej" => ProductGender::Damskie,
+        "dla-niego" => ProductGender::Meskie,
+        _ => return Err(AppError::NotFound),
+    };
+
+    let current_category_opt = match category_slug_opt {
+        Some(slug) => Some(Category::from_str(&slug).map_err(|_| AppError::NotFound)?),
+        None => None,
+    };
+
+    tracing::info!(
+        "MAUD: Renderowanie strony kategorii dla płci: {:?}, kategoria: {:?}",
+        current_gender,
+        current_category_opt
+    );
+
     let page = params.offset.unwrap_or(0) / params.limit.unwrap_or(8) + 1;
     let gender_str = current_gender.as_ref();
-    let category_str = current_category.as_ref().map_or("all", |c| c.as_ref());
-    let cache_key = format!("category_{}_{}_page_{}", gender_str, category_str, page);
-    let title = format!("Produkty dla {}: {} - sklep mess", gender_str, category_str);
+    let category_str = current_category_opt.as_ref().map_or("all", |c| c.as_ref());
+
+    let cache_key = format!("category_{}_{}_page_1", gender_str, category_str);
+    let title = format!(
+        "Produkty dla {}: {} - sklep mess - all that vintage",
+        gender_str, category_str
+    );
 
     if page == 1 {
-        // Cachujemy tylko pierwszą stronę kategorii
         if let Some(cached_html) = app_state.html_cache.get(&cache_key).await {
             tracing::info!("Zwracam stronę kategorii '{}' z cache'u.", cache_key);
             let page_builder = PageBuilder::new(
@@ -6295,11 +6329,59 @@ pub async fn gender_category_page_handler(
     }
 
     tracing::info!(
-        "Generuję stronę kategorii '{}' (brak w cache'u).",
-        cache_key
+        "Generuję stronę kategorii '{}' (strona {}) (brak w cache'u).",
+        cache_key,
+        page
     );
 
-    // ... (cała logika pobierania danych i renderowania `page_content`)
+    let mut conn = app_state.db_pool.acquire().await?;
+
+    // --- KLUCZOWA ZMIANA TUTAJ ---
+    // Odwołujemy się do wewnętrznego pola `.0`, aby przekazać właściwy typ `Option<T>`
+    let cart_details_opt =
+        crate::cart_utils::get_cart_details(&mut conn, user_claims_opt.0, guest_cart_id_opt.0)
+            .await?;
+    // --- KONIEC ZMIANY ---
+
+    let product_ids_in_cart: Vec<Uuid> = cart_details_opt
+        .map(|details| details.items.iter().map(|item| item.product.id).collect())
+        .unwrap_or_else(Vec::new);
+
+    let final_params = ListingParams {
+        gender: Some(current_gender.clone()),
+        category: current_category_opt.clone(),
+        ..params
+    };
+
+    let paginated_response_json =
+        crate::handlers::list_products(State(app_state.clone()), Query(final_params.clone()))
+            .await?;
+    let paginated_response: PaginatedProductsResponse = paginated_response_json.0;
+
+    let seo_header_markup = if let Some(category) = &current_category_opt {
+        let (h1, h2) = get_seo_headers_for_category(category);
+        render_seo_header_maud(h1, h2)
+    } else {
+        html! {}
+    };
+
+    let page_content = html! {
+        div class="mb-6 md:mb-12" {
+            (render_free_shipping_banner_maud())
+        }
+        (seo_header_markup)
+        div ."flex flex-col md:flex-row gap-6" {
+            (render_category_sidebar_maud(&gender_slug, current_category_opt.as_ref()))
+            section #product-listing-area ."w-full md:w-3/4 lg:w-4/5" {
+                (render_product_grid_maud(
+                    &paginated_response.data,
+                    &paginated_response,
+                    &final_params,
+                    &product_ids_in_cart,
+                ))
+            }
+        }
+    };
 
     let page_content_str = page_content.into_string();
 
@@ -6317,4 +6399,172 @@ pub async fn gender_category_page_handler(
         None,
     );
     build_response(headers, page_builder).await
+}
+
+/// "Silnik" do renderowania stron kategorii, z logiką cachowania.
+/// Ta funkcja nie jest handlerem, jest wywoływana przez handlery.
+async fn render_gender_page(
+    headers: HeaderMap,
+    app_state: AppState,
+    params: ListingParams,
+    user_claims_opt: OptionalTokenClaims,
+    guest_cart_id_opt: OptionalGuestCartId,
+    current_gender: ProductGender,
+    current_category_opt: Option<Category>,
+) -> Result<Response, AppError> {
+    let gender_slug = match current_gender {
+        ProductGender::Damskie => "dla-niej",
+        ProductGender::Meskie => "dla-niego",
+    };
+
+    // --- Logika Cachowania ---
+    let page = params.offset.unwrap_or(0) / params.limit.unwrap_or(8) + 1;
+    let gender_str = current_gender.as_ref();
+    let category_str = current_category_opt.as_ref().map_or("all", |c| c.as_ref());
+    let title = format!(
+        "Produkty dla {}: {} - sklep mess - all that vintage",
+        gender_str, category_str
+    );
+
+    // Cachujemy tylko pierwszą stronę, aby nie zapełniać cache'u
+    if page == 1 {
+        let cache_key = format!("category_{}_{}", gender_str, category_str);
+        if let Some(cached_html) = app_state.html_cache.get(&cache_key).await {
+            tracing::info!("Zwracam stronę kategorii '{}' z cache'u.", cache_key);
+            let page_builder = PageBuilder::new(
+                &title,
+                html! { (maud::PreEscaped(cached_html)) },
+                None,
+                None,
+            );
+            return build_response(headers, page_builder).await;
+        }
+    }
+
+    tracing::info!(
+        "Generuję stronę kategorii dla płci: {:?}, kategoria: {:?} (strona {})",
+        current_gender,
+        current_category_opt,
+        page
+    );
+
+    // --- Pobieranie Danych (jeśli nie ma w cache'u) ---
+    let mut conn = app_state.db_pool.acquire().await?;
+    let cart_details_opt =
+        crate::cart_utils::get_cart_details(&mut conn, user_claims_opt.0, guest_cart_id_opt.0)
+            .await?;
+    let product_ids_in_cart: Vec<Uuid> = cart_details_opt
+        .map(|details| details.items.iter().map(|item| item.product.id).collect())
+        .unwrap_or_else(Vec::new);
+
+    let final_params = ListingParams {
+        gender: Some(current_gender.clone()),
+        category: current_category_opt.clone(),
+        ..params
+    };
+
+    let paginated_response_json =
+        crate::handlers::list_products(State(app_state.clone()), Query(final_params.clone()))
+            .await?;
+    let paginated_response: PaginatedProductsResponse = paginated_response_json.0;
+
+    let seo_header_markup = if let Some(category) = &current_category_opt {
+        let (h1, h2) = get_seo_headers_for_category(category);
+        render_seo_header_maud(h1, h2)
+    } else {
+        html! {}
+    };
+
+    // --- Renderowanie Treści ---
+    let page_content = html! {
+        div class="mb-6 md:mb-12" {
+            (render_free_shipping_banner_maud())
+        }
+        (seo_header_markup)
+        div ."flex flex-col md:flex-row gap-6" {
+            (render_category_sidebar_maud(gender_slug, current_category_opt.as_ref()))
+            section #product-listing-area ."w-full md:w-3/4 lg:w-4/5" {
+                (render_product_grid_maud(
+                    &paginated_response.data,
+                    &paginated_response,
+                    &final_params,
+                    &product_ids_in_cart,
+                ))
+            }
+        }
+    };
+
+    let page_content_str = page_content.into_string();
+
+    // --- Zapis do Cache'u (tylko dla pierwszej strony) ---
+    if page == 1 {
+        let cache_key = format!("category_{}_{}", gender_str, category_str);
+        app_state
+            .html_cache
+            .insert(cache_key, page_content_str.clone())
+            .await;
+    }
+
+    let page_builder = PageBuilder::new(
+        &title,
+        html! { (maud::PreEscaped(page_content_str)) },
+        None,
+        None,
+    );
+    build_response(headers, page_builder).await
+}
+
+/// Handler dla tras BEZ kategorii, np. "/dla-niej"
+pub async fn dla_gender_handler(
+    headers: HeaderMap,
+    State(app_state): State<AppState>,
+    Path(gender_slug): Path<String>, // Pobiera 'dla-niej' lub 'dla-niego'
+    Query(params): Query<ListingParams>,
+    user_claims_opt: OptionalTokenClaims,
+    guest_cart_id_opt: OptionalGuestCartId,
+) -> Result<Response, AppError> {
+    let gender = match gender_slug.as_str() {
+        "dla-niej" => ProductGender::Damskie,
+        "dla-niego" => ProductGender::Meskie,
+        _ => return Err(AppError::NotFound),
+    };
+    // Wywołujemy silnik, przekazując `None` jako kategorię
+    render_gender_page(
+        headers,
+        app_state,
+        params,
+        user_claims_opt,
+        guest_cart_id_opt,
+        gender,
+        None,
+    )
+    .await
+}
+
+/// Handler dla tras Z KATEGORIĄ, np. "/dla-niej/koszule"
+pub async fn dla_gender_with_category_handler(
+    headers: HeaderMap,
+    State(app_state): State<AppState>,
+    Path((gender_slug, category_slug)): Path<(String, String)>, // Pobiera oba segmenty
+    Query(params): Query<ListingParams>,
+    user_claims_opt: OptionalTokenClaims,
+    guest_cart_id_opt: OptionalGuestCartId,
+) -> Result<Response, AppError> {
+    let gender = match gender_slug.as_str() {
+        "dla-niej" => ProductGender::Damskie,
+        "dla-niego" => ProductGender::Meskie,
+        _ => return Err(AppError::NotFound),
+    };
+    let category = Category::from_str(&category_slug).map_err(|_| AppError::NotFound)?;
+    // Wywołujemy silnik, przekazując `Some(category)`
+    render_gender_page(
+        headers,
+        app_state,
+        params,
+        user_claims_opt,
+        guest_cart_id_opt,
+        gender,
+        Some(category),
+    )
+    .await
 }

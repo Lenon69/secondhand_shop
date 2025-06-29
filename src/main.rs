@@ -173,12 +173,11 @@ async fn main() {
         .route("/api/session/guest/init", post(init_guest_session_handler))
         // Trasa główna i jej aliasy
         .route("/", get(home_page_handler))
-        .route("/dla-niej", get(dla_niej_handler))
-        .route("/dla-niego", get(dla_niego_handler))
         .route(
             "/dla-{gender_slug}/{category}",
-            get(gender_with_category_page_handler),
+            get(dla_gender_with_category_handler),
         )
+        .route("/{gender_slug}", get(dla_gender_handler))
         .route("/kategoria", get(list_products_htmx_handler))
         .route("/nowosci", get(news_page_htmx_handler))
         .route("/okazje", get(sale_page_htmx_handler))
