@@ -1169,8 +1169,8 @@
       class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-auto"
       @click="closeImageModal()"
       
-      @touchstart="handleTouchStart($event)"
-      @touchmove="handleTouchMove($event)"
+      @touchstart.passive="handleTouchStart($event)"
+      @touchmove.passive="handleTouchMove($event)"
       @touchend="handleTouchEnd()"      
       
       role="dialog"

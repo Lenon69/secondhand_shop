@@ -12,6 +12,7 @@ use sqlx::postgres::PgPoolOptions;
 use std::env;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -103,6 +104,11 @@ async fn main() {
         cloudinary_config,
         resend_api_key,
     };
+
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
 
     // Definicja routingu aplikacji
     let app = Router::new()
@@ -265,6 +271,7 @@ async fn main() {
         .fallback(handler_404)
         .layer(TraceLayer::new_for_http())
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024))
+        .layer(cors)
         .with_state(app_state);
 
     // Adres i port, na którym serwer będzie nasłuchiwał

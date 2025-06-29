@@ -736,7 +736,7 @@ pub async fn add_item_to_cart_htmx_handler(
             .path("/")
             .http_only(true)
             .secure(true)
-            .same_site(SameSite::None)
+            .same_site(SameSite::Lax)
             .max_age(time::Duration::days(365))
             .build();
         headers.insert(

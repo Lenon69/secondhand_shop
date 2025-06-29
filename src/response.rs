@@ -1,5 +1,5 @@
 use axum::body::Body;
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use lol_html::{HtmlRewriter, Settings, element};
 use maud::{Markup, html};
@@ -118,7 +118,7 @@ pub async fn build_response<'a>(
     headers: HeaderMap,
     page_builder: PageBuilder<'a>,
 ) -> Result<Response, AppError> {
-    if headers.contains_key("HX-Request") {
+    let mut response = if headers.contains_key("HX-Request") {
         let oob_title = html! {
             title hx-swap-oob="true" { (page_builder.title) }
         };
@@ -134,11 +134,16 @@ pub async fn build_response<'a>(
                 div id="body-scripts-placeholder" hx-swap-oob="true" { (body_scripts) }
             }
         };
-        Ok(final_markup.into_response())
+        final_markup.into_response()
     } else {
         // POPRAWIONE WYWOŁANIE: Przekazujemy cały obiekt `page_builder`
-        serve_full_page(page_builder).await
-    }
+        serve_full_page(page_builder).await?
+    };
+    response
+        .headers_mut()
+        .insert("Vary", HeaderValue::from_static("HX-Request"));
+
+    Ok(response)
 }
 
 // Nowa struktura do budowania kompleksowych odpowiedzi
