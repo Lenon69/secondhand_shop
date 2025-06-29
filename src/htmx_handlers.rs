@@ -1094,7 +1094,7 @@ fn render_product_grid_maud(
                         "Brak produktów spełniających wybrane kryteria."
                     }
                 } @else {
-                    @for product in products { // Iterujemy po plasterku
+                    @for (index, product) in products.iter().enumerate() { // Iterujemy po plasterku
                         div ."border rounded-lg p-4 shadow-lg flex flex-col bg-white" {
                             a  href=(format!("/produkty/{}", product.id))
                                 hx-get=(format!("/produkty/{}?return_params={}", product.id, urlencoding::encode(&current_listing_params_qs)))
@@ -1104,7 +1104,22 @@ fn render_product_grid_maud(
                                 class="block mb-2 group" {
                                 @if let Some(image_url) = product.images.get(0) {
                                     @let transformed_url = transform_cloudinary_url(image_url, "w_400,h_400,c_fill,f_auto,q_auto");
-                                    img src=(transformed_url) alt=(product.name) class="w-full h-48 sm:h-56 object-cover rounded-md group-hover:opacity-85 transition-opacity duration-200" loading="lazy";
+                                    // Używamy bloku @if/@else, aby wyrenderować jedną z dwóch wersji tagu <img>.
+                                    // Jest to najbardziej czytelne i niezawodne rozwiązanie.
+                                    @if index == 0 {
+                                        // Wersja dla pierwszego obrazka (z wysokim priorytetem)
+                                        img src=(transformed_url)
+                                            fetchpriority="high"
+                                            alt=(product.name)
+                                            class="w-full h-48 sm:h-56 object-cover rounded-md group-hover:opacity-85 transition-opacity duration-200"
+                                            loading="lazy";
+                                    } @else {
+                                        // Wersja dla wszystkich pozostałych obrazków (bez dodatkowego priorytetu)
+                                        img src=(transformed_url)
+                                            alt=(product.name)
+                                            class="w-full h-48 sm:h-56 object-cover rounded-md group-hover:opacity-85 transition-opacity duration-200"
+                                            loading="lazy";
+                                    }
                                 } @else {
                                     div ."w-full h-48 sm:h-56 bg-gray-200 rounded-md flex items-center justify-center group-hover:opacity-85 transition-opacity duration-200" {
                                         span ."text-gray-500 text-sm" { "Brak zdjęcia" }
@@ -3847,7 +3862,7 @@ pub async fn my_order_details_htmx_handler(
 
         let products_db = sqlx::query_as::<_, Product>(
             r#"
-                SELECT id, name, description, price, gender, condition, category, status, images, on_sale, created_at, updated_at
+                SELECT *
                 FROM products
                 WHERE id = ANY($1)
             "#,
