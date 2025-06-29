@@ -27,14 +27,14 @@ document.addEventListener("DOMContentLoaded", function () {
     // if (requestPath.includes("/htmx/live-search")) {
     //   return;
     // }
+    globalSpinner.classList.add("show");
     // Sprawdzamy, czy to żądanie do strony głównej, aby wymusić pełny reload
     const path = event.detail.requestConfig.path;
     if (path === "/" || path === "") {
       event.preventDefault();
       window.location.href = "/";
-      return;
     }
-    globalSpinner.classList.add("show");
+    return;
   });
 
   // Schowaj spinner po każdym zakończonym żądaniu (sukces lub błąd)
@@ -88,10 +88,7 @@ document.addEventListener("DOMContentLoaded", function () {
       console.log(
         `Wykryto nawigację "Wstecz" przez "${sourceEvent}". Wymuszam przeładowanie...`,
       );
-
-      setTimeout(() => {
-        window.location.reload();
-      }, 0);
+      window.location.reload();
     };
 
     window.addEventListener("pageshow", function (event) {
@@ -614,7 +611,7 @@ function restoreScrollPosition() {
       );
       setTimeout(() => {
         window.scrollTo({ top: savedPosition, behavior: "smooth" });
-      }, 150); // 100ms to zazwyczaj bezpieczna wartość
+      }, 225); // 100ms to zazwyczaj bezpieczna wartość
     }
   } catch (e) {
     console.error("Nie udało się przywrócić pozycji przewijania:", e);
