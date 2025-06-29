@@ -7,11 +7,14 @@ use axum::routing::{delete, get, post};
 use axum_server::tls_rustls::RustlsConfig;
 use dotenvy::dotenv;
 use htmx_handlers::*;
+use moka::future::Cache;
 use reqwest::StatusCode;
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Duration;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
@@ -96,6 +99,13 @@ async fn main() {
     // --- Konfiguracja Resend ---
     let resend_api_key = env::var("RESEND_API_KEY").expect("RESEND_API_KEY must be set");
 
+    let html_cache = Arc::new(
+        Cache::builder()
+            .max_capacity(100)
+            .time_to_live(Duration::from_secs(60 * 10))
+            .build(),
+    );
+
     // Definicja AppState
     let app_state = AppState {
         db_pool: pool,
@@ -103,6 +113,7 @@ async fn main() {
         jwt_expiration_hours,
         cloudinary_config,
         resend_api_key,
+        html_cache,
     };
 
     let cors = CorsLayer::new()

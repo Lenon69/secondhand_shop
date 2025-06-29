@@ -1519,8 +1519,10 @@ pub async fn gender_with_category_page_handler(
     build_response(headers, page_builder).await
 }
 
-pub async fn about_us_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
-    let page_content = html! {
+/// Renderuje samą treść (Markup) dla strony "O nas".
+/// Ta funkcja nie zajmuje się cachowaniem ani budowaniem odpowiedzi HTTP.
+fn render_about_us_content() -> Markup {
+    html! {
         div ."max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16" {
             // Baner lub główny nagłówek strony
             div ."text-center mb-12" {
@@ -1588,14 +1590,24 @@ pub async fn about_us_page_handler(headers: HeaderMap) -> Result<Response, AppEr
                 }
             }
         }
-    };
-
-    let title = "O nas - sklep mess - all that vintage";
-    let page_builder = PageBuilder::new(&title, page_content, None, None);
-    build_response(headers, page_builder).await
+    }
 }
 
-pub async fn privacy_policy_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
+pub async fn about_us_page_handler(
+    headers: HeaderMap,
+    State(app_state): State<AppState>,
+) -> Result<Response, AppError> {
+    handle_static_page(
+        headers,
+        app_state,
+        "about_us",
+        "O nas - sklep mess - all that vintage",
+        render_about_us_content, // <-- Przekazujemy funkcję jak zmienną!
+    )
+    .await
+}
+
+fn render_privacy_policy_content() -> Markup {
     let effective_date = "25 maja 2025";
     let shop_name = "mess - all that vintage";
     let shop_url = "www.messvintage.com";
@@ -1711,7 +1723,7 @@ pub async fn privacy_policy_page_handler(headers: HeaderMap) -> Result<Response,
         contact_email_privacy
     );
 
-    let page_content = html! {
+    html! {
         div ."max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16" {
             div ."text-center mb-10" {
                 h1 ."text-3xl sm:text-4xl font-bold tracking-tight text-gray-900" { (heading_main_text) }
@@ -1780,14 +1792,26 @@ pub async fn privacy_policy_page_handler(headers: HeaderMap) -> Result<Response,
                 p { (contact_text_final_paragraph) } // Użycie poprawionego stringa
             }
         }
-    };
-
-    let title = "Polityka prywatności - sklep mess - all that vintage";
-    let page_builder = PageBuilder::new(&title, page_content, None, None);
-    build_response(headers, page_builder).await
+    }
 }
 
-pub async fn terms_of_service_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
+pub async fn privacy_policy_page_handler(
+    headers: HeaderMap,
+    State(app_state): State<AppState>,
+) -> Result<Response, AppError> {
+    let cache_key = "privacy_policy_cache_key";
+    let title = "Polityka prywatności - sklep mess - all that vintage";
+    handle_static_page(
+        headers,
+        app_state,
+        cache_key,
+        title,
+        render_privacy_policy_content,
+    )
+    .await
+}
+
+fn render_terms_of_service() -> Markup {
     let effective_date = "25 maja 2025";
     let shop_name = "mess - all that vintage";
     let shop_url = "www.messvintage.com";
@@ -1992,7 +2016,7 @@ pub async fn terms_of_service_page_handler(headers: HeaderMap) -> Result<Respons
         internetowymi Urzędu Ochrony Konkurencji i Konsumentów: [wstaw odpowiednie linki do UOKiK, platformy ODR itp.].";
     let s8_p5 = format!("Regulamin wchodzi w życie z dniem {}.", effective_date);
 
-    let page_content = html! {
+    html! {
         div ."max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16" {
             div ."text-center mb-10" {
                 h1 ."text-3xl sm:text-4xl font-bold tracking-tight text-gray-900" { (heading_main_text) }
@@ -2109,14 +2133,26 @@ pub async fn terms_of_service_page_handler(headers: HeaderMap) -> Result<Respons
                 }
             }
         }
-    };
-
-    let title = "Regulamin sklepu - sklep mess - all that vintage";
-    let page_builder = PageBuilder::new(&title, page_content, None, None);
-    build_response(headers, page_builder).await
+    }
 }
 
-pub async fn contact_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
+pub async fn terms_of_service_page_handler(
+    headers: HeaderMap,
+    State(app_state): State<AppState>,
+) -> Result<Response, AppError> {
+    let title = "Regulamin sklepu - sklep mess - all that vintage";
+    let cache_key = "terms_of_policy_cache_key";
+    handle_static_page(
+        headers,
+        app_state,
+        cache_key,
+        title,
+        render_terms_of_service,
+    )
+    .await
+}
+
+fn render_contact_page() -> Markup {
     // Dane kontaktowe - UZUPEŁNIJ WŁASNYMI DANYMI!
     let shop_name = "mess - all that vintage";
     let contact_email = "contact@messvintage.com";
@@ -2157,7 +2193,7 @@ pub async fn contact_page_handler(headers: HeaderMap) -> Result<Response, AppErr
     let response_time_text =
         "Staramy się odpowiadać na wszystkie zapytania w ciągu 24 godzin w dni robocze.";
 
-    let page_content = html! {
+    html! {
         div ."max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16" {
             div ."text-center mb-12" {
                 h1 ."text-4xl sm:text-5xl font-bold tracking-tight text-gray-900" { (heading_main_text) }
@@ -2225,11 +2261,15 @@ pub async fn contact_page_handler(headers: HeaderMap) -> Result<Response, AppErr
                 }
             }
         }
-    };
-
+    }
+}
+pub async fn contact_page_handler(
+    headers: HeaderMap,
+    State(app_state): State<AppState>,
+) -> Result<Response, AppError> {
     let title = "Kontakt - sklep mess - all that vintage";
-    let page_builder = PageBuilder::new(&title, page_content, None, None);
-    build_response(headers, page_builder).await
+    let cache_key = "contact_page_cache_key";
+    handle_static_page(headers, app_state, cache_key, title, render_contact_page).await
 }
 
 #[derive(Debug)]
@@ -2238,7 +2278,7 @@ struct FaqItem {
     answer: String,
 }
 
-pub async fn faq_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
+fn render_faq_page() -> Markup {
     let faq_items = vec![
         FaqItem {
             question: "Jakie są dostępne metody płatności?".to_string(),
@@ -2278,7 +2318,7 @@ pub async fn faq_page_handler(headers: HeaderMap) -> Result<Response, AppError> 
         },
     ];
 
-    let page_content = html! {
+    html! {
         div ."max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16" {
             div ."text-center mb-12" {
                 h1 ."text-4xl sm:text-5xl font-bold tracking-tight text-gray-900" { "Najczęściej Zadawane Pytania (FAQ)" }
@@ -2323,14 +2363,19 @@ pub async fn faq_page_handler(headers: HeaderMap) -> Result<Response, AppError> 
                 }
         }
             }
-    };
-
-    let title = "FAQ - Najczęściej zadawane pytania - sklep mess - all that vintage";
-    let page_builder = PageBuilder::new(&title, page_content, None, None);
-    build_response(headers, page_builder).await
+    }
 }
 
-pub async fn shipping_returns_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
+pub async fn faq_page_handler(
+    headers: HeaderMap,
+    State(app_state): State<AppState>,
+) -> Result<Response, AppError> {
+    let title = "FAQ - Najczęściej zadawane pytania - sklep mess - all that vintage";
+    let cache_key = "faq_page_cache_key";
+    handle_static_page(headers, app_state, cache_key, title, render_faq_page).await
+}
+
+fn render_shipping_returns_page() -> Markup {
     let shop_name = "mess - all that vintage";
     let processing_time = "1-2 dni robocze";
     let delivery_time = "1-2 dni robocze";
@@ -2404,7 +2449,7 @@ pub async fn shipping_returns_page_handler(headers: HeaderMap) -> Result<Respons
         reklamacyjnej, Twoich praw oraz naszych obowiązków znajdziesz w §6 naszego Regulaminu Sklepu, dostępnego tutaj: ";
     let complaints_text_part2 = ".";
 
-    let page_content = html! {
+    html! {
             div ."max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16" {
                 div ."text-center mb-12" {
                     h1 ."text-4xl sm:text-5xl font-bold tracking-tight text-gray-900" { (page_title) }
@@ -2499,11 +2544,22 @@ pub async fn shipping_returns_page_handler(headers: HeaderMap) -> Result<Respons
                 }
            }
        }
-    };
-
+    }
+}
+pub async fn shipping_returns_page_handler(
+    headers: HeaderMap,
+    State(app_state): State<AppState>,
+) -> Result<Response, AppError> {
     let title = "Wysyłki i zwroty - sklep mess - all that vintage";
-    let page_builder = PageBuilder::new(&title, page_content, None, None);
-    build_response(headers, page_builder).await
+    let cache_key = "shipping_returns_cache_key";
+    handle_static_page(
+        headers,
+        app_state,
+        cache_key,
+        title,
+        render_shipping_returns_page,
+    )
+    .await
 }
 
 pub async fn my_account_page_handler(
@@ -5008,6 +5064,53 @@ fn get_order_status_badge_classes(status: OrderStatus) -> &'static str {
     }
 }
 
+/// Generyczna funkcja do obsługi stron statycznych z cachowaniem.
+///
+/// # Argumenty
+/// * `app_state` - Stan aplikacji z dostępem do cache'u.
+/// * `cache_key` - Unikalny klucz, pod którym strona będzie zapisana w cache'u.
+/// * `title` - Tytuł strony, który zostanie użyty w tagu <title>.
+/// * `content_generator` - Funkcja (domknięcie), która nie przyjmuje argumentów
+///   i jest odpowiedzialna za wygenerowanie i zwrócenie `Markup` dla danej strony.
+async fn handle_static_page(
+    headers: HeaderMap,
+    app_state: AppState,
+    cache_key: &'static str,
+    title: &'static str,
+    content_generator: impl Fn() -> Markup,
+) -> Result<Response, AppError> {
+    // 1. Sprawdź, czy wersja strony istnieje w cache'u.
+    if let Some(cached_html) = app_state.html_cache.get(cache_key).await {
+        tracing::info!("Zwracam stronę '{}' z cache'u.", cache_key);
+        // Jeśli tak, zbuduj odpowiedź na podstawie danych z cache'u i natychmiast ją zwróć.
+        let page_builder =
+            PageBuilder::new(title, html! { (maud::PreEscaped(cached_html)) }, None, None);
+        return build_response(headers, page_builder).await;
+    }
+
+    // 2. Jeśli strona nie istnieje w cache'u, wygeneruj ją.
+    tracing::info!("Generuję stronę '{}' (brak w cache'u).", cache_key);
+
+    // Wywołaj przekazaną funkcję `content_generator`, aby stworzyć treść HTML.
+    let page_content = content_generator();
+    let page_content_str = page_content.into_string();
+
+    // 3. Zapisz nowo wygenerowaną treść w cache'u na przyszłość.
+    app_state
+        .html_cache
+        .insert(cache_key.to_string(), page_content_str.clone())
+        .await;
+
+    // 4. Zbuduj i zwróć odpowiedź.
+    let page_builder = PageBuilder::new(
+        title,
+        html! { (maud::PreEscaped(page_content_str)) },
+        None,
+        None,
+    );
+    build_response(headers, page_builder).await
+}
+
 /// Funkcja, która renderuje stronę 'Nowości'
 pub async fn news_page_htmx_handler(
     headers: HeaderMap,
@@ -5017,6 +5120,19 @@ pub async fn news_page_htmx_handler(
     OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
 ) -> Result<Response, AppError> {
     tracing::info!("MAUD: Obsługa publicznego URL /nowosci");
+
+    let cache_key = "nowosci_page_html".to_string();
+    if let Some(cached_html) = app_state.html_cache.get(&cache_key).await {
+        tracing::info!("Zwracam stronę 'Nowości' z cache'u.");
+        // Jeśli znaleźliśmy HTML w cache'u, od razu go zwracamy
+        let page_builder = PageBuilder::new(
+            "Nowości - sklep mess - all that vintage",
+            html! { (maud::PreEscaped(cached_html)) },
+            None,
+            None,
+        );
+        return build_response(headers, page_builder).await;
+    }
 
     // Definiujemy teksty dla tej konkretnej strony
     let h1_text = "Nowości w mess - all that vintage – świeże perełki czekają";
@@ -5043,17 +5159,21 @@ pub async fn news_page_htmx_handler(
     };
 
     let product_grid_markup =
-        render_product_listing_view(app_state, final_params, product_ids_in_cart).await?;
+        render_product_listing_view(app_state.clone(), final_params, product_ids_in_cart).await?;
     let page_content = html! {
         (seo_header_markup)
         (product_grid_markup)
     };
+    let page_content_str = page_content.clone().into_string();
+    app_state
+        .html_cache
+        .insert(cache_key, page_content_str)
+        .await;
     let title = "Nowości - sklep mess - all that vintage";
     let page_builder = PageBuilder::new(&title, page_content, None, None);
     build_response(headers, page_builder).await
 }
 
-// NOWA FUNKCJA
 pub async fn sale_page_htmx_handler(
     headers: HeaderMap,
     State(app_state): State<AppState>,
@@ -5075,6 +5195,22 @@ pub async fn sale_page_htmx_handler(
     let h2_text = "Upoluj stylowe ubrania i dodatki pre-owned w jeszcze lepszych cenach";
     let seo_header_markup = render_seo_header_maud(h1_text, h2_text);
 
+    let page = params.offset.unwrap_or(0) / params.limit.unwrap_or(8) + 1;
+    let cache_key = format!("okazje_page_{}", page);
+
+    if page == 1 {
+        if let Some(cached_html) = app_state.html_cache.get(&cache_key).await {
+            tracing::info!("Zwracam stronę 'Okazje' (strona {}) z cache'u.", page);
+            let page_builder = PageBuilder::new(
+                "Okazje - sklep mess - all that vintage",
+                html! { (maud::PreEscaped(cached_html)) },
+                None,
+                None,
+            );
+            return build_response(headers, page_builder).await;
+        }
+    }
+
     // --- NOWA LOGIKA POBIERANIA KOSZYKA ---
     let mut conn = app_state.db_pool.acquire().await?;
     let cart_details_opt =
@@ -5084,14 +5220,28 @@ pub async fn sale_page_htmx_handler(
         .unwrap_or_else(Vec::new);
     // --- KONIEC NOWEJ LOGIKI ---
 
-    let title = "Okazje - sklep mess - all that vintage";
     let product_grid_markup =
-        render_product_listing_view(app_state, final_params, product_ids_in_cart).await?;
+        render_product_listing_view(app_state.clone(), final_params, product_ids_in_cart).await?;
     let page_content = html! {
         (seo_header_markup)
         (product_grid_markup)
     };
-    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    let page_content_str = page_content.into_string();
+
+    if page == 1 {
+        app_state
+            .html_cache
+            .insert(cache_key, page_content_str.clone())
+            .await;
+    }
+
+    let title = "Okazje - sklep mess - all that vintage";
+    let page_builder = PageBuilder::new(
+        title,
+        html! { (maud::PreEscaped(page_content_str)) },
+        None,
+        None,
+    );
     build_response(headers, page_builder).await
 }
 
@@ -6111,4 +6261,60 @@ fn transform_cloudinary_url(original_url: &str, transformations: &str) -> String
         // Jeśli URL nie ma standardowej struktury (fallback), zwracamy go bez zmian.
         original_url.to_string()
     }
+}
+
+pub async fn gender_category_page_handler(
+    headers: HeaderMap,
+    State(app_state): State<AppState>,
+    Path(path_params): Option<Path<(String, String)>>, // (gender_slug, category_slug)
+    Query(params): Query<ListingParams>,
+    OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
+    OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
+) -> Result<Response, AppError> {
+    // ... (logika do parsowania gender_slug i category_slug z `path_params` i `params`)
+
+    // Budowanie dynamicznego klucza cache'u
+    let page = params.offset.unwrap_or(0) / params.limit.unwrap_or(8) + 1;
+    let gender_str = current_gender.as_ref();
+    let category_str = current_category.as_ref().map_or("all", |c| c.as_ref());
+    let cache_key = format!("category_{}_{}_page_{}", gender_str, category_str, page);
+    let title = format!("Produkty dla {}: {} - sklep mess", gender_str, category_str);
+
+    if page == 1 {
+        // Cachujemy tylko pierwszą stronę kategorii
+        if let Some(cached_html) = app_state.html_cache.get(&cache_key).await {
+            tracing::info!("Zwracam stronę kategorii '{}' z cache'u.", cache_key);
+            let page_builder = PageBuilder::new(
+                &title,
+                html! { (maud::PreEscaped(cached_html)) },
+                None,
+                None,
+            );
+            return build_response(headers, page_builder).await;
+        }
+    }
+
+    tracing::info!(
+        "Generuję stronę kategorii '{}' (brak w cache'u).",
+        cache_key
+    );
+
+    // ... (cała logika pobierania danych i renderowania `page_content`)
+
+    let page_content_str = page_content.into_string();
+
+    if page == 1 {
+        app_state
+            .html_cache
+            .insert(cache_key, page_content_str.clone())
+            .await;
+    }
+
+    let page_builder = PageBuilder::new(
+        &title,
+        html! { (maud::PreEscaped(page_content_str)) },
+        None,
+        None,
+    );
+    build_response(headers, page_builder).await
 }
