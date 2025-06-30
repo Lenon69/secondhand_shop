@@ -1308,217 +1308,6 @@ pub async fn list_products_htmx_handler(
     build_response(headers, page_builder).await
 }
 
-pub async fn render_gender_page_content(
-    State(app_state): State<AppState>,
-    gender: ProductGender,
-    Query(params): Query<ListingParams>,
-    OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
-    OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
-) -> Result<Markup, AppError> {
-    let (gender_slug, _mobile_gender_display_name, _desktop_gender_display_name) = match gender {
-        ProductGender::Damskie => ("niej", "dla Niej", "dla Niej"),
-        ProductGender::Meskie => ("niego", "dla Niego", "dla Niego"),
-    };
-    tracing::info!("MAUD: /htmx/dla-{} - ładowanie strony płci", gender_slug);
-
-    // --- NOWA LOGIKA POBIERANIA KOSZYKA ---
-    let mut conn = app_state.db_pool.acquire().await?;
-    let cart_details_opt =
-        crate::cart_utils::get_cart_details(&mut conn, user_claims_opt.clone(), guest_cart_id_opt)
-            .await?;
-    let product_ids_in_cart: Vec<Uuid> = cart_details_opt
-        .map(|details| details.items.iter().map(|item| item.product.id).collect())
-        .unwrap_or_else(Vec::new);
-    let current_category = params.category();
-
-    let final_params = ListingParams {
-        gender: Some(gender),
-        category: params.category,
-        limit: params.limit.or(Some(8)),
-        offset: params.offset,
-        status: params.status,
-        sort_by: params.sort_by,
-        order: params.order,
-        ..Default::default()
-    };
-
-    let paginated_response_axum_json =
-        crate::handlers::list_products(State(app_state.clone()), Query(final_params.clone()))
-            .await?;
-    let paginated_response: PaginatedProductsResponse = paginated_response_axum_json.0;
-
-    let seo_header_markup = if let Some(category) = &final_params.category {
-        let (h1, h2) = get_seo_headers_for_category(category);
-        render_seo_header_maud(h1, h2)
-    } else {
-        html! {}
-    };
-
-    let page_content = html! {
-        div class="mb-4 md:-mt-6" {
-            (render_free_shipping_banner_maud())
-        }
-        (seo_header_markup)
-
-        // Główny kontener z panelem bocznym
-        div ."flex flex-col md:flex-row gap-6" {
-            // --- Panel boczny z kategoriami ---
-            (render_category_sidebar_maud(gender_slug, current_category.as_ref()))
-
-            // --- Główny obszar na listę produktów ---
-            div #main-content-area ."w-full md:w-3/4 lg:w-4/5" {
-                (render_product_grid_maud(
-                    &paginated_response.data,
-                    &paginated_response,
-                    &final_params,
-                    &product_ids_in_cart
-                ))
-            }
-        }
-    };
-
-    Ok(page_content)
-}
-
-// KROK 2: DWA NOWE, PROSTE HANDLERY
-pub async fn dla_niej_handler(
-    State(app_state): State<AppState>,
-    Query(params): Query<ListingParams>,
-    headers: HeaderMap,
-    user_claims_opt: OptionalTokenClaims,
-    guest_cart_id_opt: OptionalGuestCartId,
-) -> Result<Response, AppError> {
-    let page_content = render_gender_page_content(
-        State(app_state),
-        ProductGender::Damskie,
-        Query(params),
-        user_claims_opt,
-        guest_cart_id_opt,
-    )
-    .await?;
-
-    let title = "Produkty dla Niej - sklep mess - all that vintage";
-    let page_builder = PageBuilder::new(&title, page_content, None, None);
-    build_response(headers, page_builder).await
-}
-
-pub async fn dla_niego_handler(
-    State(app_state): State<AppState>,
-    Query(params): Query<ListingParams>,
-    headers: HeaderMap,
-    user_claims_opt: OptionalTokenClaims,
-    guest_cart_id_opt: OptionalGuestCartId,
-) -> Result<Response, AppError> {
-    let page_content = render_gender_page_content(
-        State(app_state),
-        ProductGender::Meskie,
-        Query(params),
-        user_claims_opt,
-        guest_cart_id_opt,
-    )
-    .await?;
-
-    let title = "Produkty dla Niego - sklep mess - all that vintage";
-    let page_builder = PageBuilder::new(&title, page_content, None, None);
-    build_response(headers, page_builder).await
-}
-
-// NOWA FUNKCJA do obsługi widoku płci z wybraną kategorią
-pub async fn gender_with_category_page_handler(
-    headers: HeaderMap,
-    State(app_state): State<AppState>,
-    Path((gender_slug, category_slug)): Path<(String, String)>,
-    Query(params): Query<ListingParams>,
-    OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
-    OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
-) -> Result<Response, AppError> {
-    tracing::info!(
-        "MAUD: /dla-{}/{} - ładowanie strony płci z wybraną kategorią",
-        gender_slug,
-        category_slug
-    );
-
-    let (current_gender, _mobile_gender_display_name, _desktop_gender_display_name) =
-        match gender_slug.as_str() {
-            "niej" => (ProductGender::Damskie, "dla Niej", "dla Niej"),
-            "niego" => (ProductGender::Meskie, "dla Niego", "dla Niego"),
-            _ => return Err(AppError::NotFound),
-        };
-
-    let current_category = Category::from_str(&category_slug).map_err(|_| AppError::NotFound)?;
-    let current_category_string = current_category.clone().to_string();
-
-    // --- NOWA LOGIKA POBIERANIA KOSZYKA ---
-    let mut conn = app_state.db_pool.acquire().await?;
-    let cart_details_opt =
-        crate::cart_utils::get_cart_details(&mut conn, user_claims_opt.clone(), guest_cart_id_opt)
-            .await?;
-    let product_ids_in_cart: Vec<Uuid> = cart_details_opt
-        .map(|details| details.items.iter().map(|item| item.product.id).collect())
-        .unwrap_or_else(Vec::new);
-    // --- KONIEC NOWEJ LOGIKI ---
-
-    // ================================================================
-    // =========== BLOK DO DEBUGOWANIA ======================
-    tracing::info!("--- DEBUGOWANIE SESJI (F5) ---");
-    tracing::info!("Zalogowany użytkownik (Claims): {:?}", user_claims_opt);
-    tracing::info!("Koszyk gościa (Cookie/Header): {:?}", guest_cart_id_opt);
-    // ================================================================
-    tracing::info!(
-        "Ostateczna lista ID produktów w koszyku: {:?}",
-        product_ids_in_cart
-    );
-
-    // Tworzymy parametry do zapytania, ustawiając płeć i kategorię z URL
-    let final_params = ListingParams {
-        gender: Some(current_gender.clone()),
-        category: Some(current_category.clone()),
-        limit: params.limit.or(Some(8)),
-        status: None, // Używamy domyślnego filtra (Available, Reserved)
-        sort_by: params.sort_by,
-        order: params.order,
-        offset: params.offset,
-        ..Default::default()
-    };
-
-    let paginated_response_json =
-        crate::handlers::list_products(State(app_state.clone()), Query(final_params.clone()))
-            .await?;
-    let paginated_response: PaginatedProductsResponse = paginated_response_json.0;
-    let (h1_text, h2_text) = get_seo_headers_for_category(&current_category);
-    let seo_header_markup = render_seo_header_maud(h1_text, h2_text);
-
-    let page_content = html! {
-                div class="mb-6 md:mb-12" {
-            (render_free_shipping_banner_maud())
-        }
-
-        (seo_header_markup)
-
-        div ."flex flex-col md:flex-row gap-6" {
-            // --- Panel boczny z kategoriami ---
-            (render_category_sidebar_maud(&gender_slug, Some(&current_category)))
-
-            // --- Główny obszar na listę produktów ---
-            section #product-listing-area ."w-full md:w-3/4 lg:w-4/5" {
-                (render_product_grid_maud(
-                    &paginated_response.data,
-                    &paginated_response,
-                    &final_params,
-                    &product_ids_in_cart
-                ))
-            }
-        }
-    };
-
-    let title = format!(
-        "Produkty dla {}: {} - sklep mess - all that vintage",
-        gender_slug, &current_category_string
-    );
-    let page_builder = PageBuilder::new(&title, page_content, None, None);
-    build_response(headers, page_builder).await
-}
-
 /// Renderuje samą treść (Markup) dla strony "O nas".
 /// Ta funkcja nie zajmuje się cachowaniem ani budowaniem odpowiedzi HTTP.
 fn render_about_us_content() -> Markup {
@@ -5958,10 +5747,30 @@ pub async fn home_page_handler(
     OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
     OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
 ) -> Result<Response, AppError> {
-    tracing::info!("MAUD: Obsługa żądania strony głównej");
+    // --- 1. Logika cachowania ---
+    let limit = params.limit.unwrap_or(8);
+    let offset = params.offset.unwrap_or(0);
+    let page = offset / limit + 1;
+    let cache_key = format!("home_page_{}", page);
+    let title = "mess - all that vintage - Sklep Vintage Online";
 
-    // Krok 1: Pobierz aktualny stan koszyka (dla zalogowanego użytkownika lub gościa).
-    // To jest kluczowe, aby stan przycisków był poprawny po odświeżeniu strony.
+    // Sprawdzamy cache TYLKO dla pierwszej strony
+    if page == 1 {
+        if let Some(cached_html) = app_state.html_cache.get(&cache_key).await {
+            tracing::info!("Zwracam stronę główną (strona 1) z cache'u.");
+            let page_builder = PageBuilder::new(
+                &title,
+                html! { (maud::PreEscaped(cached_html)) },
+                None,
+                None,
+            );
+            return build_response(headers, page_builder).await;
+        }
+    }
+
+    tracing::info!("Generuję stronę główną (strona {}) (brak w cache'u).", page);
+
+    // --- 2. Pobieranie danych (jeśli nie ma w cache'u lub to inna strona niż pierwsza) ---
     let mut conn = app_state.db_pool.acquire().await?;
     let cart_details_opt =
         crate::cart_utils::get_cart_details(&mut conn, user_claims_opt, guest_cart_id_opt).await?;
@@ -5969,34 +5778,41 @@ pub async fn home_page_handler(
         .map(|details| details.items.iter().map(|item| item.product.id).collect())
         .unwrap_or_else(Vec::new);
 
-    // Przygotowujemy parametry powrotu dla produktów na stronie głównej
     let final_params = ListingParams {
+        limit: Some(limit),
+        offset: Some(offset),
         source: Some("home".to_string()),
-        // Zachowujemy `limit` i `offset` z URL, jeśli istnieją.
-        // Jeśli nie, ustawiamy domyślne wartości.
-        limit: params.limit.or(Some(8)),
-        offset: params.offset,
-        // Klonujemy pozostałe możliwe parametry (choć na głownej nie są używane)
         ..params
     };
-    // Krok 3: Wyrenderuj zawartość strony (Markup).
-    let page_content = html! {
-        // Renderujemy sekcję "hero" z nagłówkiem H1 dla SEO i lepszego UX.
-        (render_home_page_hero())
 
-        // Renderujemy siatkę produktów, przekazując pobrany stan koszyka.
-        (render_product_listing_view(
-            app_state.clone(),
-            final_params,
-            product_ids_in_cart,
-        ).await?)
+    // --- 3. Renderowanie treści ---
+    // Używamy istniejącej, reużywalnej funkcji do renderowania siatki produktów
+    let product_listing_view =
+        render_product_listing_view(app_state.clone(), final_params, product_ids_in_cart).await?;
+
+    let page_content = html! {
+        (render_home_page_hero())
+        (product_listing_view)
     };
 
-    // Krok 4: Zdefiniuj tytuł strony.
-    let title = "mess - all that vintage - Twój sklep vintage online";
+    let page_content_str = page_content.into_string();
 
-    // Krok 5: Zbuduj i zwróć pełną odpowiedź HTTP za pomocą swojej funkcji pomocniczej.
-    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    // --- 4. Zapis do cache'u (tylko dla pierwszej strony) ---
+    if page == 1 {
+        tracing::info!("Zapisuję stronę główną (strona 1) do cache'u.");
+        app_state
+            .html_cache
+            .insert(cache_key, page_content_str.clone())
+            .await;
+    }
+
+    // --- 5. Zbudowanie i zwrócenie odpowiedzi ---
+    let page_builder = PageBuilder::new(
+        &title,
+        html! { (maud::PreEscaped(page_content_str)) },
+        None,
+        None,
+    );
     build_response(headers, page_builder).await
 }
 
@@ -6263,11 +6079,6 @@ fn transform_cloudinary_url(original_url: &str, transformations: &str) -> String
     }
 }
 
-/// Handler, który obsługuje wszystkie strony kategorii:
-/// - /dla-niej
-/// - /dla-niego
-/// - /dla-niej/koszule
-/// - /dla-niego/spodnie
 /// Implementuje cachowanie tylko dla pierwszej strony każdej kategorii.
 /// Handler, który obsługuje wszystkie strony kategorii:
 /// - /dla-niej
@@ -6275,132 +6086,6 @@ fn transform_cloudinary_url(original_url: &str, transformations: &str) -> String
 /// - /dla-niej/koszule
 /// - /dla-niego/spodnie
 /// Implementuje cachowanie tylko dla pierwszej strony każdej kategorii.
-pub async fn unified_gender_page_handler(
-    headers: HeaderMap,
-    State(app_state): State<AppState>,
-    path_params: Option<Path<(String, String)>>,
-    Query(params): Query<ListingParams>,
-    user_claims_opt: OptionalTokenClaims,
-    guest_cart_id_opt: OptionalGuestCartId,
-) -> Result<Response, AppError> {
-    let (gender_slug, category_slug_opt) = match path_params {
-        Some(Path((gender, category))) => (gender, Some(category)),
-        None => ("niej".to_string(), None),
-    };
-
-    let current_gender = match gender_slug.as_str() {
-        "niej" => ProductGender::Damskie,
-        "dla-niego" => ProductGender::Meskie,
-        _ => return Err(AppError::NotFound),
-    };
-
-    let current_category_opt = match category_slug_opt {
-        Some(slug) => Some(Category::from_str(&slug).map_err(|_| AppError::NotFound)?),
-        None => None,
-    };
-
-    tracing::info!(
-        "MAUD: Renderowanie strony kategorii dla płci: {:?}, kategoria: {:?}",
-        current_gender,
-        current_category_opt
-    );
-
-    let page = params.offset.unwrap_or(0) / params.limit.unwrap_or(8) + 1;
-    let gender_str = current_gender.as_ref();
-    let category_str = current_category_opt.as_ref().map_or("all", |c| c.as_ref());
-
-    let cache_key = format!("category_{}_{}_page_1", gender_str, category_str);
-    let title = format!(
-        "Produkty dla {}: {} - sklep mess - all that vintage",
-        gender_str, category_str
-    );
-
-    if page == 1 {
-        if let Some(cached_html) = app_state.html_cache.get(&cache_key).await {
-            tracing::info!("Zwracam stronę kategorii '{}' z cache'u.", cache_key);
-            let page_builder = PageBuilder::new(
-                &title,
-                html! { (maud::PreEscaped(cached_html)) },
-                None,
-                None,
-            );
-            return build_response(headers, page_builder).await;
-        }
-    }
-
-    tracing::info!(
-        "Generuję stronę kategorii '{}' (strona {}) (brak w cache'u).",
-        cache_key,
-        page
-    );
-
-    let mut conn = app_state.db_pool.acquire().await?;
-
-    // --- KLUCZOWA ZMIANA TUTAJ ---
-    // Odwołujemy się do wewnętrznego pola `.0`, aby przekazać właściwy typ `Option<T>`
-    let cart_details_opt =
-        crate::cart_utils::get_cart_details(&mut conn, user_claims_opt.0, guest_cart_id_opt.0)
-            .await?;
-    // --- KONIEC ZMIANY ---
-
-    let product_ids_in_cart: Vec<Uuid> = cart_details_opt
-        .map(|details| details.items.iter().map(|item| item.product.id).collect())
-        .unwrap_or_else(Vec::new);
-
-    let final_params = ListingParams {
-        gender: Some(current_gender.clone()),
-        category: current_category_opt.clone(),
-        ..params
-    };
-
-    let paginated_response_json =
-        crate::handlers::list_products(State(app_state.clone()), Query(final_params.clone()))
-            .await?;
-    let paginated_response: PaginatedProductsResponse = paginated_response_json.0;
-
-    let seo_header_markup = if let Some(category) = &current_category_opt {
-        let (h1, h2) = get_seo_headers_for_category(category);
-        render_seo_header_maud(h1, h2)
-    } else {
-        html! {}
-    };
-
-    let page_content = html! {
-        div class="mb-6 md:mb-12" {
-            (render_free_shipping_banner_maud())
-        }
-        (seo_header_markup)
-        div ."flex flex-col md:flex-row gap-6" {
-            (render_category_sidebar_maud(&gender_slug, current_category_opt.as_ref()))
-            section #product-listing-area ."w-full md:w-3/4 lg:w-4/5" {
-                (render_product_grid_maud(
-                    &paginated_response.data,
-                    &paginated_response,
-                    &final_params,
-                    &product_ids_in_cart,
-                ))
-            }
-        }
-    };
-
-    let page_content_str = page_content.into_string();
-
-    if page == 1 {
-        app_state
-            .html_cache
-            .insert(cache_key, page_content_str.clone())
-            .await;
-    }
-
-    let page_builder = PageBuilder::new(
-        &title,
-        html! { (maud::PreEscaped(page_content_str)) },
-        None,
-        None,
-    );
-    build_response(headers, page_builder).await
-}
-
 /// "Silnik" do renderowania stron kategorii, z logiką cachowania.
 /// Ta funkcja nie jest handlerem, jest wywoływana przez handlery.
 async fn render_gender_page(

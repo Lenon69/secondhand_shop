@@ -174,7 +174,7 @@ async fn main() {
         // Trasa główna i jej aliasy
         .route("/", get(home_page_handler))
         .route(
-            "/dla-{gender_slug}/{category}",
+            "/{gender_slug}/{category}",
             get(dla_gender_with_category_handler),
         )
         .route("/{gender_slug}", get(dla_gender_handler))
