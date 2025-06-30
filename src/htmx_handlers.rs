@@ -6019,9 +6019,11 @@ fn render_category_sidebar_maud(
                         // --- Link "Wszystkie" ---
                         li {
                             @let all_classes = if current_category.is_none() { active_class } else { inactive_class };
-                            a href=(format!("/dla-{}", gender_slug))
-                                hx-get=(format!("/dla-{}", gender_slug))
-                                hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+                            a href=(format!("/{}", gender_slug))
+                                hx-get=(format!("/{}", gender_slug))
+                                hx-target="#content"
+                                hx-swap="innerHTML"
+                                hx-push-url="true"
                                 class=(all_classes)
                                 "@click"="isCategorySidebarOpen = false" {
                                 { "Wszystkie" }
@@ -6033,9 +6035,11 @@ fn render_category_sidebar_maud(
                             li {
                                 @let category_classes = if current_category == Some(category_item) { active_class } else { inactive_class };
                                 @let category_param = category_item.as_ref();
-                                a href=(format!("/dla-{}/{}", gender_slug, category_param))
-                                    hx-get=(format!("/dla-{}/{}", gender_slug, category_param))
-                                    hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+                                a href=(format!("/{}/{}", gender_slug, category_param))
+                                    hx-get=(format!("/{}/{}", gender_slug, category_param))
+                                    hx-target="#content"
+                                    hx-swap="innerHTML"
+                                    hx-push-url="true"
                                     class=(category_classes)
                                     "@click"="isCategorySidebarOpen = false" {
                                     { (category_item.to_string()) }
