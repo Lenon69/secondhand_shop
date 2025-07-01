@@ -5000,11 +5000,28 @@ pub async fn render_product_listing_view(
     product_ids_in_cart: Vec<Uuid>,
 ) -> Result<Markup, AppError> {
     tracing::info!("MAUD: /htmx/products z parametrami: {:?}", params);
+
+    // --- NOWA LOGIKA CACHE'OWANIA FRAGMENTU ---
+    // Klucz zależy tylko od parametrów listy, stan koszyka jest przekazywany z zewnątrz.
+    let cache_key = format!("product_grid:{}", params.to_query_string());
+
+    // if let Some(cached_html) = app_state.dynamic_html_cache.get(&cache_key).await {
+    tracing::info!("Cache HIT dla fragmentu siatki produktów: {}", cache_key);
+    // Musimy "ręcznie" wstawić aktualny stan koszyka do cachowanego HTML.
+    // To jest kompromis, ale nadal bardzo wydajny. Można to zrobić prostą zamianą stringa.
+    // LUB (prościej) renderować przyciski po stronie klienta, co już próbowaliśmy.
+    // Zostawmy na razie renderowanie na serwerze, ale bądźmy świadomi tego kompromisu.
+    // W tej sytuacji, dla uproszczenia, możemy zdecydować się nie cachować tego fragmentu.
+    // Poniżej pokażę jednak inną, lepszą strategię.
+    // }
+
     let paginated_response_axum_json =
         crate::handlers::list_products(State(app_state), Query(params.clone())).await?;
     let paginated_response: PaginatedProductsResponse = paginated_response_axum_json.0;
     let cart_product_ids_json =
         serde_json::to_string(&product_ids_in_cart).unwrap_or_else(|_| "[]".to_string());
+
+    // app_state.dynamic_html_cache.insert(cache_key);
 
     Ok(html!(
         script #cart-state-data type="application/json" {

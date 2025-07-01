@@ -1,8 +1,8 @@
 // src/pagination.rs
 use crate::models::Product;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PaginatedProductsResponse {
     pub total_items: i64,
     pub total_pages: i64,

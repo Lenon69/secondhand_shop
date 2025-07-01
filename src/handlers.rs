@@ -96,6 +96,17 @@ pub async fn list_products(
         params
     );
 
+    // --- NOWA LOGIKA CACHE'OWANIA DANYCH ---
+    let cache_key = format!("product_list_data:{}", params.to_query_string());
+    if let Some(cached_data_json) = app_state.dynamic_html_cache.get(&cache_key).await {
+        if let Ok(response) = serde_json::from_str(&cached_data_json) {
+            tracing::info!("Cache HIT dla danych listy produktów: {}", cache_key);
+            return Ok(Json(response));
+        }
+    }
+
+    tracing::info!("Cache MISS dla danych listy produktów: {}", cache_key);
+
     let limit = params.limit();
     let offset = params.offset();
 
@@ -218,6 +229,13 @@ pub async fn list_products(
         per_page: limit,
         data: products,
     };
+
+    if let Ok(response_json) = serde_json::to_string(&response) {
+        app_state
+            .dynamic_html_cache
+            .insert(cache_key, response_json)
+            .await;
+    }
 
     Ok(Json(response))
 }
