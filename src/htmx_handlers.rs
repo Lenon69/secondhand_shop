@@ -4910,41 +4910,9 @@ pub async fn news_page_htmx_handler(
     OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
 ) -> Result<Response, AppError> {
     tracing::info!("MAUD: Obsługa publicznego URL /nowosci");
-    let title = "Nowości - sklep mess - all that vintage";
-
-    // --- LOGIKA KLUCZA CACHE DLA TREŚCI DYNAMICZNEJ ---
-    let path = headers
-        .get("x-original-uri")
-        .map_or("/nowosci", |v| v.to_str().unwrap_or("/nowosci"));
-    let session_identifier = user_claims_opt.as_ref().map_or_else(
-        || guest_cart_id_opt.map_or("guest".to_string(), |id| id.to_string()),
-        |claims| claims.sub.to_string(),
-    );
-    let cache_key = format!(
-        "list:{}:{}:{}",
-        path,
-        params.to_query_string(),
-        session_identifier
-    );
-
-    // Sprawdź cache dynamiczny
-    if let Some(cached_html) = app_state.dynamic_html_cache.get(&cache_key).await {
-        tracing::info!(
-            "Zwracam listę produktów '{}' z cache'u dynamicznego.",
-            cache_key
-        );
-        let page_builder =
-            PageBuilder::new(title, html! { (maud::PreEscaped(cached_html)) }, None, None);
-        return build_response(headers, page_builder).await;
-    }
-
-    // --- Generowanie widoku, jeśli nie ma w cache'u ---
-    tracing::info!(
-        "Generuję listę produktów '{}' (brak w cache'u dynamicznym).",
-        cache_key
-    );
 
     // Definiujemy teksty dla tej konkretnej strony
+    let title = "Nowości - sklep mess - all that vintage";
     let h1_text = "Nowości w mess - all that vintage – świeże perełki czekają";
     let h2_text =
         "Sprawdź najnowsze dodatki i ubrania vintage, które właśnie trafiły do naszej kolekcji";
@@ -4975,12 +4943,6 @@ pub async fn news_page_htmx_handler(
         (product_grid_markup)
     };
     let page_builder = PageBuilder::new(&title, page_content.clone(), None, None);
-    let page_content_str = page_content.into_string();
-    app_state
-        .dynamic_html_cache
-        .insert(cache_key, page_content_str)
-        .await;
-
     build_response(headers, page_builder).await
 }
 
