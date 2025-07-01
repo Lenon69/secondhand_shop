@@ -1,10 +1,12 @@
-use axum::body::Body;
+use axum::body::{Body, Bytes};
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use lol_html::{HtmlRewriter, Settings, element};
 use maud::{Markup, html};
+use reqwest::header;
+use sha1::Digest;
+use sha1::Sha1;
 use tokio::fs;
-use tokio_util::bytes::Bytes;
 
 use crate::errors::AppError;
 
@@ -26,7 +28,8 @@ use crate::errors::AppError;
 /// Asynchronicznie wczytuje i modyfikuje szablon HTML.
 /// Wstawia dynamiczną treść i usuwa atrybuty HTMX inicjujące ładowanie,
 /// aby zapobiec konfliktom przy renderowaniu po stronie serwera.
-pub async fn serve_full_page<'a>(page_builder: PageBuilder<'a>) -> Result<Response, AppError> {
+// Zmieniamy zwracany typ na `Result<Vec<u8>, AppError>`
+pub async fn serve_full_page(page_builder: PageBuilder<'_>) -> Result<Vec<u8>, AppError> {
     let shell_content = match fs::read("static/index.html").await {
         Ok(bytes) => Bytes::from(bytes),
         Err(e) => {
@@ -37,7 +40,6 @@ pub async fn serve_full_page<'a>(page_builder: PageBuilder<'a>) -> Result<Respon
         }
     };
 
-    // KROK 1: Dekonstrukcja PageBuilder. Teraz mamy bezpośrednią własność nad każdą częścią.
     let PageBuilder {
         title,
         main_content,
@@ -45,30 +47,24 @@ pub async fn serve_full_page<'a>(page_builder: PageBuilder<'a>) -> Result<Respon
         body_scripts,
     } = page_builder;
 
-    // KROK 2: Konwertujemy Markup na String *jeden raz*, przed utworzeniem domknięć.
-    // .into_string() zużywa `main_content`, co jest w porządku, bo już go nie potrzebujemy.
     let content_string = main_content.into_string();
-
     let mut response_body = Vec::new();
+
     let mut element_handlers = vec![
-        // KROK 3: Używamy `move`, aby domknięcie przejęło własność nad `content_string`.
         element!("#content", move |el| {
-            // ZNIKA .clone()! Przekazujemy referencję do stringa, który jest teraz własnością domknięcia.
             el.set_inner_content(&content_string, lol_html::html_content::ContentType::Html);
             el.remove_attribute("hx-trigger");
             el.remove_attribute("hx-get");
             Ok(())
         }),
         element!("head > title", |el| {
-            // `title` to `&'a str`, który jest `Copy`, więc można go używać bez `move`.
             el.set_inner_content(title, lol_html::html_content::ContentType::Text);
             Ok(())
         }),
     ];
 
-    // Ta sama optymalizacja dla skryptów
     if let Some(scripts) = head_scripts {
-        let scripts_string = scripts.into_string(); // Konwersja bez klonowania
+        let scripts_string = scripts.into_string();
         element_handlers.push(element!("#head-scripts-placeholder", move |el| {
             el.replace(&scripts_string, lol_html::html_content::ContentType::Html);
             Ok(())
@@ -76,7 +72,7 @@ pub async fn serve_full_page<'a>(page_builder: PageBuilder<'a>) -> Result<Respon
     }
 
     if let Some(scripts) = body_scripts {
-        let scripts_string = scripts.into_string(); // Konwersja bez klonowania
+        let scripts_string = scripts.into_string();
         element_handlers.push(element!("#body-scripts-placeholder", move |el| {
             el.replace(&scripts_string, lol_html::html_content::ContentType::Html);
             Ok(())
@@ -104,44 +100,58 @@ pub async fn serve_full_page<'a>(page_builder: PageBuilder<'a>) -> Result<Respon
         ));
     }
 
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "text/html; charset=utf-8")
-        .body(Body::from(response_body))
-        .map_err(|e| {
-            tracing::error!("Nie udało się zbudować odpowiedzi HTTP: {}", e);
-            AppError::InternalServerError("Błąd serwera podczas tworzenia odpowiedzi".to_string())
-        })
+    // Zamiast budować `Response`, zwracamy gotowy `Vec<u8>`
+    Ok(response_body)
 }
 
 pub async fn build_response<'a>(
     headers: HeaderMap,
     page_builder: PageBuilder<'a>,
 ) -> Result<Response, AppError> {
-    let mut response = if headers.contains_key("HX-Request") {
+    let body_bytes: Vec<u8>;
+    let mut is_full_page_request = false;
+
+    if headers.contains_key("HX-Request") {
         let oob_title = html! {
             title hx-swap-oob="true" { (page_builder.title) }
         };
-
         let final_markup = html! {
             (page_builder.main_content)
             (oob_title)
-
-            @if let Some(head_scripts) = page_builder.head_scripts {
-                div id="head-scripts-placeholder" hx-swap-oob="true" { (head_scripts) }
-            }
-            @if let Some(body_scripts) = page_builder.body_scripts {
-                div id="body-scripts-placeholder" hx-swap-oob="true" { (body_scripts) }
-            }
         };
-        final_markup.into_response()
+        // <<< POPRAWKA 2: Konwertujemy markup do stringa, a potem na bajty
+        body_bytes = final_markup.into_string().into_bytes();
     } else {
-        // POPRAWIONE WYWOŁANIE: Przekazujemy cały obiekt `page_builder`
-        serve_full_page(page_builder).await?
-    };
-    response
-        .headers_mut()
-        .insert("Vary", HeaderValue::from_static("HX-Request"));
+        // <<< POPRAWKA 3: `serve_full_page` zwraca `Vec<u8>`, więc `body_bytes` jest poprawnego typu
+        body_bytes = serve_full_page(page_builder).await?;
+        is_full_page_request = true;
+    }
+
+    // Obliczamy ETag
+    let mut hasher = Sha1::new(); // Teraz to działa, bo `Digest` jest w zasięgu
+    hasher.update(&body_bytes);
+    let etag = format!("\"{}\"", hex::encode(hasher.finalize()));
+
+    // Sprawdzamy ETag z nagłówka
+    if let Some(if_none_match) = headers.get(header::IF_NONE_MATCH) {
+        if if_none_match.to_str().unwrap_or_default() == etag {
+            tracing::info!("ETag match! Zwracam 304 Not Modified.");
+            return Ok(StatusCode::NOT_MODIFIED.into_response());
+        }
+    }
+
+    // Budujemy pełną odpowiedź 200 OK
+    tracing::info!("ETag mismatch or first request. Zwracam 200 OK z nową treścią.");
+    let mut response_builder = Response::builder()
+        .status(StatusCode::OK)
+        .header(header::ETAG, HeaderValue::from_str(&etag).unwrap())
+        .header("Vary", HeaderValue::from_static("HX-Request, ETag"));
+
+    if is_full_page_request {
+        response_builder = response_builder.header("Content-Type", "text/html; charset=utf-8");
+    }
+
+    let response = response_builder.body(Body::from(body_bytes)).unwrap();
 
     Ok(response)
 }
