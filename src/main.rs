@@ -2,14 +2,13 @@
 
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
-use axum::http::HeaderValue;
 use axum::response::Html;
 use axum::routing::{delete, get, post};
 use axum_server::tls_rustls::RustlsConfig;
 use dotenvy::dotenv;
 use htmx_handlers::*;
 use moka::future::Cache;
-use reqwest::{StatusCode, header};
+use reqwest::StatusCode;
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 use std::net::SocketAddr;

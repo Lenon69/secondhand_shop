@@ -2529,6 +2529,7 @@ dependencies = [
  "dotenvy",
  "futures",
  "hex",
+ "hyper",
  "jsonwebtoken",
  "lol_html",
  "maud",
