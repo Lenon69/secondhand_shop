@@ -1102,33 +1102,27 @@ fn render_product_grid_maud(
                                 hx-target="#content"
                                 hx-swap="innerHTML"
                                 hx-push-url="true"
-                                class="block mb-2 group" {
-                                @if let Some(image_url) = product.images.get(0) {
-                                    @let transformed_url = transform_cloudinary_url(image_url, "w_400,h_400,c_fill,f_auto,q_auto");
-                                    // Używamy bloku @if/@else, aby wyrenderować jedną z dwóch wersji tagu <img>.
-                                    // Jest to najbardziej czytelne i niezawodne rozwiązanie.
-                                    @if index == 0 {
-                                        // Wersja dla pierwszego obrazka (z wysokim priorytetem)
-                                        img src=(transformed_url)
-                                            fetchpriority="high"
-                                            alt=(product.name)
-                                            class="w-full h-48 sm:h-56 object-cover rounded-md group-hover:opacity-85 transition-opacity duration-200"
-                                            loading="lazy";
-                                    } @else {
-                                        // Wersja dla wszystkich pozostałych obrazków (bez dodatkowego priorytetu)
-                                        img src=(transformed_url)
-                                            alt=(product.name)
-                                            class="w-full h-48 sm:h-56 object-cover rounded-md group-hover:opacity-85 transition-opacity duration-200"
-                                            loading="lazy";
-                                    }
+                                class="block mb-2 group aspect-square" {
+
+                                // Używamy tego samego kodu dla `<img>` w obu przypadkach
+                                @let transformed_url = transform_cloudinary_url(
+                                    product.images.get(0).unwrap_or(&String::new()),
+                                    "w_400,h_400,c_fill,g_auto,f_auto,q_auto"
+                                );
+
+                                @if !product.images.is_empty() {
+                                    img src=(transformed_url)
+                                        alt=(product.name)
+                                        class="w-full h-full object-cover rounded-md group-hover:opacity-85 transition-opacity duration-200 bg-gray-50"
+                                        loading="lazy"
+                                        fetchpriority=[if index == 0 { Some("high") } else { None }]
+                                        ;
                                 } @else {
-                                    div ."w-full h-48 sm:h-56 bg-gray-200 rounded-md flex items-center justify-center group-hover:opacity-85 transition-opacity duration-200" {
+                                    div ."w-full h-full bg-gray-200 rounded-md flex items-center justify-center group-hover:opacity-85 transition-opacity duration-200" {
                                         span ."text-gray-500 text-sm" { "Brak zdjęcia" }
                                     }
-
                                 }
                             }
-
                             div ."flex-grow" {
                                 h2 ."text-lg font-semibold mb-1 text-gray-800 group-hover:text-pink-600 transition-colors duration-200" {
                                     a href=(format!("/produkty/{}", product.id))
