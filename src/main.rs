@@ -295,13 +295,7 @@ async fn main() {
         .route("/htmx/zapomnialem-hasla", get(forgot_password_form_handler))
         .route("/resetuj-haslo", get(reset_password_form_handler))
         .route("/htmx/live-search", get(live_search_handler))
-        .nest_service(
-            "/static",
-            ServeDir::new("static").layer(SetResponseHeaderLayer::if_not_set(
-                header::CACHE_CONTROL,
-                HeaderValue::from_static("public, max-age=31536000, immutable"), // Cache na 1 rok
-            )),
-        )
+        .nest_service("/static", ServeDir::new("static"))
         .fallback(handler_404)
         .layer(TraceLayer::new_for_http())
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024))
