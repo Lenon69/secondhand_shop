@@ -5765,13 +5765,12 @@ fn render_home_page_hero() -> Markup {
         div class="relative text-center py-20 sm:py-28 bg-cover bg-center rounded-xl shadow-lg border border-gray-300 mb-8 overflow-hidden"
             style=(format!("background-image: url('{}')", transformed_hero_url)) {
 
-            div class="absolute inset-0 bg-black/50" {}
+            div class="absolute inset-0 bg-black/60" {}
 
             div class="relative z-10 px-4" {
-                h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white" {
-                    "Wyjątkowa odzież vintage online"
+                h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white drop-shadow-md" {                    "Wyjątkowa odzież vintage online"
                 }
-                p class="mt-4 max-w-2xl mx-auto text-lg text-gray-100" {
+                p class="mt-4 max_w-2xl mx-auto text-lg text-gray-100 drop-shadow-md" {
                     "Odkryj unikalne perełki z duszą. Ręcznie selekcjonowana odzież dla Niej i dla Niego."
                 }
             }
@@ -6045,12 +6044,20 @@ async fn render_gender_page(
         ProductGender::Meskie => "dla-niego",
     };
 
-    // --- Logika Cachowania ---
-    let gender_str = current_gender.as_ref();
-    let category_str = current_category_opt.as_ref().map_or("all", |c| c.as_ref());
+    // --- POPRAWIONA LOGIKA GENEROWANIA TYTUŁU ---
+    // 1. Mapujemy enum `ProductGender` na przyjazną nazwę.
+    let gender_display_name = match current_gender {
+        ProductGender::Damskie => "niej",
+        ProductGender::Meskie => "niego",
+    };
+
+    // 2. Mapujemy opcjonalną kategorię na przyjazną nazwę.
+    let category_display_name = current_category_opt
+        .as_ref()
+        .map_or("Wszystkie".to_string(), |c| c.to_string());
     let title = format!(
         "Produkty dla {}: {} - sklep mess - all that vintage",
-        gender_str, category_str
+        gender_display_name, category_display_name
     );
 
     // --- Pobieranie Danych (jeśli nie ma w cache'u) ---
