@@ -4,28 +4,25 @@ use crate::errors::AppError;
 use crate::models::{Category, ProductGender, ProductStatus};
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
-use strum::IntoEnumIterator;
 
-// Struktura, która będzie przechowywać kategorię razem z liczbą produktów.
-// Musi mieć `Serialize` i `Deserialize`, aby można ją było zapisać w cache jako JSON.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)] // <<< DODAJ `sqlx::FromRow`
 pub struct CategoryWithCount {
+    // Nazwa pola musi pasować do nazwy zwracanej przez SQL, czyli `category`
     pub category: Category,
+    // Nazwa pola musi pasować do aliasu w SQL, czyli `product_count`
+    #[sqlx(rename = "product_count")]
     pub count: i64,
 }
 
-/// Pobiera wszystkie kategorie wraz z liczbą dostępnych produktów dla danej płci.
+/// (Zoptymalizowana) Pobiera wszystkie kategorie wraz z liczbą dostępnych produktów dla danej płci.
 /// Wynik działania tej funkcji jest cachowany.
 pub async fn get_categories_with_counts(
     app_state: &AppState,
     gender: ProductGender,
 ) -> Result<Vec<CategoryWithCount>, AppError> {
-    // Tworzymy unikalny klucz do cache'u dla każdej płci.
     let cache_key = format!("category_counts_{}", gender.as_ref());
 
-    // 1. Sprawdzamy, czy dane istnieją w cache'u.
     if let Some(cached_data) = app_state.dynamic_html_cache.get(&cache_key).await {
-        // Próbujemy zdeserializować dane z cache'u.
         if let Ok(data) = serde_json::from_str::<Vec<CategoryWithCount>>(&cached_data) {
             tracing::info!(
                 "Cache HIT: Zwracam listę kategorii z licznikiem dla: {:?}",
@@ -35,34 +32,29 @@ pub async fn get_categories_with_counts(
         }
     }
 
-    // 2. Jeśli nie ma w cache'u, pobieramy dane z bazy.
     tracing::info!(
         "Cache MISS: Pobieram listę kategorii z licznikiem dla: {:?}",
         gender
     );
-    let mut categories_with_counts = Vec::new();
 
-    // Iterujemy po wszystkich wariantach enuma `Category`.
-    for category in Category::iter() {
-        let count_result: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM products WHERE gender = $1 AND category = $2 AND status = $3",
-        )
-        .bind(gender)
-        .bind(category)
-        .bind(ProductStatus::Available) // Liczymy tylko dostępne produkty
-        .fetch_one(&app_state.db_pool)
-        .await?;
+    // --- NOWE, JEDNO ZAPYTANIE Z GROUP BY ---
+    // Pobieramy wszystkie kategorie i ich liczności za jednym razem.
+    let categories_with_counts = sqlx::query_as::<_, CategoryWithCount>(
+        r#"
+        SELECT category, COUNT(*) as product_count
+        FROM products
+        WHERE gender = $1 AND status = $2
+        GROUP BY category
+        HAVING COUNT(*) > 0
+        ORDER BY category ASC
+        "#,
+    )
+    .bind(gender)
+    .bind(ProductStatus::Available)
+    .fetch_all(&app_state.db_pool)
+    .await?;
 
-        // Dodajemy do wektora tylko kategorie, które mają co najmniej jeden produkt.
-        if count_result.0 > 0 {
-            categories_with_counts.push(CategoryWithCount {
-                category,
-                count: count_result.0,
-            });
-        }
-    }
-
-    // 3. Zapisujemy świeżo pobrane dane do cache'u na przyszłość.
+    // Zapisujemy świeżo pobrane dane do cache'u
     if let Ok(json_data) = serde_json::to_string(&categories_with_counts) {
         app_state
             .dynamic_html_cache
