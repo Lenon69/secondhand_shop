@@ -35,6 +35,7 @@ mod models;
 mod pagination;
 mod response;
 mod seo;
+mod services;
 mod state;
 
 // Importy z własnych modułów
@@ -106,6 +107,20 @@ async fn main() {
             .build(),
     );
 
+    let static_html_cache = Arc::new(
+        Cache::builder()
+            .max_capacity(50) // Mało wpisów
+            .time_to_live(Duration::from_secs(3600 * 24)) // 24 godziny
+            .build(),
+    );
+
+    let dynamic_html_cache = Arc::new(
+        Cache::builder()
+            .max_capacity(200) // Więcej możliwych kombinacji filtrów
+            .time_to_live(Duration::from_secs(300)) // 5 minut
+            .build(),
+    );
+
     // Definicja AppState
     let app_state = AppState {
         db_pool: pool,
@@ -114,6 +129,8 @@ async fn main() {
         cloudinary_config,
         resend_api_key,
         product_cache,
+        static_html_cache,
+        dynamic_html_cache,
     };
 
     let cors = CorsLayer::new()

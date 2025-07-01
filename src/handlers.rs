@@ -398,6 +398,9 @@ pub async fn create_product_handler(
     .await?;
     tracing::info!("Utworzono produkt o ID: {}", new_product_id);
 
+    app_state.dynamic_html_cache.invalidate_all();
+    tracing::info!("Unieważniono cały dynamiczny cache po dodaniu nowego produktu.");
+
     let mut headers = HeaderMap::new();
     let toast_payload = json!({
         "showMessage": {
@@ -589,8 +592,8 @@ pub async fn update_product_partial_handler(
     // --- NOWA LOGIKA: Unieważnienie cache'u ---
     // Po pomyślnym zaktualizowaniu produktu w bazie danych,
     // usuwamy jego starą wersję z pamięci podręcznej.
-    app_state.product_cache.invalidate(&product_id).await;
-    tracing::info!("Unieważniono cache dla produktu o ID: '{}'", product_id);
+    app_state.dynamic_html_cache.invalidate_all();
+    tracing::info!("Unieważniono cały dynamiczny cache po aktualizacji produktu.");
     tracing::info!("Pomyślnie zaktualizowano produkt o ID: {}", product_id);
     Ok(Json(updated_product_db))
 }
@@ -635,11 +638,8 @@ pub async fn archivize_product_handler(
         .await?;
 
     // --- NOWA LOGIKA: Unieważnienie cache'u ---
-    app_state.product_cache.invalidate(&product_id).await;
-    tracing::info!(
-        "Unieważniono cache dla zarchiwizowanego produktu: '{}'",
-        product_id
-    );
+    app_state.dynamic_html_cache.invalidate_all();
+    tracing::info!("Unieważniono cały dynamiczny cache po zarchiwizowaniu produktu.");
 
     tracing::info!("Zarchiwizowano produkt o ID: {}", product_id);
 
@@ -727,12 +727,8 @@ pub async fn permanent_delete_product_handler(
 
     if delete_result.rows_affected() > 0 {
         tracing::info!("Trwale usunięto produkt o ID: {}", product_id);
-        // --- NOWA LOGIKA: Unieważnienie cache'u ---
-        app_state.product_cache.invalidate(&product_id).await;
-        tracing::info!(
-            "Unieważniono cache dla usuniętego produktu: '{}'",
-            product_id
-        );
+        app_state.dynamic_html_cache.invalidate_all();
+        tracing::info!("Unieważniono cały dynamiczny cache po usunięciu produktu.");
     }
 
     // KROK 5: Wyślij odpowiedź do HTMX

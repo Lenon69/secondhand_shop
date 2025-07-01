@@ -3,6 +3,7 @@
 use crate::{
     response::PageBuilder,
     seo::{SchemaBrand, SchemaOffer, SchemaProduct},
+    services::{CategoryWithCount, get_categories_with_counts},
 };
 use axum::response::Response;
 #[allow(unused_imports)]
@@ -4868,9 +4869,27 @@ async fn handle_static_page(
     title: &'static str,
     content_generator: impl Fn() -> Markup,
 ) -> Result<Response, AppError> {
+    // 1. Sprawdź, czy wersja strony istnieje w cache'u.
+    if let Some(cached_html) = app_state.static_html_cache.get(cache_key).await {
+        tracing::info!("Zwracam stronę '{}' z cache'u.", cache_key);
+        // Jeśli tak, zbuduj odpowiedź na podstawie danych z cache'u i natychmiast ją zwróć.
+        let page_builder =
+            PageBuilder::new(title, html! { (maud::PreEscaped(cached_html)) }, None, None);
+        return build_response(headers, page_builder).await;
+    }
+
+    // 2. Jeśli strona nie istnieje w cache'u, wygeneruj ją.
+    tracing::info!("Generuję stronę '{}' (brak w cache'u).", cache_key);
+
     // Wywołaj przekazaną funkcję `content_generator`, aby stworzyć treść HTML.
     let page_content = content_generator();
     let page_content_str = page_content.into_string();
+
+    // 3. Zapisz nowo wygenerowaną treść w cache'u na przyszłość.
+    app_state
+        .static_html_cache
+        .insert(cache_key.to_string(), page_content_str.clone())
+        .await;
 
     // 4. Zbuduj i zwróć odpowiedź.
     let page_builder = PageBuilder::new(
@@ -4891,6 +4910,39 @@ pub async fn news_page_htmx_handler(
     OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
 ) -> Result<Response, AppError> {
     tracing::info!("MAUD: Obsługa publicznego URL /nowosci");
+    let title = "Nowości - sklep mess - all that vintage";
+
+    // --- LOGIKA KLUCZA CACHE DLA TREŚCI DYNAMICZNEJ ---
+    let path = headers
+        .get("x-original-uri")
+        .map_or("/nowosci", |v| v.to_str().unwrap_or("/nowosci"));
+    let session_identifier = user_claims_opt.as_ref().map_or_else(
+        || guest_cart_id_opt.map_or("guest".to_string(), |id| id.to_string()),
+        |claims| claims.sub.to_string(),
+    );
+    let cache_key = format!(
+        "list:{}:{}:{}",
+        path,
+        params.to_query_string(),
+        session_identifier
+    );
+
+    // Sprawdź cache dynamiczny
+    if let Some(cached_html) = app_state.dynamic_html_cache.get(&cache_key).await {
+        tracing::info!(
+            "Zwracam listę produktów '{}' z cache'u dynamicznego.",
+            cache_key
+        );
+        let page_builder =
+            PageBuilder::new(title, html! { (maud::PreEscaped(cached_html)) }, None, None);
+        return build_response(headers, page_builder).await;
+    }
+
+    // --- Generowanie widoku, jeśli nie ma w cache'u ---
+    tracing::info!(
+        "Generuję listę produktów '{}' (brak w cache'u dynamicznym).",
+        cache_key
+    );
 
     // Definiujemy teksty dla tej konkretnej strony
     let h1_text = "Nowości w mess - all that vintage – świeże perełki czekają";
@@ -4922,8 +4974,13 @@ pub async fn news_page_htmx_handler(
         (seo_header_markup)
         (product_grid_markup)
     };
-    let title = "Nowości - sklep mess - all that vintage";
-    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    let page_builder = PageBuilder::new(&title, page_content.clone(), None, None);
+    let page_content_str = page_content.into_string();
+    app_state
+        .dynamic_html_cache
+        .insert(cache_key, page_content_str)
+        .await;
+
     build_response(headers, page_builder).await
 }
 
@@ -5877,9 +5934,8 @@ fn render_free_shipping_banner_maud() -> Markup {
 fn render_category_sidebar_maud(
     gender_slug: &str,
     current_category: Option<&Category>, // Przyjmuje opcjonalną referencję do aktywnej kategorii
+    categories_with_counts: &[CategoryWithCount],
 ) -> Markup {
-    let categories: Vec<Category> = Category::iter().collect();
-
     html! {
         // --- GŁÓWNY KONTENER PANELU ---
         // Jest widoczny jako blok na desktopie (`md:block`) i lepki (`md:sticky`)
@@ -5938,10 +5994,10 @@ fn render_category_sidebar_maud(
                         }
 
                         // --- Pętla po wszystkich kategoriach ---
-                        @for category_item in &categories {
+                        @for item in categories_with_counts.iter() {
                             li {
-                                @let category_classes = if current_category == Some(category_item) { active_class } else { inactive_class };
-                                @let category_param = category_item.as_ref();
+                                @let category_classes = if current_category == Some(&item.category) { active_class } else { inactive_class };
+                                @let category_param = item.category.as_ref();
                                 a href=(format!("/{}/{}", gender_slug, category_param))
                                     hx-get=(format!("/{}/{}", gender_slug, category_param))
                                     hx-target="#content"
@@ -5949,7 +6005,10 @@ fn render_category_sidebar_maud(
                                     hx-push-url="true"
                                     class=(category_classes)
                                     "@click"="isCategorySidebarOpen = false" {
-                                    { (category_item.to_string()) }
+                                    { span {(item.category.to_string()) }
+                                    // Licznik produktów
+                                    // span class="text-xs bg-gray-200 text-gray-600 rounded-full px-2 py-0.5" { (item.count) }
+                                    }
                                 }
                             }
                         }
@@ -6048,6 +6107,14 @@ async fn render_gender_page(
         html! {}
     };
 
+    // --- NOWA CZĘŚĆ: POBIERANIE DANYCH DLA PASKA BOCZNEGO ---
+    let categories_with_counts = get_categories_with_counts(&app_state, current_gender)
+        .await
+        .unwrap_or_else(|e| {
+            tracing::error!("Nie udało się pobrać kategorii z licznikami: {}", e);
+            vec![] // W razie błędu zwróć pusty wektor, aby strona się nie wysypała.
+        });
+
     // --- Renderowanie Treści ---
     let page_content = html! {
         div class="mb-6 md:mb-12" {
@@ -6055,7 +6122,7 @@ async fn render_gender_page(
         }
         (seo_header_markup)
         div ."flex flex-col md:flex-row gap-6" {
-            (render_category_sidebar_maud(gender_slug, current_category_opt.as_ref()))
+            (render_category_sidebar_maud(gender_slug, current_category_opt.as_ref(), &categories_with_counts))
             section #product-listing-area ."w-full md:w-3/4 lg:w-4/5" {
                 (render_product_grid_maud(
                     &paginated_response.data,

@@ -601,6 +601,5 @@ pub struct ProductWithTotalCount {
     pub on_sale: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    // Dodatkowe pole, które zwróci nam funkcja okna COUNT(*) OVER()
     pub total_count: Option<i64>,
 }

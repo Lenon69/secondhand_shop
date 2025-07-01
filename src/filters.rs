@@ -126,6 +126,60 @@ impl ListingParams {
         self.updated_at.clone()
     }
 
+    /// Tworzy ciąg zapytania (query string) z parametrów listowania.
+    ///
+    /// Buduje string tylko z pól, które nie są `None`,
+    /// i stosuje URL encoding do wszystkich wartości.
+    pub fn to_query_string(&self) -> String {
+        let mut query_parts: Vec<String> = Vec::with_capacity(16);
+
+        // Makro pomocnicze, aby uniknąć powtarzania kodu
+        macro_rules! push_if_some {
+            ($key:expr, $value_opt:expr) => {
+                if let Some(value) = $value_opt {
+                    query_parts.push(format!(
+                        "{}={}",
+                        $key,
+                        urlencoding::encode(&value.to_string())
+                    ));
+                }
+            };
+        }
+
+        // Użycie makra dla każdego pola
+        push_if_some!("limit", &self.limit);
+        push_if_some!("offset", &self.offset);
+        push_if_some!("gender", &self.gender);
+        push_if_some!("category", &self.category);
+        push_if_some!("condition", &self.condition);
+        push_if_some!("status", &self.status.as_deref()); // as_deref dla Option<String>
+        push_if_some!("price-min", &self.price_min);
+        push_if_some!("price-max", &self.price_max);
+        push_if_some!("on-sale", &self.on_sale);
+        push_if_some!("sort-by", &self.sort_by.as_deref());
+        push_if_some!("order", &self.order.as_deref());
+        push_if_some!("search", &self.search.as_deref());
+        push_if_some!("source", &self.source.as_deref());
+
+        // Specjalna obsługa dla DateTime
+        if let Some(created_at_val) = &self.created_at {
+            // RFC 3339 jest standardem i jest bezpieczny dla URL
+            query_parts.push(format!("created-at={}", created_at_val.to_rfc3339()));
+        }
+        if let Some(updated_at_val) = &self.updated_at {
+            query_parts.push(format!("updated-at={}", updated_at_val.to_rfc3339()));
+        }
+
+        if query_parts.is_empty() {
+            String::new()
+        } else {
+            // Zmieniono z "?" na zwracanie czystego stringa,
+            // aby można było go łatwiej dołączać.
+            // Znak '?' można dodać w miejscu wywołania.
+            query_parts.join("&")
+        }
+    }
+
     pub fn to_query_string_with_skips(&self, skip_params: &[&str]) -> String {
         let mut query_parts = Vec::new();
         if !skip_params.contains(&"limit") {
