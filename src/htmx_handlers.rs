@@ -4868,27 +4868,9 @@ async fn handle_static_page(
     title: &'static str,
     content_generator: impl Fn() -> Markup,
 ) -> Result<Response, AppError> {
-    // 1. Sprawdź, czy wersja strony istnieje w cache'u.
-    if let Some(cached_html) = app_state.html_cache.get(cache_key).await {
-        tracing::info!("Zwracam stronę '{}' z cache'u.", cache_key);
-        // Jeśli tak, zbuduj odpowiedź na podstawie danych z cache'u i natychmiast ją zwróć.
-        let page_builder =
-            PageBuilder::new(title, html! { (maud::PreEscaped(cached_html)) }, None, None);
-        return build_response(headers, page_builder).await;
-    }
-
-    // 2. Jeśli strona nie istnieje w cache'u, wygeneruj ją.
-    tracing::info!("Generuję stronę '{}' (brak w cache'u).", cache_key);
-
     // Wywołaj przekazaną funkcję `content_generator`, aby stworzyć treść HTML.
     let page_content = content_generator();
     let page_content_str = page_content.into_string();
-
-    // 3. Zapisz nowo wygenerowaną treść w cache'u na przyszłość.
-    app_state
-        .html_cache
-        .insert(cache_key.to_string(), page_content_str.clone())
-        .await;
 
     // 4. Zbuduj i zwróć odpowiedź.
     let page_builder = PageBuilder::new(
@@ -4909,19 +4891,6 @@ pub async fn news_page_htmx_handler(
     OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
 ) -> Result<Response, AppError> {
     tracing::info!("MAUD: Obsługa publicznego URL /nowosci");
-
-    let cache_key = "nowosci_page_html".to_string();
-    if let Some(cached_html) = app_state.html_cache.get(&cache_key).await {
-        tracing::info!("Zwracam stronę 'Nowości' z cache'u.");
-        // Jeśli znaleźliśmy HTML w cache'u, od razu go zwracamy
-        let page_builder = PageBuilder::new(
-            "Nowości - sklep mess - all that vintage",
-            html! { (maud::PreEscaped(cached_html)) },
-            None,
-            None,
-        );
-        return build_response(headers, page_builder).await;
-    }
 
     // Definiujemy teksty dla tej konkretnej strony
     let h1_text = "Nowości w mess - all that vintage – świeże perełki czekają";
@@ -4953,11 +4922,6 @@ pub async fn news_page_htmx_handler(
         (seo_header_markup)
         (product_grid_markup)
     };
-    let page_content_str = page_content.clone().into_string();
-    app_state
-        .html_cache
-        .insert(cache_key, page_content_str)
-        .await;
     let title = "Nowości - sklep mess - all that vintage";
     let page_builder = PageBuilder::new(&title, page_content, None, None);
     build_response(headers, page_builder).await
@@ -4984,22 +4948,6 @@ pub async fn sale_page_htmx_handler(
     let h2_text = "Upoluj stylowe ubrania i dodatki pre-owned w jeszcze lepszych cenach";
     let seo_header_markup = render_seo_header_maud(h1_text, h2_text);
 
-    let page = params.offset.unwrap_or(0) / params.limit.unwrap_or(8) + 1;
-    let cache_key = format!("okazje_page_{}", page);
-
-    if page == 1 {
-        if let Some(cached_html) = app_state.html_cache.get(&cache_key).await {
-            tracing::info!("Zwracam stronę 'Okazje' (strona {}) z cache'u.", page);
-            let page_builder = PageBuilder::new(
-                "Okazje - sklep mess - all that vintage",
-                html! { (maud::PreEscaped(cached_html)) },
-                None,
-                None,
-            );
-            return build_response(headers, page_builder).await;
-        }
-    }
-
     // --- NOWA LOGIKA POBIERANIA KOSZYKA ---
     let mut conn = app_state.db_pool.acquire().await?;
     let cart_details_opt =
@@ -5016,13 +4964,6 @@ pub async fn sale_page_htmx_handler(
         (product_grid_markup)
     };
     let page_content_str = page_content.into_string();
-
-    if page == 1 {
-        app_state
-            .html_cache
-            .insert(cache_key, page_content_str.clone())
-            .await;
-    }
 
     let title = "Okazje - sklep mess - all that vintage";
     let page_builder = PageBuilder::new(
@@ -5750,25 +5691,7 @@ pub async fn home_page_handler(
     // --- 1. Logika cachowania ---
     let limit = params.limit.unwrap_or(8);
     let offset = params.offset.unwrap_or(0);
-    let page = offset / limit + 1;
-    let cache_key = format!("home_page_{}", page);
     let title = "mess - all that vintage - Sklep Vintage Online";
-
-    // Sprawdzamy cache TYLKO dla pierwszej strony
-    if page == 1 {
-        if let Some(cached_html) = app_state.html_cache.get(&cache_key).await {
-            tracing::info!("Zwracam stronę główną (strona 1) z cache'u.");
-            let page_builder = PageBuilder::new(
-                &title,
-                html! { (maud::PreEscaped(cached_html)) },
-                None,
-                None,
-            );
-            return build_response(headers, page_builder).await;
-        }
-    }
-
-    tracing::info!("Generuję stronę główną (strona {}) (brak w cache'u).", page);
 
     // --- 2. Pobieranie danych (jeśli nie ma w cache'u lub to inna strona niż pierwsza) ---
     let mut conn = app_state.db_pool.acquire().await?;
@@ -5795,24 +5718,8 @@ pub async fn home_page_handler(
         (product_listing_view)
     };
 
-    let page_content_str = page_content.into_string();
-
-    // --- 4. Zapis do cache'u (tylko dla pierwszej strony) ---
-    if page == 1 {
-        tracing::info!("Zapisuję stronę główną (strona 1) do cache'u.");
-        app_state
-            .html_cache
-            .insert(cache_key, page_content_str.clone())
-            .await;
-    }
-
     // --- 5. Zbudowanie i zwrócenie odpowiedzi ---
-    let page_builder = PageBuilder::new(
-        &title,
-        html! { (maud::PreEscaped(page_content_str)) },
-        None,
-        None,
-    );
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
     build_response(headers, page_builder).await
 }
 
@@ -6107,34 +6014,11 @@ async fn render_gender_page(
     };
 
     // --- Logika Cachowania ---
-    let page = params.offset.unwrap_or(0) / params.limit.unwrap_or(8) + 1;
     let gender_str = current_gender.as_ref();
     let category_str = current_category_opt.as_ref().map_or("all", |c| c.as_ref());
     let title = format!(
         "Produkty dla {}: {} - sklep mess - all that vintage",
         gender_str, category_str
-    );
-
-    // Cachujemy tylko pierwszą stronę, aby nie zapełniać cache'u
-    if page == 1 {
-        let cache_key = format!("category_{}_{}", gender_str, category_str);
-        if let Some(cached_html) = app_state.html_cache.get(&cache_key).await {
-            tracing::info!("Zwracam stronę kategorii '{}' z cache'u.", cache_key);
-            let page_builder = PageBuilder::new(
-                &title,
-                html! { (maud::PreEscaped(cached_html)) },
-                None,
-                None,
-            );
-            return build_response(headers, page_builder).await;
-        }
-    }
-
-    tracing::info!(
-        "Generuję stronę kategorii dla płci: {:?}, kategoria: {:?} (strona {})",
-        current_gender,
-        current_category_opt,
-        page
     );
 
     // --- Pobieranie Danych (jeśli nie ma w cache'u) ---
@@ -6183,23 +6067,7 @@ async fn render_gender_page(
         }
     };
 
-    let page_content_str = page_content.into_string();
-
-    // --- Zapis do Cache'u (tylko dla pierwszej strony) ---
-    if page == 1 {
-        let cache_key = format!("category_{}_{}", gender_str, category_str);
-        app_state
-            .html_cache
-            .insert(cache_key, page_content_str.clone())
-            .await;
-    }
-
-    let page_builder = PageBuilder::new(
-        &title,
-        html! { (maud::PreEscaped(page_content_str)) },
-        None,
-        None,
-    );
+    let page_builder = PageBuilder::new(&title, page_content, None, None);
     build_response(headers, page_builder).await
 }
 

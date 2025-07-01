@@ -99,10 +99,10 @@ async fn main() {
     // --- Konfiguracja Resend ---
     let resend_api_key = env::var("RESEND_API_KEY").expect("RESEND_API_KEY must be set");
 
-    let html_cache = Arc::new(
+    let product_cache = Arc::new(
         Cache::builder()
-            .max_capacity(100)
-            .time_to_live(Duration::from_secs(60 * 10))
+            .max_capacity(1000)
+            .time_to_live(Duration::from_secs(3600))
             .build(),
     );
 
@@ -113,7 +113,7 @@ async fn main() {
         jwt_expiration_hours,
         cloudinary_config,
         resend_api_key,
-        html_cache,
+        product_cache,
     };
 
     let cors = CorsLayer::new()

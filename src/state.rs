@@ -3,6 +3,9 @@
 use moka::future::Cache;
 use sqlx::PgPool;
 use std::sync::Arc;
+use uuid::Uuid;
+
+use crate::models::Product;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -11,7 +14,7 @@ pub struct AppState {
     pub jwt_expiration_hours: i64,
     pub cloudinary_config: CloudinaryConfig,
     pub resend_api_key: String,
-    pub html_cache: Arc<Cache<String, String>>,
+    pub product_cache: Arc<Cache<Uuid, Product>>,
 }
 
 #[derive(Clone)]

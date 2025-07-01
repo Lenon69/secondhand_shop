@@ -46,17 +46,32 @@ pub async fn get_product_details(
     State(app_state): State<AppState>,
     Path(product_id): Path<Uuid>,
 ) -> Result<Json<Product>, AppError> {
-    let product_result = sqlx::query_as::<_, Product>(
-        r#"SELECT *
-           FROM products
-           WHERE id = $1"#,
-    )
-    .bind(product_id)
-    .fetch_one(&app_state.db_pool)
-    .await;
+    // KROK 1: Sprawdź cache
+    if let Some(product) = app_state.product_cache.get(&product_id).await {
+        tracing::info!("Cache HIT dla produktu o ID: {}", product_id);
+        return Ok(Json(product));
+    }
+
+    // KROK 2: Jeśli w cache'u nie ma, pobierz z bazy danych
+    tracing::info!(
+        "Cache MISS dla produktu o ID: {}. Pobieranie z bazy danych.",
+        product_id
+    );
+
+    let product_result = sqlx::query_as::<_, Product>(r#"SELECT * FROM products WHERE id = $1"#)
+        .bind(product_id)
+        .fetch_one(&app_state.db_pool)
+        .await;
 
     match product_result {
-        Ok(product) => Ok(Json(product)),
+        Ok(product) => {
+            // KROK 3: Zapisz pobrany produkt w cache'u na przyszłość
+            app_state
+                .product_cache
+                .insert(product.id, product.clone())
+                .await;
+            Ok(Json(product))
+        }
         Err(sqlx::Error::RowNotFound) => {
             tracing::warn!("Nie znaleziono produktu o ID: {}", product_id);
             Err(AppError::NotFound)
@@ -571,6 +586,11 @@ pub async fn update_product_partial_handler(
     // KROK 6: Zamykamy transakcję. Całość trwała ułamki sekund.
     tx.commit().await?;
 
+    // --- NOWA LOGIKA: Unieważnienie cache'u ---
+    // Po pomyślnym zaktualizowaniu produktu w bazie danych,
+    // usuwamy jego starą wersję z pamięci podręcznej.
+    app_state.product_cache.invalidate(&product_id).await;
+    tracing::info!("Unieważniono cache dla produktu o ID: '{}'", product_id);
     tracing::info!("Pomyślnie zaktualizowano produkt o ID: {}", product_id);
     Ok(Json(updated_product_db))
 }
@@ -613,6 +633,13 @@ pub async fn archivize_product_handler(
         .bind(product_id)
         .fetch_one(&app_state.db_pool)
         .await?;
+
+    // --- NOWA LOGIKA: Unieważnienie cache'u ---
+    app_state.product_cache.invalidate(&product_id).await;
+    tracing::info!(
+        "Unieważniono cache dla zarchiwizowanego produktu: '{}'",
+        product_id
+    );
 
     tracing::info!("Zarchiwizowano produkt o ID: {}", product_id);
 
@@ -700,6 +727,12 @@ pub async fn permanent_delete_product_handler(
 
     if delete_result.rows_affected() > 0 {
         tracing::info!("Trwale usunięto produkt o ID: {}", product_id);
+        // --- NOWA LOGIKA: Unieważnienie cache'u ---
+        app_state.product_cache.invalidate(&product_id).await;
+        tracing::info!(
+            "Unieważniono cache dla usuniętego produktu: '{}'",
+            product_id
+        );
     }
 
     // KROK 5: Wyślij odpowiedź do HTMX
