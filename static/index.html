@@ -3,7 +3,7 @@
 <html lang="pl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" id="viewport-meta" />
     <meta
       name="description"
       content="Odkryj unikalną odzież vintage w mess - all that vintage. Najlepsze perełki z drugiej ręki dla niej i dla niego."
@@ -195,6 +195,8 @@
 
             // 5. Nasłuchuj na globalne zdarzenia z innych części aplikacji
             this.addGlobalEventListeners();
+            
+            
         },
         
         // --- Metody pomocnicze ---
@@ -303,7 +305,6 @@
             }
         },
 
-        // Reszta metod bez zmian
         openImageModal(src, imagesArray) {
             this.activeImageModal.images = Array.isArray(imagesArray) ? imagesArray : [];
             this.activeImageModal.currentIndex = this.activeImageModal.images.indexOf(src);
@@ -312,11 +313,24 @@
             }
             this.activeImageModal.currentSrc = this.activeImageModal.images[this.activeImageModal.currentIndex] || src;
             this.activeImageModal.isOpen = true;
+            // Ważne: blokujemy scrollowanie tła, gdy modal jest otwarty
             document.body.style.overflow = 'hidden';
         },
+
         closeImageModal() {
             this.activeImageModal.isOpen = false;
+            // Przywracamy scrollowanie tła
             document.body.style.overflow = '';
+
+            // --- NOWA LOGIKA DO RESETOWANIA ZOOMU ---
+            const viewport = document.getElementById('viewport-meta');
+            if (viewport) {
+                const content = viewport.getAttribute('content');
+                viewport.setAttribute('content', 'width=device-width, initial-scale=0.1');
+                setTimeout(() => {
+                    viewport.setAttribute('content', content);
+                }, 10);
+            }
         },
         nextImageModal() {
             if (this.activeImageModal.images.length > 0) {
@@ -1177,38 +1191,7 @@
         role="dialog"
         aria-modal="true"
         aria-labelledby="fullscreen-image-alt">
-      <div
-        @click.stop 
-        class="relative flex items-center justify-center w-full h-full max-w-screen-lg max-h-screen-lg"
-        >
-        <img
-          :src="activeImageModal.currentSrc"
-          id="fullscreen-image-alt"
-          alt="Powiększone zdjęcie produktu"
-          class="block rounded-lg shadow-2xl object-contain max-w-full max-h-full"
-        />
-      </div>
-      <button
-        @click.stop="closeImageModal()"
-        type="button"
-        class="absolute top-4 right-4 z-[70] p-2 bg-white/20 hover:bg-white/40 rounded-full text-white focus:outline-none focus:ring-2 focus:ring-white transition-all"
-        aria-label="Zamknij podgląd obrazka"
-      >
-        <svg
-          class="h-7 w-7"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke-width="2"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M6 18L18 6M6 6l12 12"
-          />
-        </svg>
-      </button>
-      <button
+    <button
         x-show="activeImageModal.images.length > 1"
         @click.stop="prevImageModal()"
         type="button"
@@ -1250,13 +1233,33 @@
           />
         </svg>
       </button>
-      <button
-          @click.stop="closeImageModal()"
-          type="button"
-          class="absolute top-4 right-4 z-[70] p-2 bg-white/20 hover:bg-white/40 rounded-full text-white ..."
-          aria-label="Zamknij podgląd obrazka"
+    <img
+        @click.stop 
+        :src="activeImageModal.currentSrc"
+        id="fullscreen-image-alt"
+        alt="Powiększone zdjęcie produktu"
+        class="block rounded-lg shadow-2xl object-contain max-w-full max-h-full"
+    />
+    <button
+        @click.stop="closeImageModal()"
+        type="button"
+        class="absolute top-4 right-4 z-[70] p-2 bg-white/20 hover:bg-white/40 rounded-full text-white focus:outline-none transition-all"
+        aria-label="Zamknij podgląd obrazka"
       >
-        </button>
+        <svg
+          class="h-7 w-7"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="2"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M6 18L18 6M6 6l12 12"
+          />
+        </svg>
+      </button>
     </div>
     <div
       x-show="toast.show"
