@@ -1096,7 +1096,7 @@ fn render_product_grid_maud(
                     }
                 } @else {
                     @for (index, product) in products.iter().enumerate() { // Iterujemy po plasterku
-                        div ."border rounded-lg p-4 shadow-lg flex flex-col bg-white" {
+                        div ."border rounded-lg p-4 shadow-lg flex flex-col bg-white transition-all duration-300 hover:shadow-xl hover:-translate-y-1" {
                             a  href=(format!("/produkty/{}", product.id))
                                 hx-get=(format!("/produkty/{}?return_params={}", product.id, urlencoding::encode(&current_listing_params_qs)))
                                 hx-target="#content"
@@ -5851,6 +5851,7 @@ fn render_seo_header_maud(h1_text: &str, h2_text: &str) -> Markup {
         _ if h1_text.contains("slow fashion") => "slow fashion",
         _ if h1_text.contains("moda z klasą") => "moda z klasą",
         _ if h1_text.contains("z drugiego obiegu") => "z drugiego obiegu",
+        _ if h1_text.contains("styl") => "styl",
         _ => "z drugiej ręki",
     };
     html! {

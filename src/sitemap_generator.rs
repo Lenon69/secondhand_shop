@@ -4,10 +4,10 @@ use crate::errors::AppError;
 use crate::models::{Category, Product, ProductGender, ProductStatus};
 use crate::state::AppState;
 use axum::{
-    http::{header, HeaderValue},
+    http::{HeaderValue, header},
     response::{IntoResponse, Response},
 };
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use quick_xml::se::to_string;
 use serde::Serialize;
 use strum::IntoEnumIterator;
@@ -35,6 +35,7 @@ pub struct UrlEntry {
     pub priority: f32,
 }
 
+#[allow(dead_code)]
 #[derive(Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ChangeFreq {
@@ -49,9 +50,7 @@ pub enum ChangeFreq {
 
 // --- Główny Handler ---
 
-pub async fn generate_sitemap_handler(
-    app_state: &AppState,
-) -> Result<Response, AppError> {
+pub async fn generate_sitemap_handler(app_state: &AppState) -> Result<Response, AppError> {
     let base_url = "https://messvintage.com"; // WAŻNE: Użyj swojego prawdziwego adresu URL
     let mut urls = Vec::new();
 
@@ -81,7 +80,11 @@ pub async fn generate_sitemap_handler(
 
     // 2. Strony Kategorii (dla obu płci)
     for gender in [ProductGender::Damskie, ProductGender::Meskie].iter() {
-        let gender_slug = if *gender == ProductGender::Damskie { "dla-niej" } else { "dla-niego" };
+        let gender_slug = if *gender == ProductGender::Damskie {
+            "dla-niej"
+        } else {
+            "dla-niego"
+        };
         for category in Category::iter() {
             urls.push(UrlEntry {
                 location: format!("{}/{}/{}", base_url, gender_slug, category.as_ref()),
@@ -93,12 +96,10 @@ pub async fn generate_sitemap_handler(
     }
 
     // 3. Strony Produktów (dynamicznie z bazy danych)
-    let products = sqlx::query_as::<_, Product>(
-        "SELECT * FROM products WHERE status = $1",
-    )
-    .bind(ProductStatus::Available) // Tylko dostępne produkty
-    .fetch_all(&app_state.db_pool)
-    .await?;
+    let products = sqlx::query_as::<_, Product>("SELECT * FROM products WHERE status = $1")
+        .bind(ProductStatus::Available) // Tylko dostępne produkty
+        .fetch_all(&app_state.db_pool)
+        .await?;
 
     for product in products {
         urls.push(UrlEntry {
