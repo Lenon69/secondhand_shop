@@ -2379,7 +2379,7 @@ pub async fn my_account_page_handler(
                                        hx-target="#my-account-content"
                                        hx-swap="innerHTML"
                                        hx-push-url=(push_url)
-                                       class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-pink-500" {
+                                       class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-pink-500 text-center" {
                                         (label)
                                     }
                                 }
@@ -2390,7 +2390,7 @@ pub async fn my_account_page_handler(
                                     hx-post="/api/auth/logout"
                                     hx-swap="none"
                                    "@click"="clientSideLogout()" // Wywołuje funkcję z Alpine.js
-                                   class="w-full text-left block px-3 py-2 rounded-md text-red-600 hover:bg-red-50 hover:text-red-700 font-medium transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-red-500" {
+                                   class="w-full text-center block px-3 py-2 rounded-md text-red-600 hover:bg-red-50 hover:text-red-700 font-medium transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-red-500" {
                                     "Wyloguj"
                                 }
                             }
