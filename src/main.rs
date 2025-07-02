@@ -1,7 +1,7 @@
 // src/main.rs
 
 use axum::Router;
-use axum::extract::DefaultBodyLimit;
+use axum::extract::{DefaultBodyLimit, State};
 use axum::response::Html;
 use axum::routing::{delete, get, post};
 use axum_server::tls_rustls::RustlsConfig;
@@ -36,6 +36,7 @@ mod pagination;
 mod response;
 mod seo;
 mod services;
+mod sitemap_generator;
 mod state;
 
 // Importy z własnych modułów
@@ -190,6 +191,12 @@ async fn main() {
         .route("/api/session/guest/init", post(init_guest_session_handler))
         // Trasa główna i jej aliasy
         .route("/", get(home_page_handler))
+        .route(
+            "/sitemap.xml",
+            get(|State(state): State<AppState>| async move {
+                sitemap_generator::generate_sitemap_handler(&state).await
+            }),
+        )
         .route(
             "/{gender_slug}/{category}",
             get(dla_gender_with_category_handler),

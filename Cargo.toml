@@ -44,6 +44,7 @@ time = { version = "0.3.41", features = ["serde"] }
 url = "2.5.4"
 moka = { version = "0.12.10", features = ["future"] }
 hyper = "1.6.0"
+quick-xml = { version = "0.38.0", features = ["tokio", "serde", "serialize"] }
 
 
 [profile.release]
