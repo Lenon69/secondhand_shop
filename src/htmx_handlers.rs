@@ -1,13 +1,11 @@
 // src/htmx_handlers.rs
 
 use crate::{
-    cart_utils::build_cart_details_response,
-    models::{AddProductToCartPayload, GuestCartOperationResponse},
     response::PageBuilder,
     seo::{SchemaBrand, SchemaOffer, SchemaProduct},
     services::{CategoryWithCount, get_categories_with_counts},
 };
-use axum::{Json, response::Response};
+use axum::response::Response;
 #[allow(unused_imports)]
 use axum::{
     extract::{Path, Query, State},
@@ -1092,7 +1090,7 @@ fn render_product_grid_maud(
                                 // Używamy tego samego kodu dla `<img>` w obu przypadkach
                                 @let transformed_url = transform_cloudinary_url(
                                     product.images.get(0).unwrap_or(&String::new()),
-                                    "w_400,h_400,c_fill,g_auto,f_auto,q_auto"
+                                    "w_400,h_400,c_fill,g_auto,f_auto,q_auto:good"
                                 );
 
                                 @if !product.images.is_empty() {
@@ -5758,7 +5756,7 @@ fn render_home_page_hero() -> Markup {
     let original_hero_url =
         "https://res.cloudinary.com/dvndapjpc/image/upload/v1750778105/dpf1xb0grl4gtl56gepn.jpg";
     let transformed_hero_url =
-        transform_cloudinary_url(original_hero_url, "w_1600,c_fill,g_auto,f_auto,q_auto:good");
+        transform_cloudinary_url(original_hero_url, "w_1200,c_fill,g_auto,f_auto,q_auto:good");
 
     html! {
         div class="relative text-center py-20 sm:py-28 bg-cover bg-center rounded-xl shadow-lg border border-gray-300 mb-8 overflow-hidden"

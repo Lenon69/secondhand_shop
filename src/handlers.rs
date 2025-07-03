@@ -1980,6 +1980,7 @@ impl axum_extra::headers::Header for XGuestCartId {
     }
 }
 
+#[allow(dead_code)]
 pub async fn add_item_to_cart_htmx_handler(
     State(app_state): State<AppState>,
     Path(product_id): Path<Uuid>,
@@ -2125,6 +2126,7 @@ pub async fn add_item_to_cart_htmx_handler(
     Ok((headers, render_added_to_cart_button(product_id)))
 }
 
+#[allow(dead_code)]
 /// Renderuje włączony przycisk "Dodaj do koszyka".
 fn render_add_to_cart_button(product_id: Uuid) -> Markup {
     html! {
