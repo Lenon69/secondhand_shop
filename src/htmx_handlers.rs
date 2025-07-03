@@ -4995,38 +4995,52 @@ pub async fn render_product_listing_view(
 ) -> Result<Markup, AppError> {
     tracing::info!("MAUD: /htmx/products z parametrami: {:?}", params);
 
-    // --- NOWA LOGIKA CACHE'OWANIA FRAGMENTU ---
-    // Klucz zależy tylko od parametrów listy, stan koszyka jest przekazywany z zewnątrz.
-    let cache_key = format!("product_grid:{}", params.to_query_string());
+    // --- NOWA LOGIKA CACHE'OWANIA ---
+    // Klucz zależy tylko od parametrów listy, stan koszyka jest przekazywany z zewnątrz i obsługiwany przez Alpine.js.
+    let cache_key = format!("product_grid_data:{}", params.to_query_string());
 
-    // if let Some(cached_html) = app_state.dynamic_html_cache.get(&cache_key).await {
-    tracing::info!("Cache HIT dla fragmentu siatki produktów: {}", cache_key);
-    // Musimy "ręcznie" wstawić aktualny stan koszyka do cachowanego HTML.
-    // To jest kompromis, ale nadal bardzo wydajny. Można to zrobić prostą zamianą stringa.
-    // LUB (prościej) renderować przyciski po stronie klienta, co już próbowaliśmy.
-    // Zostawmy na razie renderowanie na serwerze, ale bądźmy świadomi tego kompromisu.
-    // W tej sytuacji, dla uproszczenia, możemy zdecydować się nie cachować tego fragmentu.
-    // Poniżej pokażę jednak inną, lepszą strategię.
-    // }
+    let paginated_response: PaginatedProductsResponse;
 
-    let paginated_response_axum_json =
-        crate::handlers::list_products(State(app_state), Query(params.clone())).await?;
-    let paginated_response: PaginatedProductsResponse = paginated_response_axum_json.0;
+    // Krok 1: Sprawdź, czy dane dla tego zapytania są w cache
+    if let Some(cached_json) = app_state.dynamic_html_cache.get(&cache_key).await {
+        tracing::info!("Cache HIT dla danych siatki produktów: {}", cache_key);
+        paginated_response = serde_json::from_str(&cached_json).map_err(|e| {
+            tracing::error!("Błąd deserializacji danych z cache: {}", e);
+            AppError::InternalServerError("Błąd wewnętrzny".to_string())
+        })?;
+    } else {
+        tracing::info!("Cache MISS dla danych siatki produktów: {}", cache_key);
+        let paginated_response_axum_json =
+            crate::handlers::list_products(State(app_state.clone()), Query(params.clone())).await?;
+        paginated_response = paginated_response_axum_json.0;
+
+        // Krok 3: Zapisz świeże dane w cache'u na przyszłość
+        if let Ok(response_json) = serde_json::to_string(&paginated_response) {
+            app_state
+                .dynamic_html_cache
+                .insert(cache_key, response_json)
+                .await;
+        }
+    }
+    // --- KONIEC LOGIKI CACHE'OWANIA ---
+
+    // Konwersja ID produktów w koszyku na JSON dla Alpine.js (bez zmian)
     let cart_product_ids_json =
         serde_json::to_string(&product_ids_in_cart).unwrap_or_else(|_| "[]".to_string());
 
-    // app_state.dynamic_html_cache.insert(cache_key);
-
+    // Renderowanie widoku (bez zmian)
     Ok(html!(
+        // Przekazujemy stan koszyka do Alpine.js
         script #cart-state-data type="application/json" {
             (PreEscaped(cart_product_ids_json))
         }
+        // Renderujemy siatkę produktów na podstawie danych (z cache'u lub z bazy)
         (render_product_grid_maud(
-        &paginated_response.data,
-        &paginated_response,
-        &params,
-        &product_ids_in_cart,
-    ))
+            &paginated_response.data,
+            &paginated_response,
+            &params,
+            &product_ids_in_cart,
+        ))
     ))
 }
 
