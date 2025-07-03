@@ -1980,74 +1980,189 @@ impl axum_extra::headers::Header for XGuestCartId {
     }
 }
 
-pub async fn add_item_to_guest_cart(
+pub async fn add_item_to_cart_htmx_handler(
     State(app_state): State<AppState>,
+    Path(product_id): Path<Uuid>,
+    user_claims_result: Result<TokenClaims, AppError>,
     guest_cart_id_header: Option<TypedHeader<XGuestCartId>>,
-    Json(payload): Json<AddProductToCartPayload>,
-) -> Result<impl IntoResponse, AppError> {
-    let mut tx = app_state.db_pool.begin().await?;
-    let product_id = payload.product_id;
+) -> Result<(HeaderMap, Markup), AppError> {
+    let mut tx = app_state.db_pool.begin().await.map_err(|e| {
+        tracing::error!("MAUD AddToCart: Błąd rozpoczynania transakcji: {}", e);
+        AppError::InternalServerError("Błąd serwera przy dodawaniu do koszyka".to_string())
+    })?;
+    let mut headers = HeaderMap::new();
+    let cart: ShoppingCart;
+    let mut new_guest_cart_id_to_set: Option<Uuid> = None;
 
-    let (cart, guest_cart_uuid) = if let Some(TypedHeader(XGuestCartId(id))) = guest_cart_id_header
-    {
-        if let Some(existing_cart) = sqlx::query_as::<_, ShoppingCart>(
-            "SELECT * FROM shopping_carts WHERE guest_session_id = $1",
-        )
-        .bind(id)
-        .fetch_optional(&mut *tx)
-        .await?
+    if let Ok(claims) = user_claims_result {
+        // --- SCENARIUSZ 1: Użytkownik zalogowany ---
+        let user_id = claims.sub;
+        cart = match sqlx::query_as("SELECT * FROM shopping_carts WHERE user_id = $1 FOR UPDATE")
+            .bind(user_id)
+            .fetch_optional(&mut *tx)
+            .await?
         {
-            (existing_cart, id)
+            Some(existing_cart) => existing_cart,
+            None => {
+                sqlx::query_as("INSERT INTO shopping_carts (user_id) VALUES ($1) RETURNING *")
+                    .bind(user_id)
+                    .fetch_one(&mut *tx)
+                    .await?
+            }
+        };
+    } else {
+        // --- SCENARIUSZ 2: Użytkownik jest gościem ---
+        if let Some(TypedHeader(XGuestCartId(guest_id))) = guest_cart_id_header {
+            // Gość ma już ID sesji, szukamy jego koszyka
+            if let Some(existing_cart) = sqlx::query_as(
+                "SELECT * FROM shopping_carts WHERE guest_session_id = $1 FOR UPDATE",
+            )
+            .bind(guest_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            {
+                cart = existing_cart;
+                new_guest_cart_id_to_set = Some(guest_id);
+            } else {
+                // ID sesji było, ale koszyk zniknął (rzadkie) - tworzymy nowy z tym samym ID
+                cart = sqlx::query_as(
+                    "INSERT INTO shopping_carts (guest_session_id) VALUES ($1) RETURNING *",
+                )
+                .bind(guest_id)
+                .fetch_one(&mut *tx)
+                .await?;
+                new_guest_cart_id_to_set = Some(guest_id);
+            }
         } else {
-            let new_cart = sqlx::query_as::<_, ShoppingCart>(
+            // Nowy gość, tworzymy mu ID sesji i koszyk
+            let new_id = Uuid::new_v4();
+            new_guest_cart_id_to_set = Some(new_id);
+            cart = sqlx::query_as(
                 "INSERT INTO shopping_carts (guest_session_id) VALUES ($1) RETURNING *",
             )
-            .bind(id)
+            .bind(new_id)
             .fetch_one(&mut *tx)
             .await?;
-            (new_cart, id)
+
+            // <<< KLUCZOWA POPRAWKA: Ustawiamy ciasteczko dla nowego gościa >>>
+            let guest_cookie = Cookie::build(("guest_cart_id", new_id.to_string()))
+                .path("/")
+                .http_only(true)
+                .secure(true)
+                .same_site(SameSite::Lax) // Użyj Lax zamiast None dla lepszego bezpieczeństwa
+                .max_age(time::Duration::days(365))
+                .build();
+            headers.insert(
+                axum::http::header::SET_COOKIE,
+                guest_cookie.to_string().parse().unwrap(),
+            );
+            tracing::info!("Ustawiono ciasteczko guest_cart_id dla nowego gościa.");
         }
-    } else {
-        let new_generated_id = Uuid::new_v4();
-        let new_cart = sqlx::query_as::<_, ShoppingCart>(
-            "INSERT INTO shopping_carts (guest_session_id) VALUES ($1) RETURNING *",
-        )
-        .bind(new_generated_id)
-        .fetch_one(&mut *tx)
-        .await?;
-        (new_cart, new_generated_id)
-    };
+    }
 
-    sqlx::query("INSERT INTO cart_items (cart_id, product_id) VALUES ($1, $2) ON CONFLICT (cart_id, product_id) DO NOTHING")
-        .bind(cart.id)
-        .bind(product_id)
-        .execute(&mut *tx)
-        .await?;
-
-    // Zamiast aktualizować i pobierać koszyk, po prostu pobierzemy go po commicie
-    // dla build_cart_details_response, który i tak sam zaktualizuje timestamp.
-    tx.commit().await?;
-
-    let mut conn = app_state.db_pool.acquire().await?;
-    let final_cart =
-        sqlx::query_as::<_, ShoppingCart>("SELECT * FROM shopping_carts WHERE id = $1")
-            .bind(cart.id)
-            .fetch_one(&mut *conn)
+    let product_opt =
+        sqlx::query_as::<_, Product>("SELECT * FROM products WHERE id = $1 FOR UPDATE")
+            .bind(product_id)
+            .fetch_optional(&mut *tx)
             .await?;
 
-    let cart_details_response = build_cart_details_response(&final_cart, &mut conn).await?;
+    match product_opt {
+        Some(product) => {
+            if product.status != ProductStatus::Available {
+                tx.rollback().await?;
+                let trigger_payload = serde_json::json!({
+                    "showMessage": { "type": "warning", "message": format!("Produkt '{}' jest obecnie niedostepny.", product.name) }
+                });
+                if let Ok(val) = HeaderValue::from_str(&trigger_payload.to_string()) {
+                    headers.insert("HX-Trigger", val);
+                }
+                return Ok((headers, html!()));
+            }
 
-    let response_payload = GuestCartOperationResponse {
-        guest_cart_id: guest_cart_uuid,
-        cart_details: cart_details_response,
-    };
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        "X-Guest-Cart-Id",
-        guest_cart_uuid.to_string().parse().unwrap(),
-    );
+            sqlx::query("INSERT INTO cart_items (cart_id, product_id) VALUES ($1, $2) ON CONFLICT (cart_id, product_id) DO NOTHING")
+                .bind(cart.id)
+                .bind(product_id)
+                .execute(&mut *tx)
+                .await?;
+        }
+        None => {
+            tx.rollback().await?;
+            let trigger_payload = serde_json::json!({
+                "showMessage": { "type": "error", "message": "Wybrany produkt nie został znaleziony." }
+            });
+            if let Ok(val) = HeaderValue::from_str(&trigger_payload.to_string()) {
+                headers.insert("HX-Trigger", val);
+            }
+            return Ok((headers, html!()));
+        }
+    }
 
-    Ok((StatusCode::OK, headers, Json(response_payload)))
+    let cart_details: CartDetailsResponse =
+        crate::cart_utils::build_cart_details_response(&cart, &mut tx).await?;
+
+    tx.commit().await.map_err(|e| {
+        tracing::error!("MAUD AddToCart: Błąd przy zatwierdzaniu transakcji: {}", e);
+        AppError::InternalServerError("Błąd serwera przy zapisie koszyka".to_string())
+    })?;
+
+    let trigger_payload = serde_json::json!({
+        "product-added": { "productId": product_id },
+        "updateCartCount": {
+            "newCount": cart_details.total_items,
+            "newCartTotalPrice": cart_details.total_price,
+            "newGuestCartId": new_guest_cart_id_to_set
+        },
+        "showMessage": {
+            "type": "success",
+            "message": "Dodano produkt do koszyka!"
+        }
+    });
+
+    if let Ok(trigger_value) = HeaderValue::from_str(&trigger_payload.to_string()) {
+        headers.insert("HX-Trigger", trigger_value);
+    }
+
+    Ok((headers, render_added_to_cart_button(product_id)))
+}
+
+/// Renderuje włączony przycisk "Dodaj do koszyka".
+fn render_add_to_cart_button(product_id: Uuid) -> Markup {
+    html! {
+        // Ważne: przycisk ma teraz unikalne ID, aby HTMX mógł go znaleźć
+        button id=(format!("product-cart-button-{}", product_id))
+               type="button"
+               hx-post=(format!("/htmx/cart/add/{}", product_id))
+               hx-target=(format!("#product-cart-button-{}", product_id)) // Celuje w samego siebie
+               hx-swap="outerHTML" // Podmienia cały swój kod HTML odpowiedzią z serwera
+               class="w-full text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 ease-in-out inline-flex items-center justify-center bg-pink-600 hover:bg-pink-700"
+        {
+            div class="flex items-center" {
+                svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 mr-2" {
+                    path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z";
+                }
+                span { "Dodaj do koszyka" }
+            }
+        }
+    }
+}
+
+/// Renderuje wyłączony przycisk "Dodano!".
+fn render_added_to_cart_button(product_id: Uuid) -> Markup {
+    html! {
+        // Ważne: ten przycisk ma to samo ID co jego włączona wersja.
+        button id=(format!("product-cart-button-{}", product_id))
+               type="button"
+               disabled
+               class="w-full text-white font-semibold py-2 px-4 rounded-lg transition-all inline-flex items-center justify-center bg-green-600 cursor-default"
+        {
+            div class="flex items-center" {
+                svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-5 h-5 mr-2" {
+                    path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5";
+                }
+                span { "Dodano!" }
+            }
+        }
+    }
 }
 
 //GET /api/guest-cart
@@ -2662,4 +2777,89 @@ pub async fn init_guest_session_handler(
         headers,
         Json(json!({ "guestCartId": new_guest_id })),
     ))
+}
+
+pub async fn add_item_to_guest_cart(
+    State(app_state): State<AppState>,
+    guest_cart_id_header: Option<TypedHeader<XGuestCartId>>,
+    Json(payload): Json<AddProductToCartPayload>,
+) -> Result<impl IntoResponse, AppError> {
+    let mut tx = app_state.db_pool.begin().await?;
+    let product_id = payload.product_id;
+    let mut headers = HeaderMap::new();
+
+    // Logika jest teraz identyczna jak w htmx_handler
+    let (cart, guest_cart_uuid) = if let Some(TypedHeader(XGuestCartId(id))) = guest_cart_id_header
+    {
+        if let Some(existing_cart) = sqlx::query_as::<_, ShoppingCart>(
+            "SELECT * FROM shopping_carts WHERE guest_session_id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?
+        {
+            (existing_cart, id)
+        } else {
+            let new_cart = sqlx::query_as::<_, ShoppingCart>(
+                "INSERT INTO shopping_carts (guest_session_id) VALUES ($1) RETURNING *",
+            )
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?;
+            (new_cart, id)
+        }
+    } else {
+        let new_generated_id = Uuid::new_v4();
+        let new_cart = sqlx::query_as::<_, ShoppingCart>(
+            "INSERT INTO shopping_carts (guest_session_id) VALUES ($1) RETURNING *",
+        )
+        .bind(new_generated_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        // <<< KLUCZOWA POPRAWKA: Ustawiamy ciasteczko także tutaj >>>
+        let guest_cookie = Cookie::build(("guest_cart_id", new_generated_id.to_string()))
+            .path("/")
+            .http_only(true)
+            .secure(true)
+            .same_site(SameSite::Lax)
+            .max_age(time::Duration::days(365))
+            .build();
+        headers.insert(
+            axum::http::header::SET_COOKIE,
+            guest_cookie.to_string().parse().unwrap(),
+        );
+
+        (new_cart, new_generated_id)
+    };
+
+    sqlx::query("INSERT INTO cart_items (cart_id, product_id) VALUES ($1, $2) ON CONFLICT (cart_id, product_id) DO NOTHING")
+        .bind(cart.id)
+        .bind(product_id)
+        .execute(&mut *tx)
+        .await?;
+
+    tx.commit().await?;
+
+    let mut conn = app_state.db_pool.acquire().await?;
+    let final_cart =
+        sqlx::query_as::<_, ShoppingCart>("SELECT * FROM shopping_carts WHERE id = $1")
+            .bind(cart.id)
+            .fetch_one(&mut *conn)
+            .await?;
+
+    let cart_details_response = build_cart_details_response(&final_cart, &mut conn).await?;
+
+    let response_payload = GuestCartOperationResponse {
+        guest_cart_id: guest_cart_uuid,
+        cart_details: cart_details_response,
+    };
+
+    // Dodajemy ID do nagłówka X-Guest-Cart-Id, aby HTMX mógł je przechwycić, jeśli jest potrzebne
+    headers.insert(
+        "X-Guest-Cart-Id",
+        guest_cart_uuid.to_string().parse().unwrap(),
+    );
+
+    Ok((StatusCode::OK, headers, Json(response_payload)))
 }

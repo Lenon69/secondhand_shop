@@ -1,11 +1,13 @@
 // src/htmx_handlers.rs
 
 use crate::{
+    cart_utils::build_cart_details_response,
+    models::{AddProductToCartPayload, GuestCartOperationResponse},
     response::PageBuilder,
     seo::{SchemaBrand, SchemaOffer, SchemaProduct},
     services::{CategoryWithCount, get_categories_with_counts},
 };
-use axum::response::Response;
+use axum::{Json, response::Response};
 #[allow(unused_imports)]
 use axum::{
     extract::{Path, Query, State},
@@ -659,14 +661,12 @@ pub async fn add_item_to_cart_htmx_handler(
         AppError::InternalServerError("Błąd serwera przy dodawaniu do koszyka".to_string())
     })?;
 
-    let cart: ShoppingCart;
-    let mut new_guest_cart_id_to_set: Option<Uuid> = None; // ID do odesłania w triggerze, jeśli nowy koszyk gościa
-    let new_guest_cookie: Option<Cookie> = None;
     let mut headers = HeaderMap::new();
+    let cart: ShoppingCart;
+    let mut new_guest_cart_id_to_set: Option<Uuid> = None;
 
-    // 1. Ustal koszyk (użytkownika lub gościa)
     if let Ok(claims) = user_claims_result {
-        // Użytkownik zalogowany
+        // --- SCENARIUSZ 1: Użytkownik zalogowany ---
         let user_id = claims.sub;
         cart = match sqlx::query_as("SELECT * FROM shopping_carts WHERE user_id = $1 FOR UPDATE")
             .bind(user_id)
@@ -681,28 +681,31 @@ pub async fn add_item_to_cart_htmx_handler(
                     .await?
             }
         };
-        tracing::info!(
-            "MAUD AddToCart: Użytkownik ID: {}, koszyk ID: {}",
-            user_id,
-            cart.id
-        );
-    } else if let Some(TypedHeader(XGuestCartId(guest_id))) = guest_cart_id_header {
-        // Gość z istniejącym ID koszyka
-        if let Some(existing_cart) =
-            sqlx::query_as("SELECT * FROM shopping_carts WHERE guest_session_id = $1 FOR UPDATE")
+    } else {
+        // --- SCENARIUSZ 2: Użytkownik jest gościem ---
+        if let Some(TypedHeader(XGuestCartId(guest_id))) = guest_cart_id_header {
+            // Gość ma już ID sesji, szukamy jego koszyka
+            if let Some(existing_cart) = sqlx::query_as(
+                "SELECT * FROM shopping_carts WHERE guest_session_id = $1 FOR UPDATE",
+            )
+            .bind(guest_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            {
+                cart = existing_cart;
+                new_guest_cart_id_to_set = Some(guest_id);
+            } else {
+                // ID sesji było, ale koszyk zniknął (rzadkie) - tworzymy nowy z tym samym ID
+                cart = sqlx::query_as(
+                    "INSERT INTO shopping_carts (guest_session_id) VALUES ($1) RETURNING *",
+                )
                 .bind(guest_id)
-                .fetch_optional(&mut *tx)
-                .await?
-        {
-            cart = existing_cart;
-            new_guest_cart_id_to_set = Some(guest_id); // Prześlemy to samo ID gościa
-            tracing::info!(
-                "MAUD AddToCart: Gość z istniejącym koszykiem (Session ID: {}), koszyk ID: {}",
-                guest_id,
-                cart.id
-            );
+                .fetch_one(&mut *tx)
+                .await?;
+                new_guest_cart_id_to_set = Some(guest_id);
+            }
         } else {
-            // ID gościa z nagłówka nie znaleziono w bazie - tworzymy nowy koszyk z NOWYM ID
+            // Nowy gość, tworzymy mu ID sesji i koszyk
             let new_id = Uuid::new_v4();
             new_guest_cart_id_to_set = Some(new_id);
             cart = sqlx::query_as(
@@ -711,39 +714,21 @@ pub async fn add_item_to_cart_htmx_handler(
             .bind(new_id)
             .fetch_one(&mut *tx)
             .await?;
-            tracing::info!(
-                "MAUD AddToCart: Nagłówek X-Guest-Cart-Id był, ale koszyk nie istniał. Stworzono nowy koszyk (Session ID: {}), koszyk ID: {}",
-                new_id,
-                cart.id
-            );
-        }
-    } else {
-        // Nowy gość, bez nagłówka X-Guest-Cart-Id
-        let new_id = Uuid::new_v4();
-        new_guest_cart_id_to_set = Some(new_id); // To ID zostanie wysłane do klienta
-        cart =
-            sqlx::query_as("INSERT INTO shopping_carts (guest_session_id) VALUES ($1) RETURNING *")
-                .bind(new_id)
-                .fetch_one(&mut *tx)
-                .await?;
-        tracing::info!(
-            "MAUD AddToCart: Nowy gość, stworzono nowy koszyk (Session ID: {}), koszyk ID: {}",
-            new_id,
-            cart.id
-        );
 
-        // --- Ustaw ciasteczko dla nowego gościa ---
-        let guest_cookie = Cookie::build(("guest_cart_id", new_id.to_string()))
-            .path("/")
-            .http_only(true)
-            .secure(true)
-            .same_site(SameSite::Lax)
-            .max_age(time::Duration::days(365))
-            .build();
-        headers.insert(
-            axum::http::header::SET_COOKIE,
-            guest_cookie.to_string().parse().unwrap(),
-        );
+            // <<< KLUCZOWA POPRAWKA: Ustawiamy ciasteczko dla nowego gościa >>>
+            let guest_cookie = Cookie::build(("guest_cart_id", new_id.to_string()))
+                .path("/")
+                .http_only(true)
+                .secure(true)
+                .same_site(SameSite::Lax) // Użyj Lax zamiast None dla lepszego bezpieczeństwa
+                .max_age(time::Duration::days(365))
+                .build();
+            headers.insert(
+                axum::http::header::SET_COOKIE,
+                guest_cookie.to_string().parse().unwrap(),
+            );
+            tracing::info!("Ustawiono ciasteczko guest_cart_id dla nowego gościa.");
+        }
     }
 
     // 2. Sprawdź produkt i dodaj do koszyka
@@ -833,7 +818,7 @@ pub async fn add_item_to_cart_htmx_handler(
         tracing::error!("MAUD AddToCart: Nie można utworzyć nagłówka HX-Trigger.");
     }
 
-    if let Some(cookie) = new_guest_cookie {
+    if let Some(cookie) = new_guest_cart_id_to_set {
         // Bezpiecznie parsujemy string ciasteczka na HeaderValue
         if let Ok(cookie_value) = cookie.to_string().parse() {
             headers.insert(axum::http::header::SET_COOKIE, cookie_value);

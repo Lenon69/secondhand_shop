@@ -6,7 +6,6 @@ use axum::response::Html;
 use axum::routing::{delete, get, post};
 use axum_server::tls_rustls::RustlsConfig;
 use dotenvy::dotenv;
-use htmx_handlers::*;
 use moka::future::Cache;
 use reqwest::StatusCode;
 use sqlx::postgres::PgPoolOptions;
@@ -39,8 +38,31 @@ mod services;
 mod sitemap_generator;
 mod state;
 
-// Importy z własnych modułów
-use crate::handlers::*;
+use crate::handlers::{
+    add_item_to_cart_handler, add_item_to_guest_cart, archivize_product_handler,
+    create_order_handler, create_product_handler, forgot_password_handler, get_cart_handler,
+    get_guest_cart, get_order_details_handler, get_product_details, init_guest_session_handler,
+    list_orders_handler, list_products, login_handler, logout_handler, merge_cart_handler,
+    permanent_delete_order_handler, permanent_delete_product_handler, protected_route_handler,
+    register_handler, remove_item_from_cart_handler, remove_item_from_guest_cart,
+    reset_password_handler, update_order_status_handler, update_product_partial_handler,
+    upsert_user_shipping_details_handler,
+};
+
+use crate::htmx_handlers::{
+    about_us_page_handler, add_item_to_cart_htmx_handler, admin_dashboard_htmx_handler,
+    admin_order_details_htmx_handler, admin_orders_list_htmx_handler,
+    admin_product_edit_form_htmx_handler, admin_product_new_form_htmx_handler,
+    admin_products_list_htmx_handler, checkout_page_handler, contact_page_handler,
+    dla_gender_handler, dla_gender_with_category_handler, faq_page_handler,
+    forgot_password_form_handler, get_cart_details_htmx_handler, get_product_detail_htmx_handler,
+    handler_404, home_page_handler, list_products_htmx_handler, live_search_handler,
+    login_page_htmx_handler, my_account_data_htmx_handler, my_account_page_handler,
+    my_order_details_htmx_handler, my_orders_htmx_handler, news_page_htmx_handler,
+    payment_finalization_page_handler, privacy_policy_page_handler, registration_page_htmx_handler,
+    remove_item_from_cart_htmx_handler, reset_password_form_handler, sale_page_htmx_handler,
+    search_page_handler, shipping_returns_page_handler, terms_of_service_page_handler,
+};
 use crate::state::{AppState, CloudinaryConfig};
 
 #[tokio::main]

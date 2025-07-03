@@ -399,6 +399,8 @@ pub struct CartItemWithProduct {
     pub on_sale: bool,
     pub status: ProductStatus, // p.status
     pub images: Vec<String>,   // p.images
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Deserialize, Debug, Clone, Serialize, sqlx::FromRow)]
