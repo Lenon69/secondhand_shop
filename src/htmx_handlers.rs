@@ -5881,18 +5881,19 @@ fn highlight_keyword(text: &str, keyword: &str) -> Markup {
 /// Renderuje ostylowany baner "Darmowa dostawa".
 fn render_free_shipping_banner_maud() -> Markup {
     html! {
-        // Używamy flex, aby wycentrować zawartość w pionie i poziomie
-        div class="p-3 sm:p-4 bg-gradient-to-r from-pink-500 to-purple-500 rounded-xl shadow-lg text-white flex items-center justify-center gap-x-3 sm:gap-x-4 h-full lg:max-w-2xl mx-auto" {
-            // Ikona
+        // --- NOWE KLASY ---
+        // Usunęliśmy gradient, dodaliśmy jednolity kolor, cień i subtelne zaokrąglenie.
+        // Zmieniliśmy też ikonę na bardziej minimalistyczną.
+        div class="p-3 sm:p-4 bg-pink-50 border border-pink-200 rounded-xl shadow-sm text-pink-800 flex items-center justify-center gap-x-3 sm:gap-x-4 h-full lg:max-w-2xl mx-auto" {
+            // Nowa, lżejsza ikona
             div class="flex-shrink-0" {
-                svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 sm:w-8 sm:h-8" {
+                svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 sm:w-7 sm:h-7" {
                   path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12";
                 }
             }
-            // Tekst
+            // Tekst - dodajemy większą wagę czcionki
             div {
-                // ZMIANA: Dodajemy `whitespace-nowrap` i responsywne rozmiary czcionki
-                p class="font-bold whitespace-nowrap text-base sm:text-lg md:text-xl" {
+                p class="font-semibold whitespace-nowrap text-base sm:text-lg" {
                     "Darmowa dostawa od 250 zł!"
                 }
             }
