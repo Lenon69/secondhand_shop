@@ -2,17 +2,12 @@
 
 <html lang="pl">
   <head>
-    <!-- <link rel="preconnect" href="https://fonts.googleapis.com"> -->
-    <!-- <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin> -->
-    <!-- <link href="https://fonts.googleapis.com/css2?family=Lora:wght@600;700&family=Poppins:wght@400;500;700&display=swap" rel="stylesheet"> -->
-  
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" id="viewport-meta" />
     <meta
       name="description"
       content="Odkryj unikalną odzież vintage w mess - all that vintage. Najlepsze perełki z drugiej ręki dla niej i dla niego."
     />
-    <!-- <meta name="htmx-config" content='{"globalIndicator": "#global-loading-spinner"}'> -->
     <title>mess - all that vintage - Sklep Vintage Online</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script
@@ -1175,96 +1170,64 @@
       </div>
     </aside>
 
-    <div
-        x-show="activeImageModal.isOpen"
-        x-cloak
-        x-transition:enter="transition-opacity ease-in-out duration-300"
-        x-transition:enter-start="opacity-0"
-        x-transition:enter-end="opacity-100"
-        x-transition:leave="transition-opacity ease-in-out duration-200"
-        x-transition:leave-start="opacity-100"
-        x-transition:leave-end="opacity-0"
-        class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm"
-    
-        @click="closeImageModal()"
+<div
+    x-show="activeImageModal.isOpen"
+    x-cloak
+    x-transition:enter="transition-opacity ease-in-out duration-300"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="transition-opacity ease-in-out duration-200"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
+    class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm"
+    @click="closeImageModal()"
+    @touchstart.passive="handleTouchStart($event)"
+    @touchmove.passive="handleTouchMove($event)"
+    @touchend="handleTouchEnd()"      
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="fullscreen-image-alt">
 
-        @touchstart.passive="handleTouchStart($event)"
-        @touchmove.passive="handleTouchMove($event)"
-        @touchend="handleTouchEnd()"      
-    
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="fullscreen-image-alt">
-    <button
-        x-show="activeImageModal.images.length > 1"
-        @click.stop="prevImageModal()"
-        type="button"
-        class="absolute left-4 top-1/2 -translate-y-1/2 z-[70] p-3 bg-white/20 hover:bg-white/40 rounded-full text-white focus:outline-none focus:ring-2 focus:ring-white transition-all"
-        aria-label="Poprzednie zdjęcie"
-      >
-        <svg
-          class="h-8 w-8"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke-width="2"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M15.75 19.5L8.25 12l7.5-7.5"
-          />
-        </svg>
-      </button>
-      <button
-        x-show="activeImageModal.images.length > 1"
-        @click.stop="nextImageModal()"
-        type="button"
-        class="absolute right-4 top-1/2 -translate-y-1/2 z-[70] p-3 bg-white/20 hover:bg-white/40 rounded-full text-white focus:outline-none focus:ring-2 focus:ring-white transition-all"
-        aria-label="Następne zdjęcie"
-      >
-        <svg
-          class="h-8 w-8"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke-width="2"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M8.25 4.5l7.5 7.5-7.5 7.5"
-          />
-        </svg>
-      </button>
-    <img
-        @click.stop 
-        :src="activeImageModal.currentSrc"
-        id="fullscreen-image-alt"
-        alt="Powiększone zdjęcie produktu"
-        class="block rounded-lg shadow-2xl object-contain max-w-full max-h-full"
-    />
-    <button
-        @click.stop="closeImageModal()"
-        type="button"
-        class="absolute top-4 right-4 z-[70] p-2 bg-white/20 hover:bg-white/40 rounded-full text-white focus:outline-none transition-all"
-        aria-label="Zamknij podgląd obrazka"
-      >
-        <svg
-          class="h-7 w-7"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke-width="2"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M6 18L18 6M6 6l12 12"
-          />
-        </svg>
-      </button>
+    <button @click.stop="closeImageModal()" type="button" class="absolute top-4 right-4 z-[70] p-2 bg-white/20 hover:bg-white/40 rounded-full text-white focus:outline-none transition-all" aria-label="Zamknij podgląd obrazka">
+        <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+    </button>
+    <button x-show="activeImageModal.images.length > 1" @click.stop="prevImageModal()" type="button" class="absolute left-4 top-1/2 -translate-y-1/2 z-[70] p-3 bg-white/20 hover:bg-white/40 rounded-full text-white focus:outline-none focus:ring-2 focus:ring-white transition-all" aria-label="Poprzednie zdjęcie">
+        <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+    </button>
+    <button x-show="activeImageModal.images.length > 1" @click.stop="nextImageModal()" type="button" class="absolute right-4 top-1/2 -translate-y-1/2 z-[70] p-3 bg-white/20 hover:bg-white/40 rounded-full text-white focus:outline-none focus:ring-2 focus:ring-white transition-all" aria-label="Następne zdjęcie">
+        <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+    </button>
+
+    <div
+        @click.stop
+        class="relative rounded-lg shadow-2xl overflow-hidden"
+        x-data="{ isZooming: false, zoomLevel: 2, originX: '50%', originY: '50%' }"
+        @click="if (window.innerWidth >= 768) isZooming = !isZooming"
+        x-bind:class="{ 'md:cursor-zoom-in': !isZooming, 'md:cursor-zoom-out': isZooming }"
+        @mousemove.throttle.16ms="
+            if (isZooming) {
+                const rect = $el.getBoundingClientRect();
+                const x = (($event.clientX - rect.left) / rect.width) * 100;
+                const y = (($event.clientY - rect.top) / rect.height) * 100;
+                originX = `${x}%`;
+                originY = `${y}%`;
+            }
+        "
+    >
+        <img
+            :src="activeImageModal.currentSrc"
+            id="fullscreen-image-alt"
+            alt="Powiększone zdjęcie produktu"
+            class="block object-contain w-auto h-auto max-w-[90vw] max-h-[90vh] rounded-lg transition-transform duration-300 ease-out"
+            :style="{
+                transform: isZooming ? `scale(${zoomLevel})` : 'scale(1)',
+                transformOrigin: `${originX} ${originY}`
+            }"
+        />
     </div>
+</div>    
+    
+    
     <div
       x-show="toast.show"
       x-transition:enter="transition ease-out duration-300"
