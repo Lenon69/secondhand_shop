@@ -1079,48 +1079,55 @@ fn render_product_grid_maud(
                     }
                 } @else {
                     @for (index, product) in products.iter().enumerate() { // Iterujemy po plasterku
-                        @let initial_image = product.images.get(0).cloned().unwrap_or_default();
-                        @let hover_image = product.images.get(1).cloned().unwrap_or_default();
+                        @let initial_image_raw = product.images.get(0).cloned().unwrap_or_default();
+                        @let hover_image_raw = product.images.get(1).cloned().unwrap_or_default();
 
-                        // Optymalizujemy OBA obrazki za pomocą Cloudinary
                         @let initial_image_transformed = transform_cloudinary_url(
-                            &initial_image, "w_400,h_400,c_fill,g_auto,f_auto,q_auto:good"
+                            &initial_image_raw, "w_400,h_400,c_fill,g_auto,f_auto,q_auto:good"
                         );
-                        @let hover_image_transformed = transform_cloudinary_url(
-                            &hover_image, "w_400,h_400,c_fill,g_auto,f_auto,q_auto:good"
+                        @let hover_image_transformed = if !hover_image_raw.is_empty() {
+                            transform_cloudinary_url(&hover_image_raw, "w_400,h_400,c_fill,g_auto,f_auto,q_auto:good")
+                        } else {
+                            String::new()
+                        };
+                        @let has_hover_image = !hover_image_transformed.is_empty();
+                        @let class_binding_initial = format!(
+                            "{{ 'opacity-0': isHovering && {}, 'opacity-100': !isHovering || !{} }}",
+                            has_hover_image, has_hover_image
                         );
+                        @let class_binding_hover = "{ 'opacity-100': isHovering, 'opacity-0': !isHovering }";
+                        @let initial_img_show_logic = format!("!isHovering || !{}", has_hover_image);
+                        @let hover_img_show_logic = "isHovering";
 
-                        div ."border rounded-lg p-4 shadow-lg flex flex-col bg-white transition-all duration-300 hover:shadow-xl hover:-translate-y-2"
-                            x-data=(format!(
-                                "{{ initialImage: '{}', hoverImage: '{}' }}",
-                                initial_image_transformed, // Używamy już przekształconego URL
-                                hover_image_transformed    // Używamy już przekształconego URL
-                            ))
-                            "@mouseenter"="if (hoverImage) $refs.productImage.src = hoverImage"
-                            "@mouseleave"="$refs.productImage.src = initialImage"
-                            {
+                        div class="border rounded-lg p-4 shadow-lg flex flex-col bg-white transition-all duration-300 hover:shadow-xl hover:-translate-y-2"
+                            x-data="{ isHovering: false }"
+                            "@mouseenter"="isHovering = true"
+                            "@mouseleave"="isHovering = false" {
                             a  href=(format!("/produkty/{}", product.id))
                                 hx-get=(format!("/produkty/{}?return_params={}", product.id, urlencoding::encode(&current_listing_params_qs)))
                                 hx-target="#content"
                                 hx-swap="innerHTML"
                                 hx-push-url="true"
-                                class="block mb-2 group aspect-square" {
-
-                                // Używamy tego samego kodu dla `<img>` w obu przypadkach
-                                @let transformed_url = transform_cloudinary_url(
-                                    product.images.get(0).unwrap_or(&String::new()),
-                                    "w_400,h_400,c_fill,g_auto,f_auto,q_auto:good"
-                                );
+                                class="block mb-2 group aspect-square relative" {
 
                                 @if !product.images.is_empty() {
                                     img
-                                        x-ref="productImage"
-                                        src=(transformed_url)
+                                        src=(initial_image_transformed)
                                         alt=(product.name)
-                                        class="w-full h-full object-cover rounded-md group-hover:opacity-85 transition-all duration-300 ease-in-out transform group-hover:scale-105 bg-gray-50"
+                                        class="absolute inset-0 w-full h-full object-cover rounded-md transition-opacity duration-300 ease-in-out"
+                                        // x-show=(initial_img_show_logic)
+                                        x-bind:class="{ 'opacity-0': isHovering && {{has_hover_image}} }"
                                         loading="lazy"
                                         fetchpriority=[if index == 0 { Some("high") } else { None }]
                                         ;
+                                    // Obrazek PO NAJECHANIU (tylko jeśli istnieje)
+                                    @if has_hover_image {
+                                        img src=(hover_image_transformed)
+                                            alt=(product.name)
+                                            class="absolute inset-0 w-full h-full object-cover rounded-md transition-opacity duration-300 ease-in-out opacity-0"
+                                            x-bind:class="{ 'opacity-100': isHovering }"
+                                            x-cloak;
+                                    }
                                 } @else {
                                     div ."w-full h-full bg-gray-200 rounded-md flex items-center justify-center group-hover:opacity-85 transition-opacity duration-200" {
                                         span ."text-gray-500 text-sm" { "Brak zdjęcia" }
