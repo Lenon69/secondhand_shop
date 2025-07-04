@@ -1083,21 +1083,19 @@ fn render_product_grid_maud(
                         @let hover_image_raw = product.images.get(1).cloned().unwrap_or_default();
 
                         @let initial_image_transformed = transform_cloudinary_url(
-                            &initial_image_raw, "w_400,h_400,c_fill,g_auto,f_auto,q_auto:good"
+                            &initial_image_raw, "w_400,h_400,c_fill,g_auto,f_auto,q_auto"
                         );
                         @let hover_image_transformed = if !hover_image_raw.is_empty() {
-                            transform_cloudinary_url(&hover_image_raw, "w_400,h_400,c_fill,g_auto,f_auto,q_auto:good")
+                            transform_cloudinary_url(&hover_image_raw, "w_400,h_400,c_fill,g_auto,f_auto,q_auto")
                         } else {
                             String::new()
                         };
                         @let has_hover_image = !hover_image_transformed.is_empty();
-                        @let class_binding_initial = format!(
-                            "{{ 'opacity-0': isHovering && {}, 'opacity-100': !isHovering || !{} }}",
-                            has_hover_image, has_hover_image
+                            @let class_binding_initial = format!(
+                            "{{ 'opacity-0': isHovering && {} }}",
+                            has_hover_image
                         );
-                        @let class_binding_hover = "{ 'opacity-100': isHovering, 'opacity-0': !isHovering }";
-                        @let initial_img_show_logic = format!("!isHovering || !{}", has_hover_image);
-                        @let hover_img_show_logic = "isHovering";
+                        @let class_binding_hover = "{ 'opacity-100': isHovering }";
 
                         div class="border rounded-lg p-4 shadow-lg flex flex-col bg-white transition-all duration-300 hover:shadow-xl hover:-translate-y-2"
                             x-data="{ isHovering: false }"
@@ -1115,8 +1113,7 @@ fn render_product_grid_maud(
                                         src=(initial_image_transformed)
                                         alt=(product.name)
                                         class="absolute inset-0 w-full h-full object-cover rounded-md transition-opacity duration-300 ease-in-out"
-                                        // x-show=(initial_img_show_logic)
-                                        x-bind:class="{ 'opacity-0': isHovering && {{has_hover_image}} }"
+                                        x-bind:class=(class_binding_initial)
                                         loading="lazy"
                                         fetchpriority=[if index == 0 { Some("high") } else { None }]
                                         ;
@@ -1125,7 +1122,7 @@ fn render_product_grid_maud(
                                         img src=(hover_image_transformed)
                                             alt=(product.name)
                                             class="absolute inset-0 w-full h-full object-cover rounded-md transition-opacity duration-300 ease-in-out opacity-0"
-                                            x-bind:class="{ 'opacity-100': isHovering }"
+                                            x-bind:class=(class_binding_hover)
                                             x-cloak;
                                     }
                                 } @else {
