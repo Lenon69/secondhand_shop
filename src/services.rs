@@ -20,23 +20,6 @@ pub async fn get_categories_with_counts(
     app_state: &AppState,
     gender: ProductGender,
 ) -> Result<Vec<CategoryWithCount>, AppError> {
-    let cache_key = format!("category_counts_{}", gender.as_ref());
-
-    if let Some(cached_data) = app_state.dynamic_html_cache.get(&cache_key).await {
-        if let Ok(data) = serde_json::from_str::<Vec<CategoryWithCount>>(&cached_data) {
-            tracing::info!(
-                "Cache HIT: Zwracam listę kategorii z licznikiem dla: {:?}",
-                gender
-            );
-            return Ok(data);
-        }
-    }
-
-    tracing::info!(
-        "Cache MISS: Pobieram listę kategorii z licznikiem dla: {:?}",
-        gender
-    );
-
     // --- NOWE, JEDNO ZAPYTANIE Z GROUP BY ---
     // Pobieramy wszystkie kategorie i ich liczności za jednym razem.
     let categories_with_counts = sqlx::query_as::<_, CategoryWithCount>(
@@ -53,14 +36,6 @@ pub async fn get_categories_with_counts(
     .bind(ProductStatus::Available)
     .fetch_all(&app_state.db_pool)
     .await?;
-
-    // Zapisujemy świeżo pobrane dane do cache'u
-    if let Ok(json_data) = serde_json::to_string(&categories_with_counts) {
-        app_state
-            .dynamic_html_cache
-            .insert(cache_key, json_data)
-            .await;
-    }
 
     Ok(categories_with_counts)
 }

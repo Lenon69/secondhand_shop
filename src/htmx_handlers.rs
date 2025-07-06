@@ -5003,38 +5003,12 @@ pub async fn render_product_listing_view(
 ) -> Result<Markup, AppError> {
     tracing::info!("MAUD: /htmx/products z parametrami: {:?}", params);
 
-    // --- NOWA LOGIKA CACHE'OWANIA ---
-    // Klucz zależy tylko od parametrów listy, stan koszyka jest przekazywany z zewnątrz i obsługiwany przez Alpine.js.
-    let cache_key = format!("product_grid_data:{}", params.to_query_string());
-
-    let paginated_response: PaginatedProductsResponse;
-
-    // Krok 1: Sprawdź, czy dane dla tego zapytania są w cache
-    if let Some(cached_json) = app_state.dynamic_html_cache.get(&cache_key).await {
-        tracing::info!("Cache HIT dla danych siatki produktów: {}", cache_key);
-        paginated_response = serde_json::from_str(&cached_json).map_err(|e| {
-            tracing::error!("Błąd deserializacji danych z cache: {}", e);
-            AppError::InternalServerError("Błąd wewnętrzny".to_string())
-        })?;
-    } else {
-        tracing::info!("Cache MISS dla danych siatki produktów: {}", cache_key);
-        let paginated_response_axum_json =
-            crate::handlers::list_products(State(app_state.clone()), Query(params.clone())).await?;
-        paginated_response = paginated_response_axum_json.0;
-
-        // Krok 3: Zapisz świeże dane w cache'u na przyszłość
-        if let Ok(response_json) = serde_json::to_string(&paginated_response) {
-            app_state
-                .dynamic_html_cache
-                .insert(cache_key, response_json)
-                .await;
-        }
-    }
-    // --- KONIEC LOGIKI CACHE'OWANIA ---
-
     // Konwersja ID produktów w koszyku na JSON dla Alpine.js (bez zmian)
     let cart_product_ids_json =
         serde_json::to_string(&product_ids_in_cart).unwrap_or_else(|_| "[]".to_string());
+    let paginated_response_axum_json =
+        crate::handlers::list_products(State(app_state.clone()), Query(params.clone())).await?;
+    let paginated_response = paginated_response_axum_json.0;
 
     // Renderowanie widoku (bez zmian)
     Ok(html!(

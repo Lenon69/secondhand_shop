@@ -138,13 +138,6 @@ async fn main() {
             .build(),
     );
 
-    let dynamic_html_cache = Arc::new(
-        Cache::builder()
-            .max_capacity(200) // Więcej możliwych kombinacji filtrów
-            .time_to_live(Duration::from_secs(300)) // 5 minut
-            .build(),
-    );
-
     // Definicja AppState
     let app_state = Arc::new(AppState {
         db_pool: pool,
@@ -154,7 +147,6 @@ async fn main() {
         resend_api_key,
         product_cache,
         static_html_cache,
-        dynamic_html_cache,
     });
 
     let cors = CorsLayer::new()
@@ -330,82 +322,6 @@ async fn main() {
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024))
         .layer(cors)
         .with_state(app_state.clone());
-
-    // --- NOWA, ROZBUDOWANA SEKCJA ROZGRZEWANIA CACHE'U ---
-    tracing::info!("Rozpoczynam rozgrzewanie pamięci podręcznej...");
-    let state_for_warmup = app_state;
-    tokio::spawn(async move {
-        // --- Rozgrzewanie Danych (Licznik kategorii) ---
-        tracing::info!("Cache-warming: Licznik kategorii...");
-        if let Err(e) = crate::services::get_categories_with_counts(
-            &state_for_warmup,
-            crate::models::ProductGender::Damskie,
-        )
-        .await
-        {
-            tracing::error!("Błąd podczas rozgrzewania cache'u dla 'Damskie': {}", e);
-        }
-        if let Err(e) = crate::services::get_categories_with_counts(
-            &state_for_warmup,
-            crate::models::ProductGender::Meskie,
-        )
-        .await
-        {
-            tracing::error!("Błąd podczas rozgrzewania cache'u dla 'Meskie': {}", e);
-        }
-
-        // --- Rozgrzewanie Stron HTML (dla gościa, bez filtrów) ---
-        tracing::info!("Cache-warming: Kluczowe strony HTML...");
-
-        // Przygotowujemy "udawane" parametry, jakich wymagają handlery
-        let headers = axum::http::HeaderMap::new();
-        let token_claims = crate::middleware::OptionalTokenClaims(None);
-        let guest_id = crate::middleware::OptionalGuestCartId(None);
-
-        // 1. Rozgrzewanie Strony Głównej
-        if let Err(e) = crate::htmx_handlers::home_page_handler(
-            headers.clone(),
-            axum::extract::State(state_for_warmup.clone()),
-            axum::extract::Query(crate::filters::ListingParams::default()),
-            token_claims.clone(),
-            guest_id.clone(),
-        )
-        .await
-        {
-            tracing::error!(
-                "Błąd podczas rozgrzewania cache'u dla Strony Głównej: {:?}",
-                e
-            );
-        }
-
-        // 2. Rozgrzewanie Strony Nowości
-        if let Err(e) = crate::htmx_handlers::news_page_htmx_handler(
-            headers.clone(),
-            axum::extract::State(state_for_warmup.clone()),
-            axum::extract::Query(crate::filters::ListingParams::default()),
-            token_claims.clone(),
-            guest_id.clone(),
-        )
-        .await
-        {
-            tracing::error!("Błąd podczas rozgrzewania cache'u dla Nowości: {:?}", e);
-        }
-
-        // 3. Rozgrzewanie Strony Okazji
-        if let Err(e) = crate::htmx_handlers::sale_page_htmx_handler(
-            headers.clone(),
-            axum::extract::State(state_for_warmup.clone()),
-            axum::extract::Query(crate::filters::ListingParams::default()),
-            token_claims.clone(),
-            guest_id.clone(),
-        )
-        .await
-        {
-            tracing::error!("Błąd podczas rozgrzewania cache'u dla Okazji: {:?}", e);
-        }
-
-        tracing::info!("Zakończono rozgrzewanie pamięci podręcznej.");
-    });
 
     // Adres i port, na którym serwer będzie nasłuchiwał
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000)); // Nasłuchuj na wszystkich interfejsach na porcie 3000

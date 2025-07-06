@@ -97,17 +97,6 @@ pub async fn list_products(
         params
     );
 
-    // --- NOWA LOGIKA CACHE'OWANIA DANYCH ---
-    let cache_key = format!("product_list_data:{}", params.to_query_string());
-    if let Some(cached_data_json) = app_state.dynamic_html_cache.get(&cache_key).await {
-        if let Ok(response) = serde_json::from_str(&cached_data_json) {
-            tracing::info!("Cache HIT dla danych listy produktów: {}", cache_key);
-            return Ok(Json(response));
-        }
-    }
-
-    tracing::info!("Cache MISS dla danych listy produktów: {}", cache_key);
-
     let limit = params.limit();
     let offset = params.offset();
 
@@ -230,13 +219,6 @@ pub async fn list_products(
         per_page: limit,
         data: products,
     };
-
-    if let Ok(response_json) = serde_json::to_string(&response) {
-        app_state
-            .dynamic_html_cache
-            .insert(cache_key, response_json)
-            .await;
-    }
 
     Ok(Json(response))
 }
@@ -416,9 +398,6 @@ pub async fn create_product_handler(
     .fetch_one(&app_state.db_pool)
     .await?;
     tracing::info!("Utworzono produkt o ID: {}", new_product_id);
-
-    app_state.dynamic_html_cache.invalidate_all();
-    tracing::info!("Unieważniono cały dynamiczny cache po dodaniu nowego produktu.");
 
     let mut headers = HeaderMap::new();
     let toast_payload = json!({
@@ -608,11 +587,6 @@ pub async fn update_product_partial_handler(
     // KROK 6: Zamykamy transakcję. Całość trwała ułamki sekund.
     tx.commit().await?;
 
-    // --- NOWA LOGIKA: Unieważnienie cache'u ---
-    // Po pomyślnym zaktualizowaniu produktu w bazie danych,
-    // usuwamy jego starą wersję z pamięci podręcznej.
-    app_state.dynamic_html_cache.invalidate_all();
-    tracing::info!("Unieważniono cały dynamiczny cache po aktualizacji produktu.");
     tracing::info!("Pomyślnie zaktualizowano produkt o ID: {}", product_id);
     Ok(Json(updated_product_db))
 }
@@ -655,10 +629,6 @@ pub async fn archivize_product_handler(
         .bind(product_id)
         .fetch_one(&app_state.db_pool)
         .await?;
-
-    // --- NOWA LOGIKA: Unieważnienie cache'u ---
-    app_state.dynamic_html_cache.invalidate_all();
-    tracing::info!("Unieważniono cały dynamiczny cache po zarchiwizowaniu produktu.");
 
     tracing::info!("Zarchiwizowano produkt o ID: {}", product_id);
 
@@ -746,8 +716,6 @@ pub async fn permanent_delete_product_handler(
 
     if delete_result.rows_affected() > 0 {
         tracing::info!("Trwale usunięto produkt o ID: {}", product_id);
-        app_state.dynamic_html_cache.invalidate_all();
-        tracing::info!("Unieważniono cały dynamiczny cache po usunięciu produktu.");
     }
 
     // KROK 5: Wyślij odpowiedź do HTMX
