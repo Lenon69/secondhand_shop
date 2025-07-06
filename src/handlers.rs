@@ -39,11 +39,12 @@ use crate::{
 use futures::future::try_join_all;
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::Arc;
 use uuid::Uuid;
 use validator::Validate;
 
 pub async fn get_product_details(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Path(product_id): Path<Uuid>,
 ) -> Result<Json<Product>, AppError> {
     // KROK 1: Sprawdź cache
@@ -88,7 +89,7 @@ pub async fn get_product_details(
 }
 
 pub async fn list_products(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Query(params): Query<ListingParams>,
 ) -> Result<Json<PaginatedProductsResponse>, AppError> {
     tracing::info!(
@@ -241,7 +242,7 @@ pub async fn list_products(
 }
 
 pub async fn create_product_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     claims: TokenClaims,
     mut multipart: Multipart,
 ) -> Result<(StatusCode, HeaderMap, String), AppError> {
@@ -441,7 +442,7 @@ pub async fn create_product_handler(
 }
 
 pub async fn update_product_partial_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Path(product_id): Path<Uuid>,
     claims: TokenClaims,
     mut multipart: Multipart,
@@ -617,7 +618,7 @@ pub async fn update_product_partial_handler(
 }
 
 pub async fn archivize_product_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Path(product_id): Path<Uuid>,
     claims: TokenClaims,
     Query(params): Query<ListingParams>,
@@ -670,7 +671,7 @@ pub async fn archivize_product_handler(
 
 // ZMIANA: Nowa funkcja do trwałego usuwania produktów
 pub async fn permanent_delete_product_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Path(product_id): Path<Uuid>,
     claims: TokenClaims,
 ) -> Result<(StatusCode, HeaderMap), AppError> {
@@ -768,7 +769,7 @@ pub async fn permanent_delete_product_handler(
 }
 
 pub async fn register_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Form(payload): Form<RegistrationPayload>,
 ) -> Result<impl IntoResponse, AppError> {
     // 1. Walidacja danych wejściowych
@@ -917,7 +918,7 @@ pub async fn register_handler(
 }
 
 pub async fn login_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Form(payload): Form<LoginPayload>,
 ) -> Result<impl IntoResponse, AppError> {
     // 1. Walidacja danych wejściowych
@@ -1105,7 +1106,7 @@ pub async fn protected_route_handler(claims: TokenClaims) -> Result<Json<Value>,
 
 #[axum::debug_handler]
 pub async fn create_order_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
     guest_cart_id_header: Option<TypedHeader<XGuestCartId>>,
     Form(payload): Form<CheckoutFormPayload>,
@@ -1476,7 +1477,7 @@ pub async fn create_order_handler(
 }
 
 pub async fn list_orders_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     claims: TokenClaims, // Potrzebne do rozróżnienia admin/klient
     Query(params): Query<OrderListingParams>, // Nowe parametry filtrowania
 ) -> Result<Json<PaginatedOrdersResponse<OrderWithCustomerInfo>>, AppError> {
@@ -1652,7 +1653,7 @@ pub async fn list_orders_handler(
 
 // ZMIANA: Uproszczenie handlera get_order_details_handler
 pub async fn get_order_details_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     claims: TokenClaims, // Tutaj claims jest wymagane do autoryzacji
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<OrderDetailsResponse>, AppError> {
@@ -1684,7 +1685,7 @@ pub async fn get_order_details_handler(
 }
 
 pub async fn update_order_status_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     claims: TokenClaims,
     Path(order_id): Path<Uuid>,
     Form(payload): Form<UpdateOrderStatusPayload>,
@@ -1746,7 +1747,7 @@ pub async fn update_order_status_handler(
 }
 
 pub async fn add_item_to_cart_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     claims: TokenClaims,
     Json(payload): Json<AddProductToCartPayload>,
 ) -> Result<(StatusCode, Json<CartDetailsResponse>), AppError> {
@@ -1833,7 +1834,7 @@ pub async fn add_item_to_cart_handler(
 }
 
 pub async fn get_cart_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     claims: TokenClaims,
 ) -> Result<Json<CartDetailsResponse>, AppError> {
     let user_id = claims.sub;
@@ -1871,7 +1872,7 @@ pub async fn get_cart_handler(
 }
 
 pub async fn remove_item_from_cart_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     claims: TokenClaims,
     Path(product_id_to_remove): Path<Uuid>,
 ) -> Result<Json<CartDetailsResponse>, AppError> {
@@ -1982,7 +1983,7 @@ impl axum_extra::headers::Header for XGuestCartId {
 
 #[allow(dead_code)]
 pub async fn add_item_to_cart_htmx_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Path(product_id): Path<Uuid>,
     user_claims_result: Result<TokenClaims, AppError>,
     guest_cart_id_header: Option<TypedHeader<XGuestCartId>>,
@@ -2169,7 +2170,7 @@ fn render_added_to_cart_button(product_id: Uuid) -> Markup {
 
 //GET /api/guest-cart
 pub async fn get_guest_cart(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     guest_cart_id_header: Option<TypedHeader<XGuestCartId>>,
 ) -> Result<impl IntoResponse, AppError> {
     if let Some(TypedHeader(XGuestCartId(guest_id))) = guest_cart_id_header {
@@ -2189,7 +2190,7 @@ pub async fn get_guest_cart(
 }
 
 pub async fn remove_item_from_guest_cart(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     guest_cart_id_header: Option<TypedHeader<XGuestCartId>>,
     Path(product_id_to_remove): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -2232,7 +2233,7 @@ pub async fn remove_item_from_guest_cart(
 
 // POST /api/cart/merge/ (Chroniony endpoint)
 pub async fn merge_cart_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     user_claims: TokenClaims,
     Json(payload): Json<MergeCartPayload>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -2315,7 +2316,7 @@ fn option_string_empty_as_none(opt_s: Option<String>) -> Option<String> {
 }
 
 pub async fn upsert_user_shipping_details_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     claims: TokenClaims,
     Form(payload): Form<UpdateUserShippingDetailsPayload>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -2447,7 +2448,7 @@ pub async fn upsert_user_shipping_details_handler(
 
 /// Ta operacja jest nieodwracalna.
 pub async fn permanent_delete_order_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     claims: TokenClaims,
     Path(order_id): Path<Uuid>,
 ) -> Result<(StatusCode, HeaderMap), AppError> {
@@ -2596,7 +2597,7 @@ pub async fn fetch_order_details_service(
 }
 
 pub async fn forgot_password_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Form(payload): Form<ForgotPasswordPayload>,
 ) -> Result<Markup, AppError> {
     // Zawsze zwracamy ten sam komunikat, aby nie ujawniać, czy e-mail istnieje w bazie.
@@ -2647,7 +2648,7 @@ pub async fn forgot_password_handler(
 }
 
 pub async fn reset_password_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Form(payload): Form<ResetPasswordPayload>,
 ) -> Result<(HeaderMap, Markup), AppError> {
     payload.validate()?; // Walidacja czy hasła pasują i mają min. 6 znaków
@@ -2737,7 +2738,7 @@ pub async fn logout_handler() -> Result<(StatusCode, HeaderMap), AppError> {
 
 /// Inicjalizuje nową sesję gościa, tworzy koszyk w bazie i ustawia ciasteczko.
 pub async fn init_guest_session_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
 ) -> Result<impl IntoResponse, AppError> {
     tracing::info!("Inicjalizacja nowej sesji gościa.");
 
@@ -2782,7 +2783,7 @@ pub async fn init_guest_session_handler(
 }
 
 pub async fn add_item_to_guest_cart(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     guest_cart_id_header: Option<TypedHeader<XGuestCartId>>,
     Json(payload): Json<AddProductToCartPayload>,
 ) -> Result<impl IntoResponse, AppError> {

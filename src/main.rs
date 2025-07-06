@@ -20,23 +20,24 @@ use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 // Deklaracje modułów
-mod auth;
-mod auth_models;
-mod cart_utils;
-mod cloudinary;
-mod email_service;
-mod errors;
-mod filters;
-mod handlers;
-mod htmx_handlers;
-mod middleware;
-mod models;
-mod pagination;
-mod response;
-mod seo;
-mod services;
-mod sitemap_generator;
-mod state;
+pub mod auth;
+pub mod auth_models;
+pub mod cart_utils;
+pub mod cloudinary;
+pub mod email_service;
+pub mod errors;
+pub mod extractor;
+pub mod filters;
+pub mod handlers;
+pub mod htmx_handlers;
+pub mod middleware;
+pub mod models;
+pub mod pagination;
+pub mod response;
+pub mod seo;
+pub mod services;
+pub mod sitemap_generator;
+pub mod state;
 
 use crate::handlers::{
     add_item_to_cart_handler, add_item_to_guest_cart, archivize_product_handler,
@@ -92,7 +93,7 @@ async fn main() {
     // --- Połączenie z bazą danych ---
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pool = match PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(10)
         .connect(&database_url)
         .await
     {
@@ -145,7 +146,7 @@ async fn main() {
     );
 
     // Definicja AppState
-    let app_state = AppState {
+    let app_state = Arc::new(AppState {
         db_pool: pool,
         jwt_secret,
         jwt_expiration_hours,
@@ -154,7 +155,7 @@ async fn main() {
         product_cache,
         static_html_cache,
         dynamic_html_cache,
-    };
+    });
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -215,7 +216,7 @@ async fn main() {
         .route("/", get(home_page_handler))
         .route(
             "/sitemap.xml",
-            get(|State(state): State<AppState>| async move {
+            get(|State(state): State<Arc<AppState>>| async move {
                 sitemap_generator::generate_sitemap_handler(&state).await
             }),
         )
@@ -430,20 +431,6 @@ async fn main() {
     {
         tracing::error!("Błąd serwera: {}", e);
     }
-
-    // Utworzenie listenera TCP
-    // let listener = match TcpListener::bind(addr).await {
-    //     Ok(listener) => listener,
-    //     Err(e) => {
-    //         tracing::error!("Nie można powiązać adresu {}: {}", addr, e);
-    //         return; // Zakończ, jeśli nie można uruchomić serwera
-    //     }
-    // };
-
-    // Uruchomienie serwera Axum
-    // if let Err(e) = axum::serve(listener, app.into_make_service()).await {
-    //     tracing::error!("Błąd serwera: {}", e);
-    // }
 }
 
 #[allow(dead_code)]

@@ -21,7 +21,7 @@ use chrono::Utc;
 use maud::{Markup, PreEscaped, html};
 use serde::Deserialize;
 use serde_json;
-use std::{collections::HashMap, str::FromStr};
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 use strum::IntoEnumIterator;
 use time;
 #[allow(unused_imports)]
@@ -146,7 +146,7 @@ fn format_price_maud(price: i64) -> String {
 
 pub async fn get_product_detail_htmx_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Path(product_id): Path<Uuid>,
     Query(query_params): Query<DetailViewParams>,
     OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
@@ -478,7 +478,7 @@ pub async fn get_product_detail_htmx_handler(
 
 pub async fn get_cart_details_htmx_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     user_claims_result: Result<TokenClaims, AppError>, // Wynik ekstrakcji JWT (może być błąd, jeśli brak tokenu)
     guest_cart_id_header: Option<TypedHeader<XGuestCartId>>,
 ) -> Result<(HeaderMap, Markup), AppError> {
@@ -644,7 +644,7 @@ pub async fn get_cart_details_htmx_handler(
 }
 
 pub async fn add_item_to_cart_htmx_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Path(product_id): Path<Uuid>,
     user_claims_result: Result<TokenClaims, AppError>, // Rezultat ekstrakcji JWT
     guest_cart_id_header: Option<TypedHeader<XGuestCartId>>,
@@ -828,7 +828,7 @@ pub async fn add_item_to_cart_htmx_handler(
 }
 
 pub async fn remove_item_from_cart_htmx_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Path(product_id_to_remove): Path<Uuid>,
     user_claims_result: Result<TokenClaims, AppError>,
     guest_cart_id_header: Option<TypedHeader<XGuestCartId>>,
@@ -1249,7 +1249,7 @@ fn render_product_grid_maud(
 
 pub async fn list_products_htmx_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Query(params): Query<ListingParams>,
     OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
     OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
@@ -1387,7 +1387,7 @@ fn render_about_us_content() -> Markup {
 
 pub async fn about_us_page_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     handle_static_page(
         headers,
@@ -1589,7 +1589,7 @@ fn render_privacy_policy_content() -> Markup {
 
 pub async fn privacy_policy_page_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     let cache_key = "privacy_policy_cache_key";
     let title = "Polityka prywatności - sklep mess - all that vintage";
@@ -1930,7 +1930,7 @@ fn render_terms_of_service() -> Markup {
 
 pub async fn terms_of_service_page_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     let title = "Regulamin sklepu - sklep mess - all that vintage";
     let cache_key = "terms_of_policy_cache_key";
@@ -2057,7 +2057,7 @@ fn render_contact_page() -> Markup {
 }
 pub async fn contact_page_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     let title = "Kontakt - sklep mess - all that vintage";
     let cache_key = "contact_page_cache_key";
@@ -2160,7 +2160,7 @@ fn render_faq_page() -> Markup {
 
 pub async fn faq_page_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     let title = "FAQ - Najczęściej zadawane pytania - sklep mess - all that vintage";
     let cache_key = "faq_page_cache_key";
@@ -2340,7 +2340,7 @@ fn render_shipping_returns_page() -> Markup {
 }
 pub async fn shipping_returns_page_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     let title = "Wysyłki i zwroty - sklep mess - all that vintage";
     let cache_key = "shipping_returns_cache_key";
@@ -2682,7 +2682,7 @@ pub async fn admin_product_new_form_htmx_handler(
 
 pub async fn admin_product_edit_form_htmx_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     claims: TokenClaims,
     Path(product_id): Path<Uuid>,
 ) -> Result<Response, AppError> {
@@ -2898,7 +2898,7 @@ pub async fn registration_page_htmx_handler(headers: HeaderMap) -> Result<Respon
 
 pub async fn my_orders_htmx_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     claims: TokenClaims, // Wymagane zalogowanie
 ) -> Result<Response, AppError> {
     let user_id = claims.sub;
@@ -3009,7 +3009,7 @@ pub async fn my_orders_htmx_handler(
 
 pub async fn checkout_page_handler(
     request_headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     user_claims_result: Result<TokenClaims, AppError>, // Wynik ekstrakcji JWT
     guest_cart_id_header: Option<TypedHeader<XGuestCartId>>,
 ) -> Result<(HeaderMap, Response), AppError> {
@@ -3487,7 +3487,7 @@ pub async fn checkout_page_handler(
 
 pub async fn my_account_data_htmx_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     claims: TokenClaims,
 ) -> Result<Response, AppError> {
     let user_id = claims.sub;
@@ -3637,7 +3637,7 @@ pub async fn my_account_data_htmx_handler(
 
 pub async fn my_order_details_htmx_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     claims: TokenClaims,
     Path(order_id): Path<Uuid>,
 ) -> Result<Response, AppError> {
@@ -3931,7 +3931,7 @@ pub async fn admin_dashboard_htmx_handler(
 
 pub async fn admin_products_list_htmx_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     claims: TokenClaims,
     Query(mut params): Query<ListingParams>,
 ) -> Result<Response, AppError> {
@@ -4374,7 +4374,7 @@ fn order_sort_link(
 
 pub async fn admin_orders_list_htmx_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     claims: TokenClaims,
     Query(params): Query<OrderListingParams>,
 ) -> Result<Response, AppError> {
@@ -4660,7 +4660,7 @@ pub async fn admin_orders_list_htmx_handler(
 
 pub async fn admin_order_details_htmx_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     claims: TokenClaims,
     Path(order_id): Path<Uuid>,
     Query(list_params): Query<OrderListingParams>,
@@ -4866,7 +4866,7 @@ fn get_order_status_badge_classes(status: OrderStatus) -> &'static str {
 ///   i jest odpowiedzialna za wygenerowanie i zwrócenie `Markup` dla danej strony.
 async fn handle_static_page(
     headers: HeaderMap,
-    app_state: AppState,
+    app_state: Arc<AppState>,
     cache_key: &'static str,
     title: &'static str,
     content_generator: impl Fn() -> Markup,
@@ -4906,7 +4906,7 @@ async fn handle_static_page(
 /// Funkcja, która renderuje stronę 'Nowości'
 pub async fn news_page_htmx_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Query(params): Query<ListingParams>,
     OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
     OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
@@ -4950,7 +4950,7 @@ pub async fn news_page_htmx_handler(
 
 pub async fn sale_page_htmx_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Query(params): Query<ListingParams>,
     OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
     OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
@@ -4997,7 +4997,7 @@ pub async fn sale_page_htmx_handler(
 }
 
 pub async fn render_product_listing_view(
-    app_state: AppState,
+    app_state: Arc<AppState>,
     params: ListingParams,
     product_ids_in_cart: Vec<Uuid>,
 ) -> Result<Markup, AppError> {
@@ -5054,7 +5054,7 @@ pub async fn render_product_listing_view(
 
 pub async fn payment_finalization_page_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Path(order_id): Path<Uuid>,
 ) -> Result<Response, AppError> {
     tracing::info!(
@@ -5450,7 +5450,7 @@ pub struct ResetTokenQuery {
 
 pub async fn reset_password_form_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Query(query): Query<ResetTokenQuery>,
 ) -> Result<Response, AppError> {
     let token_uuid = match Uuid::from_str(&query.token) {
@@ -5615,7 +5615,7 @@ fn render_added_to_cart_button(product_id: Uuid) -> Markup {
 }
 
 pub async fn live_search_handler(
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Query(params): Query<ListingParams>,
 ) -> Result<Markup, AppError> {
     // Sprawdź, czy zapytanie nie jest puste. Jeśli jest, zwróć pusty HTML.
@@ -5684,7 +5684,7 @@ pub async fn live_search_handler(
 
 pub async fn search_page_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Query(mut params): Query<ListingParams>, // Pobiera parametry z URL, np. ?search=Biała
     OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
     OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
@@ -5735,7 +5735,7 @@ pub async fn search_page_handler(
 /// renderuje sekcję Hero z H1 oraz początkową listę produktów.
 pub async fn home_page_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Query(params): Query<ListingParams>,
     OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
     OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
@@ -6052,7 +6052,7 @@ fn transform_cloudinary_url(original_url: &str, transformations: &str) -> String
 /// Ta funkcja nie jest handlerem, jest wywoływana przez handlery.
 async fn render_gender_page(
     headers: HeaderMap,
-    app_state: AppState,
+    app_state: Arc<AppState>,
     params: ListingParams,
     user_claims_opt: OptionalTokenClaims,
     guest_cart_id_opt: OptionalGuestCartId,
@@ -6141,7 +6141,7 @@ async fn render_gender_page(
 /// Handler dla tras BEZ kategorii, np. "/dla-niej"
 pub async fn dla_gender_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Path(gender_slug): Path<String>, // Pobiera 'dla-niej' lub 'dla-niego'
     Query(params): Query<ListingParams>,
     user_claims_opt: OptionalTokenClaims,
@@ -6168,7 +6168,7 @@ pub async fn dla_gender_handler(
 /// Handler dla tras Z KATEGORIĄ, np. "/dla-niej/koszule"
 pub async fn dla_gender_with_category_handler(
     headers: HeaderMap,
-    State(app_state): State<AppState>,
+    State(app_state): State<Arc<AppState>>,
     Path((gender_slug, category_slug)): Path<(String, String)>, // Pobiera oba segmenty
     Query(params): Query<ListingParams>,
     user_claims_opt: OptionalTokenClaims,
