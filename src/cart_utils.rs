@@ -90,8 +90,8 @@ pub async fn build_cart_details_response(
                 p.status,
                 p.on_sale,
                 p.images,
-                p.created_at, -- Jawnie wybrane pole
-                p.updated_at  -- Jawnie wybrane pole
+                p.created_at, 
+                p.updated_at  
             FROM cart_items ci
             JOIN products p ON ci.product_id = p.id
             WHERE ci.cart_id = $1

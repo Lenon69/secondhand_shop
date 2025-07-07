@@ -45,6 +45,7 @@ url = "2.5.4"
 moka = { version = "0.12.10", features = ["future"] }
 hyper = "1.6.0"
 quick-xml = { version = "0.38.0", features = ["tokio", "serde", "serialize"] }
+async-trait = "0.1.88"
 
 
 [profile.release]

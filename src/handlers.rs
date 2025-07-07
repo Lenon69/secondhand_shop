@@ -1619,7 +1619,6 @@ pub async fn list_orders_handler(
     }))
 }
 
-// ZMIANA: Uproszczenie handlera get_order_details_handler
 pub async fn get_order_details_handler(
     State(app_state): State<Arc<AppState>>,
     claims: TokenClaims, // Tutaj claims jest wymagane do autoryzacji

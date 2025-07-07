@@ -389,7 +389,7 @@ pub async fn get_product_detail_htmx_handler(
                         }
 
                         // --- Logika linku powrotnego (WERSJA OSTATECZNA) ---
-                        div ."mt-4 text-center sm:text-left" {
+                        div ."mt-4 text-center" {
                             @if let (Some(url), Some(text)) = (&query_params.return_url, &query_params.return_text) {
                                 // Ta część obsługuje specyficzne powroty, np. ze szczegółów zamówienia
                                 a href=(url.replace("/htmx", ""))
@@ -1097,7 +1097,7 @@ fn render_product_grid_maud(
                         );
                         @let class_binding_hover = "{ 'opacity-100': isHovering }";
 
-                        div class="border rounded-lg p-4 shadow-lg flex flex-col bg-white transition-all duration-300 hover:shadow-xl hover:-translate-y-2"
+                            div class="border rounded-lg p-4 shadow-lg flex flex-col bg-white transition-all duration-300 ease-in-out hover:shadow-pink-400/30 hover:ring-2 hover:ring-pink-300/80 hover:-translate-y-1"
                             x-data="{ isHovering: false }"
                             "@mouseenter"="isHovering = true"
                             "@mouseleave"="isHovering = false" {
