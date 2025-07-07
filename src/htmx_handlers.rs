@@ -1313,7 +1313,7 @@ pub async fn list_products_htmx_handler(
 
 /// Renderuje samą treść (Markup) dla strony "O nas".
 /// Ta funkcja nie zajmuje się cachowaniem ani budowaniem odpowiedzi HTTP.
-fn render_about_us_content() -> Markup {
+pub fn render_about_us_content() -> Markup {
     html! {
         div ."max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16" {
             // Baner lub główny nagłówek strony
@@ -1399,7 +1399,7 @@ pub async fn about_us_page_handler(
     .await
 }
 
-fn render_privacy_policy_content() -> Markup {
+pub fn render_privacy_policy_content() -> Markup {
     let effective_date = "25 maja 2025";
     let shop_name = "mess - all that vintage";
     let shop_url = "www.messvintage.com";
@@ -1603,7 +1603,7 @@ pub async fn privacy_policy_page_handler(
     .await
 }
 
-fn render_terms_of_service() -> Markup {
+pub fn render_terms_of_service() -> Markup {
     let effective_date = "25 maja 2025";
     let shop_name = "mess - all that vintage";
     let shop_url = "www.messvintage.com";
@@ -1944,7 +1944,7 @@ pub async fn terms_of_service_page_handler(
     .await
 }
 
-fn render_contact_page() -> Markup {
+pub fn render_contact_page() -> Markup {
     // Dane kontaktowe - UZUPEŁNIJ WŁASNYMI DANYMI!
     let shop_name = "mess - all that vintage";
     let contact_email = "contact@messvintage.com";
@@ -2070,7 +2070,7 @@ struct FaqItem {
     answer: String,
 }
 
-fn render_faq_page() -> Markup {
+pub fn render_faq_page() -> Markup {
     let faq_items = vec![
         FaqItem {
             question: "Jakie są dostępne metody płatności?".to_string(),
@@ -2167,7 +2167,7 @@ pub async fn faq_page_handler(
     handle_static_page(headers, app_state, cache_key, title, render_faq_page).await
 }
 
-fn render_shipping_returns_page() -> Markup {
+pub fn render_shipping_returns_page() -> Markup {
     let shop_name = "mess - all that vintage";
     let processing_time = "1-2 dni robocze";
     let delivery_time = "1-2 dni robocze";

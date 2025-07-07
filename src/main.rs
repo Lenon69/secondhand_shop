@@ -6,6 +6,7 @@ use axum::response::Html;
 use axum::routing::{delete, get, post};
 use axum_server::tls_rustls::RustlsConfig;
 use dotenvy::dotenv;
+use maud::Markup;
 use moka::future::Cache;
 use reqwest::StatusCode;
 use sqlx::postgres::PgPoolOptions;
@@ -107,6 +108,56 @@ async fn main() {
         }
     };
 
+    async fn warm_static_cache(state: Arc<AppState>) {
+        tracing::info!("Rozpoczynanie rozgrzewania cache'u dla stron statycznych...");
+
+        type StaticPageRenderer = fn() -> Markup;
+
+        use crate::htmx_handlers::{
+            render_about_us_content, render_contact_page, render_faq_page,
+            render_privacy_policy_content, render_shipping_returns_page, render_terms_of_service,
+        };
+
+        // Użyj zdefiniowanego typu w wektorze
+        let pages_to_cache: Vec<(&str, StaticPageRenderer)> = vec![
+            (
+                "about_us_cache_key",
+                render_about_us_content as StaticPageRenderer,
+            ),
+            (
+                "privacy_policy_cache_key",
+                render_privacy_policy_content as StaticPageRenderer,
+            ),
+            (
+                "terms_of_policy_cache_key",
+                render_terms_of_service as StaticPageRenderer,
+            ),
+            (
+                "contact_page_cache_key",
+                render_contact_page as StaticPageRenderer,
+            ),
+            ("faq_page_cache_key", render_faq_page as StaticPageRenderer),
+            (
+                "shipping_returns_cache_key",
+                render_shipping_returns_page as StaticPageRenderer,
+            ),
+        ];
+
+        for (key, renderer) in pages_to_cache {
+            // Teraz `renderer` jest wskaźnikiem, więc wywołujemy go normalnie
+            let content_html = renderer();
+            let content_str = content_html.into_string();
+            state
+                .static_html_cache
+                .insert(key.to_string(), content_str)
+                .await;
+        }
+        tracing::info!(
+            "Zakończono rozgrzewanie cache'u dla {} stron statycznych.",
+            state.static_html_cache.entry_count()
+        );
+    }
+
     // --- Konfiguracja Cloudinary ---
     let cloudinary_config = CloudinaryConfig {
         cloud_name: env::var("CLOUDINARY_CLOUD_NAME").expect("CLOUDINARY_CLOUD_NAME must be set"),
@@ -147,6 +198,11 @@ async fn main() {
         resend_api_key,
         product_cache,
         static_html_cache,
+    });
+
+    let state_for_warming = app_state.clone();
+    tokio::spawn(async move {
+        warm_static_cache(state_for_warming).await;
     });
 
     let cors = CorsLayer::new()
