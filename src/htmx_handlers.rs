@@ -1,9 +1,12 @@
 // src/htmx_handlers.rs
 
+use crate::seo::{SchemaAcceptedAnswer, SchemaFAQPage, SchemaOrganization, SchemaQuestion};
+use crate::services::get_available_categories_for_gender;
+
+use crate::models::FaqItem;
 use crate::{
     response::PageBuilder,
     seo::{SchemaBrand, SchemaOffer, SchemaProduct},
-    services::{CategoryWithCount, get_categories_with_counts},
 };
 use axum::response::Response;
 #[allow(unused_imports)]
@@ -2064,12 +2067,6 @@ pub async fn contact_page_handler(
     handle_static_page(headers, app_state, cache_key, title, render_contact_page).await
 }
 
-#[derive(Debug)]
-struct FaqItem {
-    question: String,
-    answer: String,
-}
-
 pub fn render_faq_page() -> Markup {
     let faq_items = vec![
         FaqItem {
@@ -2158,13 +2155,82 @@ pub fn render_faq_page() -> Markup {
     }
 }
 
-pub async fn faq_page_handler(
-    headers: HeaderMap,
-    State(app_state): State<Arc<AppState>>,
-) -> Result<Response, AppError> {
+pub fn faq_items() -> Vec<FaqItem> {
+    let faq_items = vec![
+        FaqItem {
+            question: "Jakie są dostępne metody płatności?".to_string(),
+            answer: "W naszym sklepie mess - all that vintage akceptujemy następujące metody płatności: szybkie przelewy online BLIK oraz przelew tradycyjny. Wszystkie transakcje są bezpieczne i szyfrowane.".to_string(),
+        },
+        FaqItem {
+            question: "Jaki jest czas realizacji zamówienia?".to_string(),
+            answer: "Standardowo, zamówienia przygotowujemy do wysyłki w ciągu 1-2 dni roboczych od momentu zaksięgowania wpłaty. Czas dostawy przez przewoźnika to zazwyczaj dodatkowe 1-2 dni robocze.".to_string(),
+        },
+        FaqItem {
+            question: "Jakie są koszty i opcje dostawy?".to_string(),
+            answer: "Oferujemy dostawę za pośrednictwem Paczkomatów InPost oraz Poczta Polska. Koszt dostawy jest widoczny podczas składania zamówienia i zależy od wybranej opcji. Dla zamówień powyżej 250 zł dostawa jest darmowa!".to_string(),
+        },
+        FaqItem {
+            question: "Czy wysyłacie za granicę?".to_string(),
+            answer: "Obecnie realizujemy wysyłki wyłącznie na terenie Polski. Pracujemy nad rozszerzeniem naszej oferty o wysyłki międzynarodowe.".to_string(),
+        },
+        FaqItem {
+            question: "W jakim stanie są oferowane ubrania?".to_string(),
+            answer: "W mess - all that vintage specjalizujemy się w odzieży vintage i używanej w doskonałym lub bardzo dobrym stanie. Każdy produkt jest starannie sprawdzany, a jego stan (wraz z ewentualnymi minimalnymi śladami użytkowania, które dodają charakteru) jest dokładnie opisany na karcie produktu. Stawiamy na jakość i unikatowość.".to_string(),
+        },
+        FaqItem {
+            question: "Jak dbać o odzież vintage?".to_string(),
+            answer: "Pielęgnacja odzieży vintage zależy od materiału. Zawsze sprawdzaj metki, jeśli są dostępne. Generalnie zalecamy delikatne pranie ręczne lub w niskich temperaturach, a dla szczególnie cennych materiałów (jak jedwab czy wełna) czyszczenie chemiczne. Unikaj suszenia w suszarce bębnowej.".to_string(),
+        },
+        FaqItem {
+            question: "Czy produkty są unikatowe?".to_string(),
+            answer: "Tak, większość naszej oferty to pojedyncze, unikatowe egzemplarze. To właśnie czyni zakupy w mess - all that vintage wyjątkowym doświadczeniem - masz szansę zdobyć coś, czego nie będzie miał nikt inny!".to_string(),
+        },
+        FaqItem {
+            question: "Czy mogę zwrócić zakupiony produkt?".to_string(),
+            answer: "Oczywiście. Masz 14 dni na zwrot towaru bez podania przyczyny od momentu otrzymania przesyłki. Produkt musi być w stanie nienaruszonym, z oryginalnymi metkami (jeśli były). Szczegóły procedury zwrotu znajdziesz w naszym Regulaminie Sklepu.".to_string(),
+        },
+        FaqItem {
+            question: "Jak złożyć reklamację?".to_string(),
+            answer: "Jeśli otrzymany produkt posiada wadę, która nie była opisana, skontaktuj się z nami mailowo, dołączając zdjęcia i opis problemu. Każdą reklamację rozpatrujemy indywidualnie. Więcej informacji znajdziesz w Regulaminie Sklepu.".to_string(),
+        },
+    ];
+    faq_items
+}
+
+pub async fn faq_page_handler(headers: HeaderMap) -> Result<Response, AppError> {
     let title = "FAQ - Najczęściej zadawane pytania - sklep mess - all that vintage";
-    let cache_key = "faq_page_cache_key";
-    handle_static_page(headers, app_state, cache_key, title, render_faq_page).await
+
+    // Dane do FAQ (przeniesione tutaj, aby były dostępne dla obu części)
+    // Generowanie danych strukturalnych
+    let faq_items = faq_items();
+    let questions: Vec<SchemaQuestion> = faq_items
+        .iter()
+        .map(|item: &FaqItem| SchemaQuestion {
+            // <-- Jawna adnotacja typu
+            type_of: "Question",
+            name: &item.question,
+            accepted_answer: SchemaAcceptedAnswer {
+                type_of: "AcceptedAnswer",
+                text: &item.answer,
+            },
+        })
+        .collect();
+
+    let faq_schema = SchemaFAQPage {
+        context: "https://schema.org",
+        type_of: "FAQPage",
+        main_entity: questions,
+    };
+
+    let json_ld_string = serde_json::to_string(&faq_schema).unwrap_or_default();
+    let head_content = html! {
+        script type="application/ld+json" { (PreEscaped(json_ld_string)) }
+    };
+
+    // Renderowanie widoku HTML
+    let page_content = render_faq_page();
+    let page_builder = PageBuilder::new(title, page_content, Some(head_content), None);
+    build_response(headers, page_builder).await
 }
 
 pub fn render_shipping_returns_page() -> Markup {
@@ -5714,12 +5780,14 @@ pub async fn home_page_handler(
     OptionalTokenClaims(user_claims_opt): OptionalTokenClaims,
     OptionalGuestCartId(guest_cart_id_opt): OptionalGuestCartId,
 ) -> Result<Response, AppError> {
-    // --- 1. Logika cachowania ---
-    let limit = params.limit.unwrap_or(8);
-    let offset = params.offset.unwrap_or(0);
     let title = "mess - all that vintage - Sklep Vintage Online";
+    let final_params = ListingParams {
+        limit: params.limit.or(Some(8)),
+        offset: params.offset,
+        source: Some("home".to_string()),
+        ..params
+    };
 
-    // --- 2. Pobieranie danych (jeśli nie ma w cache'u lub to inna strona niż pierwsza) ---
     let mut conn = app_state.db_pool.acquire().await?;
     let cart_details_opt =
         crate::cart_utils::get_cart_details(&mut conn, user_claims_opt, guest_cart_id_opt).await?;
@@ -5727,25 +5795,30 @@ pub async fn home_page_handler(
         .map(|details| details.items.iter().map(|item| item.product.id).collect())
         .unwrap_or_else(Vec::new);
 
-    let final_params = ListingParams {
-        limit: Some(limit),
-        offset: Some(offset),
-        source: Some("home".to_string()),
-        ..params
+    // Generowanie danych strukturalnych dla organizacji
+    let org_schema = SchemaOrganization {
+        context: "https://schema.org",
+        type_of: "Organization",
+        name: "mess - all that vintage",
+        url: "https://messvintage.com",
+        logo: "https://messvintage.com/static/main-logo.png",
+    };
+    let json_ld_org = serde_json::to_string(&org_schema).unwrap_or_default();
+    let head_content = html! {
+        script type="application/ld+json" { (PreEscaped(json_ld_org)) }
     };
 
-    // --- 3. Renderowanie treści ---
-    // Używamy istniejącej, reużywalnej funkcji do renderowania siatki produktów
+    // Renderowanie siatki produktów
     let product_listing_view =
-        render_product_listing_view(app_state.clone(), final_params, product_ids_in_cart).await?;
+        render_product_listing_view(app_state.clone(), final_params.clone(), product_ids_in_cart)
+            .await?;
 
     let page_content = html! {
         (render_home_page_hero())
         (product_listing_view)
     };
 
-    // --- 5. Zbudowanie i zwrócenie odpowiedzi ---
-    let page_builder = PageBuilder::new(&title, page_content, None, None);
+    let page_builder = PageBuilder::new(title, page_content, Some(head_content), None);
     build_response(headers, page_builder).await
 }
 
@@ -5764,9 +5837,13 @@ fn render_home_page_hero() -> Markup {
             div class="absolute inset-0 bg-black/60" {}
 
             div class="relative z-10 px-4" {
-                h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white drop-shadow-md" {                    "Wyjątkowa odzież vintage online"
+                h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white drop-shadow-md" {
+                    "Wyjątkowa "
+                    span class="text-pink-600" { "odzież vintage" }
+                    " online"
                 }
                 p class="mt-4 max_w-2xl mx-auto text-lg text-gray-100 drop-shadow-md" {
+
                     "Odkryj unikalne perełki z duszą. Ręcznie selekcjonowana odzież dla Niej i dla Niego."
                 }
             }
@@ -5900,7 +5977,7 @@ fn render_free_shipping_banner_maud() -> Markup {
 fn render_category_sidebar_maud(
     gender_slug: &str,
     current_category: Option<&Category>, // Przyjmuje opcjonalną referencję do aktywnej kategorii
-    categories_with_counts: &[CategoryWithCount],
+    available_categories: &[Category],
 ) -> Markup {
     html! {
         // --- GŁÓWNY KONTENER PANELU ---
@@ -5960,10 +6037,11 @@ fn render_category_sidebar_maud(
                         }
 
                         // --- Pętla po wszystkich kategoriach ---
-                        @for item in categories_with_counts.iter() {
+                        @for category in available_categories.iter() {
                             li {
-                                @let category_classes = if current_category == Some(&item.category) { active_class } else { inactive_class };
-                                @let category_param = item.category.as_ref();
+                                // ZMIANA: Porównujemy bezpośrednio z `category`
+                                @let category_classes = if current_category == Some(category) { active_class } else { inactive_class };
+                                @let category_param = category.as_ref();
                                 a href=(format!("/{}/{}", gender_slug, category_param))
                                     hx-get=(format!("/{}/{}", gender_slug, category_param))
                                     hx-target="#content"
@@ -5971,9 +6049,7 @@ fn render_category_sidebar_maud(
                                     hx-push-url="true"
                                     class=(category_classes)
                                     "@click"="isCategorySidebarOpen = false" {
-                                    { span {(item.category.to_string()) }
-                                    // Licznik produktów
-                                    // span class="text-xs bg-gray-200 text-gray-600 rounded-full px-2 py-0.5" { (item.count) }
+                                    { span {(category.to_string()) }
                                     }
                                 }
                             }
@@ -6082,11 +6158,12 @@ async fn render_gender_page(
     };
 
     // --- NOWA CZĘŚĆ: POBIERANIE DANYCH DLA PASKA BOCZNEGO ---
-    let categories_with_counts = get_categories_with_counts(&app_state, current_gender)
+    // ZMIANA: Wywołujemy nową funkcję i zmieniamy nazwę zmiennej
+    let available_categories = get_available_categories_for_gender(&app_state, current_gender)
         .await
         .unwrap_or_else(|e| {
-            tracing::error!("Nie udało się pobrać kategorii z licznikami: {}", e);
-            vec![] // W razie błędu zwróć pusty wektor, aby strona się nie wysypała.
+            tracing::error!("Nie udało się pobrać listy kategorii: {}", e);
+            vec![] // W razie błędu zwróć pusty wektor.
         });
 
     // --- Renderowanie Treści ---
@@ -6096,7 +6173,7 @@ async fn render_gender_page(
         }
         (seo_header_markup)
         div ."flex flex-col md:flex-row gap-6" {
-            (render_category_sidebar_maud(gender_slug, current_category_opt.as_ref(), &categories_with_counts))
+            (render_category_sidebar_maud(gender_slug, current_category_opt.as_ref(), &available_categories))
             section #product-listing-area ."w-full md:w-3/4 lg:w-4/5" {
                 (render_product_grid_maud(
                     &paginated_response.data,

@@ -189,6 +189,13 @@ async fn main() {
             .build(),
     );
 
+    let category_list_cache = Arc::new(
+        Cache::builder()
+            .max_capacity(20)
+            .time_to_live(Duration::from_secs(600))
+            .build(),
+    );
+
     // Definicja AppState
     let app_state = Arc::new(AppState {
         db_pool: pool,
@@ -198,6 +205,7 @@ async fn main() {
         resend_api_key,
         product_cache,
         static_html_cache,
+        category_list_cache,
     });
 
     let state_for_warming = app_state.clone();

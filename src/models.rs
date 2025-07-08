@@ -78,6 +78,8 @@ impl ProductStatus {
     Deserialize,
     PartialEq,
     Type,
+    Eq,
+    Hash,
     EnumString,
     Display,
     EnumIter,
@@ -604,4 +606,10 @@ pub struct ProductWithTotalCount {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub total_count: Option<i64>,
+}
+
+#[derive(Debug)]
+pub struct FaqItem {
+    pub question: String,
+    pub answer: String,
 }

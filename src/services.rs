@@ -3,32 +3,34 @@
 use crate::errors::AppError;
 use crate::models::{Category, ProductGender, ProductStatus};
 use crate::state::AppState;
-use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)] // <<< DODAJ `sqlx::FromRow`
-pub struct CategoryWithCount {
-    // Nazwa pola musi pasować do nazwy zwracanej przez SQL, czyli `category`
-    pub category: Category,
-    // Nazwa pola musi pasować do aliasu w SQL, czyli `product_count`
-    #[sqlx(rename = "product_count")]
-    pub count: i64,
-}
-
-/// (Zoptymalizowana) Pobiera wszystkie kategorie wraz z liczbą dostępnych produktów dla danej płci.
-/// Wynik działania tej funkcji jest cachowany.
-pub async fn get_categories_with_counts(
+/// Pobiera listę unikalnych, dostępnych kategorii dla danej płci.
+///
+/// Funkcja jest zoptymalizowana pod kątem wydajności:
+/// 1. Najpierw sprawdza cache, aby uniknąć zbędnych zapytań do bazy danych.
+/// 2. Jeśli danych nie ma w cache'u, wykonuje szybkie zapytanie `SELECT DISTINCT`.
+/// 3. Wynik zapytania jest zapisywany w cache'u na przyszłe żądania.
+pub async fn get_available_categories_for_gender(
     app_state: &AppState,
     gender: ProductGender,
-) -> Result<Vec<CategoryWithCount>, AppError> {
-    // --- NOWE, JEDNO ZAPYTANIE Z GROUP BY ---
-    // Pobieramy wszystkie kategorie i ich liczności za jednym razem.
-    let categories_with_counts = sqlx::query_as::<_, CategoryWithCount>(
+) -> Result<Vec<Category>, AppError> {
+    // Krok 1: Sprawdzenie cache'u
+    if let Some(cached_categories) = app_state.category_list_cache.get(&gender).await {
+        tracing::info!("Cache HIT dla listy kategorii dla płci: {:?}", gender);
+        return Ok(cached_categories);
+    }
+
+    // Krok 2: Pobranie danych z bazy w przypadku "cache miss"
+    tracing::info!(
+        "Cache MISS dla listy kategorii dla płci: {:?}. Pobieranie z bazy.",
+        gender
+    );
+
+    let available_categories = sqlx::query_scalar::<_, Category>(
         r#"
-        SELECT category, COUNT(*) as product_count
+        SELECT DISTINCT category
         FROM products
         WHERE gender = $1 AND status = $2
-        GROUP BY category
-        HAVING COUNT(*) > 0
         ORDER BY category ASC
         "#,
     )
@@ -37,5 +39,12 @@ pub async fn get_categories_with_counts(
     .fetch_all(&app_state.db_pool)
     .await?;
 
-    Ok(categories_with_counts)
+    // Krok 3: Zapisanie wyniku w cache'u
+    app_state
+        .category_list_cache
+        .insert(gender, available_categories.clone())
+        .await;
+
+    // Krok 4: Zwrócenie wyniku
+    Ok(available_categories)
 }
