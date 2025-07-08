@@ -196,19 +196,15 @@
             });
 
             // 3. Obserwuj zmiany w stanie 'cartOpen'
-            this.$watch('cartOpen', (isOpen) => {
+            $watch('cartOpen', (isOpen) => {
                 const hasCartHash = location.hash === '#cart';
-                
+    
                 if (isOpen && !hasCartHash) {
-                    // Jeśli koszyk się otwiera, a w URL nie ma hasha, dodaj go
                     history.pushState({ cartOpen: true }, '', '#cart');
                 } else if (!isOpen && hasCartHash) {
-                    // Jeśli koszyk jest zamykany (manualnie), a hash wciąż jest w URL,
-                    // cofnij historię, aby usunąć wpis #cart
-                    history.back();
+                    history.replaceState(null, '', window.location.pathname + window.location.search);
                 }
             });
-
             // --- KONIEC NOWEJ LOGIKI ---
 
 

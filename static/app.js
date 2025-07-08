@@ -47,28 +47,33 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const requestConfig = event.detail.requestConfig;
     const requestPath = requestConfig.path;
-    const requestVerb = requestConfig.verb.toLowerCase(); // np. "get", "post", "delete"
+
+    // Definiujemy listę ścieżek, DLA KTÓRYCH NIE CHCEMY przewijać do góry.
+    const noScrollPaths = [
+      "/htmx/cart/add/", // Dodawanie do koszyka
+      "/htmx/cart/remove/", // Usuwanie z koszyka
+      "/htmx/cart/details", // <- NOWY WYJĄTEK: Aktualizacja widoku koszyka
+      "/api/orders/", // Aktualizacja statusu zamówienia w tle
+      "/api/products/", // Archiwizacja produktu w tle
+    ];
+
+    // Sprawdzamy, czy aktualna ścieżka żądania NIE ZACZYNA SIĘ od żadnej z powyższych.
+    const shouldScrollToTop = !noScrollPaths.some((path) =>
+      requestPath.startsWith(path),
+    );
+
     const isHistoryRestore =
       requestConfig.headers["HX-History-Restore-Request"];
 
-    const isAddToCartRequest = requestPath.startsWith("/htmx/cart/add/");
-    const isOrderDeleteRequest =
-      requestVerb === "delete" &&
-      requestPath.startsWith("/api/orders/") &&
-      requestPath.endsWith("/permanent");
-    const isProductDeleteRequest =
-      requestVerb === "delete" && requestPath.startsWith("/api/products/");
-
-    if (
-      !isHistoryRestore &&
-      !isAddToCartRequest &&
-      !isOrderDeleteRequest &&
-      !isProductDeleteRequest
-    ) {
+    // Jeśli powinniśmy przewinąć i to nie jest nawigacja "wstecz", zrób to!
+    if (shouldScrollToTop && !isHistoryRestore) {
+      console.log("Wymuszam przewinięcie do góry dla ścieżki:", requestPath);
+      // Używamy setTimeout, aby dać przeglądarce minimalny czas na "zauważenie" nowej treści.
       setTimeout(() => {
         window.scrollTo({ top: 0, left: 0, behavior: "auto" });
       }, 0);
     }
+
     hideSpinner();
   });
   document.body.addEventListener("htmx:sendError", hideSpinner);
