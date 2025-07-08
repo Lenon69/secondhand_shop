@@ -182,6 +182,38 @@
             // 3. Załaduj stan licznika koszyka
             this.cartItemCount = parseInt(localStorage.getItem('cartItemCount')) || 0;
 
+            // --- POCZĄTEK NOWEJ LOGIKI ---
+
+            // 1. Sprawdź przy ładowaniu, czy strona została otwarta z hashem #cart
+            if (location.hash === '#cart') {
+                this.cartOpen = true;
+            }
+
+            // 2. Nasłuchuj na zdarzenie 'popstate' (przyciski wstecz/dalej przeglądarki)
+            window.addEventListener('popstate', () => {
+                // Zsynchronizuj stan koszyka z obecnością hasha w URL
+                this.cartOpen = (location.hash === '#cart');
+            });
+
+            // 3. Obserwuj zmiany w stanie 'cartOpen'
+            this.$watch('cartOpen', (isOpen) => {
+                const hasCartHash = location.hash === '#cart';
+                
+                if (isOpen && !hasCartHash) {
+                    // Jeśli koszyk się otwiera, a w URL nie ma hasha, dodaj go
+                    history.pushState({ cartOpen: true }, '', '#cart');
+                } else if (!isOpen && hasCartHash) {
+                    // Jeśli koszyk jest zamykany (manualnie), a hash wciąż jest w URL,
+                    // cofnij historię, aby usunąć wpis #cart
+                    history.back();
+                }
+            });
+
+            // --- KONIEC NOWEJ LOGIKI ---
+
+
+
+
             // 4. Ustaw nasłuch na zmiany i zapisuj je w localStorage
             this.$watch('cartItemCount', value => localStorage.setItem('cartItemCount', String(value)));
             this.$watch('guestCartId', value => {
