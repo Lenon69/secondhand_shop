@@ -52,11 +52,10 @@ use crate::handlers::{
 };
 
 use crate::htmx_handlers::{
-    about_us_page_handler, add_item_to_cart_htmx_handler, admin_dashboard_htmx_handler,
-    admin_order_details_htmx_handler, admin_orders_list_htmx_handler,
-    admin_product_edit_form_htmx_handler, admin_product_new_form_htmx_handler,
-    admin_products_list_htmx_handler, checkout_page_handler, contact_page_handler,
-    dla_gender_handler, dla_gender_with_category_handler, faq_page_handler,
+    about_us_page_handler, admin_dashboard_htmx_handler, admin_order_details_htmx_handler,
+    admin_orders_list_htmx_handler, admin_product_edit_form_htmx_handler,
+    admin_product_new_form_htmx_handler, admin_products_list_htmx_handler, checkout_page_handler,
+    contact_page_handler, dla_gender_handler, dla_gender_with_category_handler, faq_page_handler,
     forgot_password_form_handler, get_cart_details_htmx_handler, get_product_detail_htmx_handler,
     handler_404, home_page_handler, list_products_htmx_handler, live_search_handler,
     login_page_htmx_handler, my_account_data_htmx_handler, my_account_page_handler,

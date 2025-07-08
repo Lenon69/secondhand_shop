@@ -1121,6 +1121,8 @@ fn render_product_grid_maud(
                                         class="absolute inset-0 w-full h-full object-cover rounded-md transition-opacity duration-300 ease-in-out"
                                         x-bind:class=(class_binding_initial)
                                         loading="lazy"
+                                        width="400"
+                                        height="400"
                                         fetchpriority=[if index == 0 { Some("high") } else { None }]
                                         ;
                                     // Obrazek PO NAJECHANIU (tylko jeśli istnieje)
