@@ -3690,6 +3690,7 @@ pub async fn my_account_data_htmx_handler(
                 // --- Przycisk Zapisz ---
                 div ."pt-4" {
                     button type="submit"
+
                            class="w-full sm:w-auto inline-flex justify-center items-center px-6 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-colors" {
                         span { "Zapisz zmiany" }
                         // Opcjonalny spinner dla przycisku (jeśli chcesz)
@@ -3895,12 +3896,14 @@ pub async fn my_order_details_htmx_handler(
                         @let return_url_unencoded = format!("/htmx/moje-konto/zamowienie-szczegoly/{}", order_id);
                         @let return_url_encoded = urlencoding::encode(&return_url_unencoded);
                         @let return_text_encoded = urlencoding::encode("Wróć do szczegółów zamówienia");
+                        @let return_target_encoded = urlencoding::encode("#my-account-content");
+
 
                         li ."py-4 flex items-center" {
                             // KROK 1: Opakowujemy obrazek w klikalny link
                             a href=(format!("/produkty/{}", item_detail.product.id))
-                               hx-get=(format!("/htmx/produkt/{}?return_url={}&return_text={}&return_target=%23content", item_detail.product.id, return_url_encoded, return_text_encoded))
-                               hx-target="#content" // Celujemy w główny kontener strony klienta
+                               hx-get=(format!("/htmx/produkt/{}?return_url={}&return_text={}&return_target={}", item_detail.product.id, return_url_encoded, return_text_encoded, return_target_encoded))
+                               hx-target="#my-account-content" // Celujemy w główny kontener strony klienta
                                hx-swap="innerHTML"
                                hx-push-url=(format!("/produkty/{}", item_detail.product.id))
                                class="block group" {
@@ -3917,8 +3920,8 @@ pub async fn my_order_details_htmx_handler(
                             div ."flex-grow min-w-0" {
                                 // KROK 2: Opakowujemy nazwę produktu w klikalny link
                                 a href=(format!("/produkty/{}", item_detail.product.id))
-                                   hx-get=(format!("/htmx/produkt/{}?return_url={}&return_text={}&return_target=%23content", item_detail.product.id, return_url_encoded, return_text_encoded))
-                                   hx-target="#content"
+                                   hx-get=(format!("/htmx/produkt/{}?return_url={}&return_text={}&return_target={}", item_detail.product.id, return_url_encoded, return_text_encoded, return_target_encoded))
+                                   hx-target="#my-account-content"
                                    hx-swap="innerHTML"
                                    hx-push-url=(format!("/produkty/{}", item_detail.product.id))
                                    class="text-sm font-medium text-pink-600 hover:text-pink-700 hover:underline block truncate" {
