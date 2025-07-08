@@ -10,6 +10,15 @@
 // Wszystkie listenery inicjujemy po załadowaniu struktury strony (DOM).
 document.addEventListener("DOMContentLoaded", function () {
   checkSession();
+  restoreScrollPosition();
+
+  // Delegacja zdarzeń do zapisywania pozycji przy kliknięciu linku produktu.
+  document.body.addEventListener("click", function (event) {
+    const productLink = event.target.closest('a[href^="/produkty/"]');
+    if (productLink) {
+      saveScrollPositionForProductLink();
+    }
+  });
 
   const globalSpinner = document.getElementById("global-loading-spinner");
   if (!globalSpinner) {
@@ -23,10 +32,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Pokaż spinner przed każdym żądaniem HTMX
   document.body.addEventListener("htmx:beforeRequest", (event) => {
-    // const requestPath = event.detail.path;
-    // if (requestPath.includes("/htmx/live-search")) {
-    //   return;
-    // }
     globalSpinner.classList.add("show");
     // Sprawdzamy, czy to żądanie do strony głównej, aby wymusić pełny reload
     const path = event.detail.requestConfig.path;
@@ -48,6 +53,18 @@ document.addEventListener("DOMContentLoaded", function () {
     const requestConfig = event.detail.requestConfig;
     const requestPath = requestConfig.path;
 
+    const scrollDataJSON = localStorage.getItem(SCROLL_RESTORATION_KEY);
+    let isRestorePending = false;
+    if (scrollDataJSON) {
+      try {
+        // Sprawdzamy, czy URL powrotny w localStorage zgadza się z URL, na który właśnie weszliśmy
+        const scrollData = JSON.parse(scrollDataJSON);
+        if (scrollData.returnUrl === window.location.href) {
+          isRestorePending = true;
+        }
+      } catch (e) {}
+    }
+
     // Definiujemy listę ścieżek, DLA KTÓRYCH NIE CHCEMY przewijać do góry.
     const noScrollPaths = [
       "/htmx/cart/add/", // Dodawanie do koszyka
@@ -61,18 +78,20 @@ document.addEventListener("DOMContentLoaded", function () {
     const shouldScrollToTop = !noScrollPaths.some((path) =>
       requestPath.startsWith(path),
     );
-
     const isHistoryRestore =
       requestConfig.headers["HX-History-Restore-Request"];
 
-    // Jeśli powinniśmy przewinąć i to nie jest nawigacja "wstecz", zrób to!
-    if (shouldScrollToTop && !isHistoryRestore) {
-      console.log("Wymuszam przewinięcie do góry dla ścieżki:", requestPath);
-      // Używamy setTimeout, aby dać przeglądarce minimalny czas na "zauważenie" nowej treści.
-      setTimeout(() => {
-        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-      }, 0);
+    if (shouldScrollToTop && !isHistoryRestore && !isRestorePending) {
+      console.log(
+        `[Scroll] Wymuszam przewinięcie do góry dla ścieżki: ${requestPath}`,
+      );
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     }
+
+    // Po podmianie treści przez HTMX, próbujemy przywrócić pozycję przewijania
+    document.body.addEventListener("htmx:afterSwap", () => {
+      restoreScrollPosition();
+    });
 
     hideSpinner();
   });
@@ -576,73 +595,55 @@ function checkSession() {
  * "Wstecz" była bardziej naturalna, nawet przy pełnym przeładowaniu.
  */
 
-const SCROLL_POSITION_STORAGE_KEY = "scrollPositions";
+const SCROLL_RESTORATION_KEY = "productScrollPosition";
 
 /**
- * Zapisuje aktualną pozycję przewijania dla bieżącego URL w sessionStorage.
+ * Zapisuje pozycję przewijania i URL powrotny w localStorage.
+ * Wywoływana przy kliknięciu linku prowadzącego do produktu.
  */
-function saveScrollPosition() {
+function saveScrollPositionForProductLink() {
   try {
-    const positions =
-      JSON.parse(sessionStorage.getItem(SCROLL_POSITION_STORAGE_KEY)) || {};
-    const url = window.location.href;
-    positions[url] = window.scrollY;
-    sessionStorage.setItem(
-      SCROLL_POSITION_STORAGE_KEY,
-      JSON.stringify(positions),
-    );
+    const scrollData = {
+      position: window.scrollY,
+      returnUrl: window.location.href,
+    };
+    localStorage.setItem(SCROLL_RESTORATION_KEY, JSON.stringify(scrollData));
     console.log(
-      `Zapisano pozycję przewijania: ${window.scrollY} dla URL: ${url}`,
+      `[Scroll] Zapisano pozycję do przywrócenia: ${scrollData.position} dla URL: ${scrollData.returnUrl}`,
     );
   } catch (e) {
-    console.error("Nie udało się zapisać pozycji przewijania:", e);
+    console.error("[Scroll] Błąd zapisu pozycji do localStorage:", e);
   }
 }
 
 /**
- * Odczytuje i przywraca zapisaną pozycję przewijania dla bieżącego URL.
- * Używa setTimeout, aby dać stronie czas na wyrenderowanie pełnej wysokości.
+ * Sprawdza, czy dla bieżącego URL istnieje zapisana pozycja przewijania.
+ * Jeśli tak, przywraca ją i usuwa dane z localStorage.
+ * @returns {boolean} - Zwraca true, jeśli pozycja została przywrócona, w przeciwnym razie false.
  */
 function restoreScrollPosition() {
   try {
-    const positions =
-      JSON.parse(sessionStorage.getItem(SCROLL_POSITION_STORAGE_KEY)) || {};
-    const url = window.location.href;
-    const savedPosition = positions[url];
+    const scrollDataJSON = localStorage.getItem(SCROLL_RESTORATION_KEY);
+    if (!scrollDataJSON) return false;
 
-    if (typeof savedPosition === "number") {
-      console.log(
-        `Znaleziono zapisaną pozycję: ${savedPosition} dla URL: ${url}. Przywracam...`,
-      );
+    const scrollData = JSON.parse(scrollDataJSON);
+
+    // KLUCZOWY WARUNEK: przywracaj tylko, jeśli URL się zgadza.
+    if (scrollData.returnUrl === window.location.href) {
+      console.log(`[Scroll] Przywracam pozycję: ${scrollData.position}`);
       setTimeout(() => {
-        window.scrollTo({ top: savedPosition, behavior: "smooth" });
-      }, 225); // 100ms to zazwyczaj bezpieczna wartość
+        window.scrollTo({ top: scrollData.position, behavior: "auto" });
+        // Usuwamy klucz po udanym przywróceniu.
+        localStorage.removeItem(SCROLL_RESTORATION_KEY);
+      }, 100); // Niewielkie opóźnienie, by DOM zdążył się wyrenderować.
+      return true; // Sygnalizujemy, że przywróciliśmy pozycję.
+    } else {
+      // Jeśli URL się nie zgadza, czyścimy nieaktualny wpis.
+      localStorage.removeItem(SCROLL_RESTORATION_KEY);
     }
   } catch (e) {
-    console.error("Nie udało się przywrócić pozycji przewijania:", e);
+    console.error("[Scroll] Błąd przywracania pozycji:", e);
+    localStorage.removeItem(SCROLL_RESTORATION_KEY);
   }
+  return false;
 }
-
-// --- PODPIĘCIE FUNKCJI DO ZDARZEŃ ---
-
-// 1. Zapisuj pozycję tuż przed opuszczeniem strony lub przed nowym żądaniem HTMX.
-// Zdarzenie 'beforeunload' jest bardziej niezawodne niż htmx:beforeRequest dla tego celu.
-window.addEventListener("beforeunload", saveScrollPosition);
-
-// 2. Przywracaj pozycję po każdym załadowaniu strony.
-// To zadziała zarówno przy pierwszym wejściu, jak i po twardym przeładowaniu (F5, "Wstecz").
-document.addEventListener("DOMContentLoaded", restoreScrollPosition);
-
-// 3. Dodatkowo, przywracaj pozycję po udanym swapie HTMX, który nie był odświeżeniem.
-// To obsłuży przypadki, gdy `DOMContentLoaded` nie wystarczy.
-document.body.addEventListener("htmx:afterOnLoad", function (event) {
-  // Sprawdzamy, czy to nie jest pełne przeładowanie (które obsługuje DOMContentLoaded)
-  // tylko standardowy swap, który może zmienić wysokość strony.
-  // W tym przypadku nie chcemy przywracać, bo to by psuło nawigację wewnątrz strony.
-  // Dlatego ten listener na razie zostawiamy pusty lub go usuwamy.
-  // 'DOMContentLoaded' i 'beforeunload' powinny w pełni obsłużyć przypadek.
-});
-
-// Ten nowy system nie wymaga już twardego przeładowania
-// do poprawnego działania, choć będzie działał również z nim.
-// Usunięcie go sprawi, że nawigacja "wstecz" będzie znacznie płynniejsza (bez białego ekranu).

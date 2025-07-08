@@ -192,7 +192,7 @@ async fn main() {
     let category_list_cache = Arc::new(
         Cache::builder()
             .max_capacity(20)
-            .time_to_live(Duration::from_secs(600))
+            .time_to_live(Duration::from_secs(3600))
             .build(),
     );
 

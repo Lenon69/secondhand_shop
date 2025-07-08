@@ -403,7 +403,7 @@ pub async fn get_product_detail_htmx_handler(
                                    hx-target=(query_params.return_target.as_deref().unwrap_or("#content"))
                                    hx-swap="innerHTML"
                                    hx-push-url=(url.replace("/htmx", ""))
-                                   class="inline-flex items-center px-4 py-2 border border-pink-200 rounded-md shadow-sm text-sm font-medium text-pink-700 bg-pink-100 hover:bg-pink-200 hover:border-pink-300 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2" {
+                                   class="js-back-to-list-link inline-flex items-center px-4 py-2 border border-pink-200 rounded-md shadow-sm text-sm font-medium text-pink-700 bg-pink-100 hover:bg-pink-200 hover:border-pink-300 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2" {
                                    svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2" {
                                        path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3";
                                    }
@@ -439,7 +439,7 @@ pub async fn get_product_detail_htmx_handler(
                                            hx-target="#content"
                                            hx-swap="innerHTML"
                                            hx-push-url="true"
-                                           class="inline-flex items-center px-4 py-2 border border-pink-200 rounded-md shadow-sm text-sm font-medium text-pink-700 bg-pink-100 hover:bg-pink-200 hover:border-pink-300 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2" {
+                                           class="js-back-to-list-link inline-flex items-center px-4 py-2 border border-pink-200 rounded-md shadow-sm text-sm font-medium text-pink-700 bg-pink-100 hover:bg-pink-200 hover:border-pink-300 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2" {
                                             svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2" {
                                                 path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3";
                                             }
@@ -454,7 +454,7 @@ pub async fn get_product_detail_htmx_handler(
                                         ("/dla-niego", "Męskie")
                                     };
                                     a href=(return_path) hx-get=(format!("/htmx{}", return_path)) hx-target="#content" hx-swap="innerHTML" hx-push-url=(return_path)
-                                       class="inline-flex items-center px-4 py-2 border border-pink-200 rounded-md shadow-sm text-sm font-medium text-pink-700 bg-pink-100 hover:bg-pink-200 hover:border-pink-300 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2" {
+                                       class="js-back-to-list-link inline-flex items-center px-4 py-2 border border-pink-200 rounded-md shadow-sm text-sm font-medium text-pink-700 bg-pink-100 hover:bg-pink-200 hover:border-pink-300 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2" {
                                         svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2" {
                                             path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3";
                                         }
