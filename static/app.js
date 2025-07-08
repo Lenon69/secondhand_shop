@@ -394,8 +394,8 @@ function initEventListeners() {
 function adminProductEditForm() {
   return {
     existingImagesOnInit: [],
-    imagePreviews: Array(8).fill(null),
-    imageFiles: Array(8).fill(null),
+    imagePreviews: Array(10).fill(null),
+    imageFiles: Array(10).fill(null),
     imagesToDelete: [],
     productStatus: "",
 
@@ -415,7 +415,7 @@ function adminProductEditForm() {
       this.imagePreviews.fill(null);
       this.imageFiles.fill(null);
       this.existingImagesOnInit.forEach((url, i) => {
-        if (i < 8) this.imagePreviews[i] = url;
+        if (i < 10) this.imagePreviews[i] = url;
       });
 
       this.$watch("imagesToDelete", (newValue) => {
@@ -491,7 +491,7 @@ function adminProductEditForm() {
     },
 
     isSlotFilled(index) {
-      return this.imagePreviews[index] !== null;
+      return !!this.imagePreviews[index];
     },
 
     getSlotImageSrc(index) {

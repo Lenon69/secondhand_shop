@@ -2597,9 +2597,9 @@ fn render_product_form_maud(product_opt: Option<&Product>) -> Result<Markup, App
         section {
             // input type="hidden" name="urls_to_delete" id="urls_to_delete_hidden_input_new_form"; // Już dodane na początku formularza
             h3 ."text-xl font-semibold text-gray-700 mb-2 pb-2 border-b border-gray-200" { "Zdjęcia Produktu" }
-            p ."text-xs text-gray-500 mb-4" { "Dodaj od 1 do 8 zdjęć. Pierwsze zdjęcie będzie zdjęciem głównym." }
-            div ."grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4" {
-                @for i in 0..8 {
+            p ."text-xs text-gray-500 mb-4" { "Dodaj od 1 do 10 zdjęć. Pierwsze zdjęcie będzie zdjęciem głównym." }
+            div ."grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" {
+                @for i in 0..10 {
                     @let slot_input_id = format!("product_image_file_slot_{}", i);
                     @let input_name = format!("image_file_{}", i + 1);
 
