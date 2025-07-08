@@ -1,6 +1,9 @@
 // src/htmx_handlers.rs
 
-use crate::seo::{SchemaAcceptedAnswer, SchemaFAQPage, SchemaOrganization, SchemaQuestion};
+use crate::seo::{
+    SchemaAcceptedAnswer, SchemaAddress, SchemaFAQPage, SchemaOrganization, SchemaQuestion,
+    SchemaSearchAction, SchemaWebSite,
+};
 use crate::services::get_available_categories_for_gender;
 
 use crate::models::FaqItem;
@@ -5802,9 +5805,35 @@ pub async fn home_page_handler(
         name: "mess - all that vintage",
         url: "https://messvintage.com",
         logo: "https://messvintage.com/static/main-logo.png",
+        address: SchemaAddress {
+            type_of: "PostalAddress",
+            street_address: "Piotrkowska 104",
+            address_locality: "Łódź",
+            postal_code: "90-001",
+            address_country: "PL",
+        },
+        email: "contact@messvintage.com",
+        telephone: "+48603117793",
     };
+
+    let website_schema = SchemaWebSite {
+        context: "https://schema.org",
+        type_of: "WebSite",
+        url: "https://messvintage.com",
+        potential_action: SchemaSearchAction {
+            type_of: "SearchAction",
+            target: "https://messvintage.com/wyszukiwanie?search={search_term_string}".to_string(),
+            query_input: "required name=search_term_string",
+        },
+    };
+
+    let org_json_ld = serde_json::to_string(&org_schema).unwrap_or_default();
+    let website_json_ld = serde_json::to_string(&website_schema).unwrap_or_default();
+
     let json_ld_org = serde_json::to_string(&org_schema).unwrap_or_default();
     let head_content = html! {
+        script type="application/ld+json" { (PreEscaped(org_json_ld)) }
+        script type="application/ld+json" { (PreEscaped(website_json_ld)) }
         script type="application/ld+json" { (PreEscaped(json_ld_org)) }
     };
 

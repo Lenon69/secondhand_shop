@@ -47,6 +47,9 @@ pub struct SchemaOrganization<'a> {
     pub name: &'a str,
     pub url: &'a str,
     pub logo: &'a str,
+    pub address: SchemaAddress<'a>,
+    pub email: &'a str,
+    pub telephone: &'a str,
 }
 
 // --- Struktury dla Schema.org -> BreadcrumbList ("Okruszki") ---
@@ -97,4 +100,35 @@ pub struct SchemaAcceptedAnswer<'a> {
     #[serde(rename = "@type")]
     pub type_of: &'a str,
     pub text: &'a str,
+}
+
+#[derive(Serialize)]
+pub struct SchemaAddress<'a> {
+    #[serde(rename = "@type")]
+    pub type_of: &'a str,
+    pub street_address: &'a str,
+    pub address_locality: &'a str,
+    pub postal_code: &'a str,
+    pub address_country: &'a str,
+}
+
+#[derive(Serialize)]
+pub struct SchemaSearchAction<'a> {
+    #[serde(rename = "@type")]
+    pub type_of: &'a str,
+    #[serde(rename = "target")]
+    pub target: String,
+    #[serde(rename = "query-input")]
+    pub query_input: &'a str,
+}
+
+#[derive(Serialize)]
+pub struct SchemaWebSite<'a> {
+    #[serde(rename = "@context")]
+    pub context: &'a str,
+    #[serde(rename = "@type")]
+    pub type_of: &'a str,
+    pub url: &'a str,
+    #[serde(rename = "potentialAction")]
+    pub potential_action: SchemaSearchAction<'a>,
 }
