@@ -2731,7 +2731,7 @@ pub async fn init_guest_session_handler(
         .path("/")
         .http_only(true)
         .secure(true) // Zakładając, że działasz na HTTPS
-        .same_site(SameSite::None) // Lax to najlepszy i najbezpieczniejszy wybór tutaj
+        .same_site(SameSite::Lax) // Lax to najlepszy i najbezpieczniejszy wybór tutaj
         .max_age(time::Duration::days(365))
         .build();
 
