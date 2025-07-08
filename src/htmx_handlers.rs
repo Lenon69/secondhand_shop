@@ -5623,12 +5623,11 @@ pub fn render_admin_product_list_row_maud(
 /// Renderuje włączony przycisk "Dodaj do koszyka".
 fn render_add_to_cart_button(product_id: Uuid) -> Markup {
     html! {
-        // Ważne: przycisk ma teraz unikalne ID, aby HTMX mógł go znaleźć
         button id=(format!("product-cart-button-{}", product_id))
                type="button"
-               hx-post=(format!("/htmx/cart/add/{}", product_id))
-               hx-target=(format!("#product-cart-button-{}", product_id)) // Celuje w samego siebie
-               hx-swap="outerHTML" // Podmienia cały swój kod HTML odpowiedzią z serwera
+               hx-post=(format!("/htmx/cart/toggle/{}", product_id)) // ZMIANA: Nowy endpoint
+               hx-target=(format!("#product-cart-button-{}", product_id))
+               hx-swap="outerHTML"
                class="w-full text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 ease-in-out inline-flex items-center justify-center bg-pink-600 hover:bg-pink-700"
         {
             div class="flex items-center" {
@@ -5641,14 +5640,17 @@ fn render_add_to_cart_button(product_id: Uuid) -> Markup {
     }
 }
 
-/// Renderuje wyłączony przycisk "Dodano!".
+/// Renderuje klikalny przycisk "Dodano!".
 fn render_added_to_cart_button(product_id: Uuid) -> Markup {
     html! {
-        // Ważne: ten przycisk ma to samo ID co jego włączona wersja.
+        // Przycisk "Dodano!" - już nie jest wyłączony i pozwala na usunięcie produktu
         button id=(format!("product-cart-button-{}", product_id))
                type="button"
-               disabled
-               class="w-full text-white font-semibold py-2 px-4 rounded-lg transition-all inline-flex items-center justify-center bg-green-600 cursor-default"
+               hx-post=(format!("/htmx/cart/toggle/{}", product_id)) // ZMIANA: Ten sam endpoint co wyżej
+               hx-target=(format!("#product-cart-button-{}", product_id))
+               hx-swap="outerHTML"
+               class="w-full text-white font-semibold py-2 px-4 rounded-lg transition-all inline-flex items-center justify-center bg-green-600 hover:bg-green-700 cursor-pointer"
+               title="Kliknij, aby usunąć z koszyka"
         {
             div class="flex items-center" {
                 svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-5 h-5 mr-2" {
@@ -5658,6 +5660,144 @@ fn render_added_to_cart_button(product_id: Uuid) -> Markup {
             }
         }
     }
+}
+
+pub async fn toggle_cart_item_htmx_handler(
+    State(app_state): State<Arc<AppState>>,
+    Path(product_id): Path<Uuid>,
+    user_claims_result: Result<TokenClaims, AppError>,
+    guest_cart_id_header: Option<TypedHeader<XGuestCartId>>,
+) -> Result<(HeaderMap, Markup), AppError> {
+    tracing::info!(
+        "[ToggleCart] Próba przełączenia statusu produktu {}",
+        product_id
+    );
+
+    let mut tx = app_state.db_pool.begin().await?;
+    let mut headers = HeaderMap::new();
+    let mut new_guest_cart_id_to_set: Option<Uuid> = None;
+
+    // --- Krok 1: Znajdź lub utwórz koszyk (logika skopiowana z poprzednich handlerów) ---
+    let cart_opt = if let Ok(claims) = user_claims_result {
+        // Użytkownik zalogowany
+        match sqlx::query_as("SELECT * FROM shopping_carts WHERE user_id = $1 FOR UPDATE")
+            .bind(claims.sub)
+            .fetch_optional(&mut *tx)
+            .await?
+        {
+            Some(cart) => Some(cart),
+            None => sqlx::query_as("INSERT INTO shopping_carts (user_id) VALUES ($1) RETURNING *")
+                .bind(claims.sub)
+                .fetch_one(&mut *tx)
+                .await
+                .ok(),
+        }
+    } else {
+        // Gość
+        if let Some(TypedHeader(XGuestCartId(guest_id))) = guest_cart_id_header {
+            new_guest_cart_id_to_set = Some(guest_id);
+            sqlx::query_as("SELECT * FROM shopping_carts WHERE guest_session_id = $1 FOR UPDATE")
+                .bind(guest_id)
+                .fetch_optional(&mut *tx)
+                .await?
+        } else {
+            let new_id = Uuid::new_v4();
+            new_guest_cart_id_to_set = Some(new_id);
+            let guest_cookie = Cookie::build(("guest_cart_id", new_id.to_string()))
+                .path("/")
+                .http_only(true)
+                .secure(true)
+                .same_site(SameSite::Lax)
+                .max_age(time::Duration::days(365))
+                .build();
+            headers.insert(
+                axum::http::header::SET_COOKIE,
+                guest_cookie.to_string().parse().unwrap(),
+            );
+            sqlx::query_as("INSERT INTO shopping_carts (guest_session_id) VALUES ($1) RETURNING *")
+                .bind(new_id)
+                .fetch_one(&mut *tx)
+                .await
+                .ok()
+        }
+    };
+
+    let cart: ShoppingCart = cart_opt
+        .ok_or_else(|| AppError::InternalServerError("Nie udało się uzyskać koszyka.".into()))?;
+
+    // --- Krok 2: Sprawdź, czy produkt jest już w koszyku ---
+    let item_in_cart: Option<(Uuid,)> =
+        sqlx::query_as("SELECT id FROM cart_items WHERE cart_id = $1 AND product_id = $2")
+            .bind(cart.id)
+            .bind(product_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+
+    let final_markup;
+    let toast_message;
+
+    if item_in_cart.is_some() {
+        // --- Jeśli JEST w koszyku -> USUŃ GO ---
+        tracing::info!(
+            "[ToggleCart] Produkt {} jest w koszyku. Usuwanie.",
+            product_id
+        );
+        sqlx::query("DELETE FROM cart_items WHERE cart_id = $1 AND product_id = $2")
+            .bind(cart.id)
+            .bind(product_id)
+            .execute(&mut *tx)
+            .await?;
+
+        final_markup = render_add_to_cart_button(product_id);
+        toast_message = serde_json::json!({
+            "showMessage": { "type": "info", "message": "Produkt usunięty z koszyka." }
+        });
+    } else {
+        // --- Jeśli NIE MA go w koszyku -> DODAJ GO ---
+        tracing::info!(
+            "[ToggleCart] Produktu {} nie ma w koszyku. Dodawanie.",
+            product_id
+        );
+        let product = sqlx::query_as::<_, Product>("SELECT * FROM products WHERE id = $1")
+            .bind(product_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
+
+        if product.status != ProductStatus::Available {
+            return Err(AppError::Conflict("Produkt jest już niedostępny.".into()));
+        }
+
+        sqlx::query("INSERT INTO cart_items (cart_id, product_id) VALUES ($1, $2)")
+            .bind(cart.id)
+            .bind(product_id)
+            .execute(&mut *tx)
+            .await?;
+
+        final_markup = render_added_to_cart_button(product_id);
+        toast_message = serde_json::json!({
+            "showMessage": { "type": "success", "message": "Dodano do koszyka!" }
+        });
+    }
+
+    // --- Krok 3: Pobierz aktualne dane koszyka i wyślij trigger ---
+    let cart_details = cart_utils::build_cart_details_response(&cart, &mut tx).await?;
+    tx.commit().await?;
+
+    let trigger_payload = serde_json::json!({
+        "updateCartCount": {
+            "newCount": cart_details.total_items,
+            "newCartTotalPrice": cart_details.total_price,
+            "newGuestCartId": new_guest_cart_id_to_set
+        },
+        "toast": toast_message // Używamy ogólnego klucza na toast
+    });
+
+    if let Ok(val) = HeaderValue::from_str(&trigger_payload.to_string()) {
+        headers.insert("HX-Trigger", val);
+    }
+
+    Ok((headers, final_markup))
 }
 
 pub async fn live_search_handler(

@@ -64,6 +64,7 @@ use crate::htmx_handlers::{
     payment_finalization_page_handler, privacy_policy_page_handler, registration_page_htmx_handler,
     remove_item_from_cart_htmx_handler, reset_password_form_handler, sale_page_htmx_handler,
     search_page_handler, shipping_returns_page_handler, terms_of_service_page_handler,
+    toggle_cart_item_htmx_handler,
 };
 use crate::state::{AppState, CloudinaryConfig};
 
@@ -301,8 +302,8 @@ async fn main() {
         .route("/checkout", get(checkout_page_handler))
         .route("/wyszukiwanie", get(search_page_handler))
         .route(
-            "/htmx/cart/add/{product_id}",
-            post(add_item_to_cart_htmx_handler),
+            "/htmx/cart/toggle/{product_id}",
+            post(toggle_cart_item_htmx_handler),
         )
         .route("/htmx/cart/details", get(get_cart_details_htmx_handler)) // TODO
         .route("/htmx/products", get(list_products_htmx_handler))
