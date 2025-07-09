@@ -339,8 +339,11 @@ pub async fn get_product_detail_htmx_handler(
                                     img "x-bind:src"="thumbnailUrl"
                                         x-bind:alt="'Miniaturka ' + (index + 1)"
                                         class="w-full h-full object-cover object-center"
-                                        loading="lazy";
+                                        loading="lazy"
+                                        width="150"
+                                        height="150";
                                 }
+
                             }
                         }
                     }
@@ -605,8 +608,8 @@ pub async fn get_cart_details_htmx_handler(
                    aria-label={"Zobacz szczegóły produktu " (item.product.name)} {
                     @if !item.product.images.is_empty() {
                         @let transformed_url = transform_cloudinary_url(&item.product.images[0], "w_100,h_100,c_fill,f_auto,q_auto");
-                        img src=(transformed_url) alt=(item.product.name) class="h-full w-full object-cover object-center group-hover:opacity-85 transition-opacity" loading="lazy";
-                    } @else {
+                        img src=(transformed_url) alt=(item.product.name)
+                            class="h-full w-full object-cover object-center group-hover:opacity-85 transition-opacity" loading="lazy" width="80" height="80";                    } @else {
                         div ."h-full w-full bg-gray-100 flex items-center justify-center text-xs text-gray-400 group-hover:opacity-85 transition-opacity" { "Brak foto" }
                     }
                 }
@@ -848,7 +851,6 @@ pub async fn remove_item_from_cart_htmx_handler(
         tracing::error!("MAUD RemoveFromCart: Błąd rozpoczynania transakcji: {}", e);
         AppError::InternalServerError("Błąd serwera przy usuwaniu z koszyka".to_string())
     })?;
-
     let mut cart_for_response: Option<ShoppingCart> = None;
     let mut guest_cart_id_for_trigger: Option<Uuid> = None;
 
@@ -963,55 +965,56 @@ pub async fn remove_item_from_cart_htmx_handler(
 
     // 6. Wyrenderuj HTML dla listy przedmiotów w koszyku (podobnie jak w get_cart_details_htmx_handler)
     let markup = html! {
-        // === CZĘŚĆ 1: GŁÓWNA TREŚĆ DLA PANELU KOSZYKA ===
-        // Ten kod trafi do elementu, który był celem (hx-target) przycisku "Usuń" w koszyku.
-        // Jest to zaktualizowany widok bocznego panelu.
-        @if cart_details.items.is_empty() {
-            p ."text-gray-600 py-6 text-center" { "Twój koszyk jest pusty." }
-        } @else {
-            ul role="list" ."my-6 divide-y divide-gray-200 border-t border-b" {
-                @for item in &cart_details.items {
-                    li ."flex py-4 px-4 sm:px-0" {
-                        a href=(format!("/produkty/{}", item.product.id))
-                           hx-get=(format!("/htmx/produkt/{}", item.product.id))
-                           hx-target="#content"
-                           hx-swap="innerHTML"
-                           hx-push-url=(format!("/produkty/{}", item.product.id))
-                           "@click"="if(typeof cartOpen !== 'undefined') cartOpen = false"
-                           class="h-20 w-20 flex-shrink-0 overflow-hidden rounded-md border border-gray-200 block group"
-                           aria-label={"Zobacz szczegóły produktu " (item.product.name)} {
-                            @if !item.product.images.is_empty() {
-                                img src=(item.product.images[0]) alt=(item.product.name) class="h-full w-full object-cover object-center group-hover:opacity-85 transition-opacity" loading="lazy";
-                            } @else {
-                                div ."h-full w-full bg-gray-100 flex items-center justify-center text-xs text-gray-400 group-hover:opacity-85 transition-opacity" { "Brak foto" }
-                            }
-                        }
-
-                        div ."ml-4 flex flex-1 flex-col" {
-                            div {
-                                div ."flex justify-between text-sm font-medium text-gray-800" {
-                                    h3 ."group" {
-                                        a href=(format!("/produkty/{}", item.product.id))
-                                           hx-get=(format!("/htmx/produkt/{}", item.product.id))
-                                           hx-target="#content"
-                                           hx-swap="innerHTML"
-                                           hx-push-url=(format!("/produkty/{}", item.product.id))
-                                           "@click"="if(typeof cartOpen !== 'undefined') cartOpen = false"
-                                           class="hover:text-pink-600 transition-colors group-hover:underline" {
-                                            (item.product.name)
-                                        }
-                                    }
-                                    p ."ml-4 whitespace-nowrap" { (format_price_maud(item.product.price)) }
+            // === CZĘŚĆ 1: GŁÓWNA TREŚĆ DLA PANELU KOSZYKA ===
+            // Ten kod trafi do elementu, który był celem (hx-target) przycisku "Usuń" w koszyku.
+            // Jest to zaktualizowany widok bocznego panelu.
+            @if cart_details.items.is_empty() {
+                p ."text-gray-600 py-6 text-center" { "Twój koszyk jest pusty." }
+            } @else {
+                ul role="list" ."my-6 divide-y divide-gray-200 border-t border-b" {
+                    @for item in &cart_details.items {
+                        li ."flex py-4 px-4 sm:px-0" {
+                            a href=(format!("/produkty/{}", item.product.id))
+                               hx-get=(format!("/htmx/produkt/{}", item.product.id))
+                               hx-target="#content"
+                               hx-swap="innerHTML"
+                               hx-push-url=(format!("/produkty/{}", item.product.id))
+                               "@click"="if(typeof cartOpen !== 'undefined') cartOpen = false"
+                               class="h-20 w-20 flex-shrink-0 overflow-hidden rounded-md border border-gray-200 block group"
+                               aria-label={"Zobacz szczegóły produktu " (item.product.name)} {
+                                @if !item.product.images.is_empty() {
+                                    img src=(item.product.images[0]) alt=(item.product.name) class="h-full w-full object-cover object-center group-hover:opacity-85 transition-opacity" loading="lazy";
+                                } @else {
+                                    div ."h-full w-full bg-gray-100 flex items-center justify-center text-xs text-gray-400 group-hover:opacity-85 transition-opacity" { "Brak foto" }
                                 }
                             }
-                            div ."flex flex-1 items-end justify-between text-xs mt-2" {
-                                div ."flex" {
-                                    button type="button"
-                                        hx-post=(format!("/htmx/cart/remove/{}", item.product.id))
-                                        hx-target="#cart-content-target"
-                                        hx-swap="innerHTML"
-                                        class="text-sm font-medium text-pink-600 px-3 py-1 rounded-md hover:bg-pink-100 hover:text-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-opacity-50 transition-all duration-150 ease-in-out" {
-                                        "Usuń"
+
+                            div ."ml-4 flex flex-1 flex-col" {
+                                div {
+                                    div ."flex justify-between text-sm font-medium text-gray-800" {
+                                        h3 ."group" {
+                                            a href=(format!("/produkty/{}", item.product.id))
+                                               hx-get=(format!("/htmx/produkt/{}", item.product.id))
+                                               hx-target="#content"
+                                               hx-swap="innerHTML"
+                                               hx-push-url=(format!("/produkty/{}", item.product.id))
+                                               "@click"="if(typeof cartOpen !== 'undefined') cartOpen = false"
+                                               class="hover:text-pink-600 transition-colors group-hover:underline" {
+                                                (item.product.name)
+                                            }
+                                        }
+                                        p ."ml-4 whitespace-nowrap" { (format_price_maud(item.product.price)) }
+                                    }
+                                }
+                                div ."flex flex-1 items-end justify-between text-xs mt-2" {
+                                    div ."flex" {
+                                        button type="button"
+                                            hx-post=(format!("/htmx/cart/remove/{}", item.product.id))
+                                            hx-target="#cart-content-target"
+                                            hx-swap="innerHTML"
+                                            class="text-sm font-medium text-pink-600 px-3 py-1 rounded-md hover:bg-pink-100 hover:text-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-opacity-50 transition-all duration-150 ease-in-out" {
+                                            "Usuń"
+                                        }
                                     }
                                 }
                             }
@@ -1019,27 +1022,13 @@ pub async fn remove_item_from_cart_htmx_handler(
                     }
                 }
             }
-        }
 
-        // === CZĘŚĆ 2: TREŚĆ "OUT OF BAND" DLA PRZYCISKU NA STRONIE GŁÓWNEJ ===
-        // Ten przycisk podmieni ten na stronie produktu/listy dzięki hx-swap-oob.
-        // Używamy logiki z funkcji pomocniczej render_add_to_cart_button, którą tworzyliśmy.
-        // Zwróć uwagę na unikalne ID przycisku - jest kluczowe!
-        button
-            id=(format!("product-cart-button-{}", product_id_to_remove)) // ID musi pasować do przycisku na stronie
-            hx-swap-oob="outerHTML"      // <-- KLUCZOWY ATRYBUT OOB
-            type="button"
-            hx-post=(format!("/htmx/cart/add/{}", product_id_to_remove))
-            hx-target=(format!("#product-cart-button-{}", product_id_to_remove))
-            hx-swap="outerHTML"
-            class="w-full text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 ease-in-out inline-flex items-center justify-center bg-pink-600 hover:bg-pink-700"
-        {
-            div class="flex items-center" {
-                svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 mr-2" {
-                    path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z";
-                }
-                span { "Dodaj do koszyka" }
-            }
+        // === POPRAWIONA SKŁADNIA MAUD DLA OOB SWAP ===
+        // Krok 1: Tworzymy pełny selektor jako zmienną Rust.
+        @let oob_selector = format!("outerHTML:#product-cart-button-{}", product_id_to_remove);
+        // Krok 2: Używamy tej zmiennej w atrybucie hx-swap-oob.
+        div hx-swap-oob=(oob_selector) {
+            (render_add_to_cart_button(product_id_to_remove))
         }
     };
 
@@ -5359,7 +5348,7 @@ pub fn render_thank_you_page_maud(
                         @for item in items_details {
                             li class="p-3 flex items-center space-x-4" {
                                 @if let Some(img) = item.product.images.get(0) {
-                                    img src=(img) class="w-16 h-16 rounded-md object-cover border";
+                                    img src=(img) class="w-16 h-16 rounded-md object-cover border width="64" height="64"";
                                 }
                                 div class="flex-grow" {
                                     p class="text-sm font-medium text-gray-800" { (item.product.name) }

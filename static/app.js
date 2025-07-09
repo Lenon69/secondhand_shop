@@ -67,9 +67,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Definiujemy listę ścieżek, DLA KTÓRYCH NIE CHCEMY przewijać do góry.
     const noScrollPaths = [
-      "/htmx/cart/add/", // Dodawanie do koszyka
-      "/htmx/cart/remove/", // Usuwanie z koszyka
-      "/htmx/cart/details", // <- NOWY WYJĄTEK: Aktualizacja widoku koszyka
+      "/htmx/cart/remove/",
+      "/htmx/cart/toggle/",
+      "/htmx/cart/details",
       "/api/orders/", // Aktualizacja statusu zamówienia w tle
       "/api/products/", // Archiwizacja produktu w tle
     ];
