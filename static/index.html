@@ -116,6 +116,27 @@
       filter: drop-shadow(0 0 5px rgba(0,0,0,0.3));
       }
     
+    
+    /* Poprawki dla skalowania 125% na ekranach fizycznie szerokich */
+    @media (min-width: 1500px) { /* Celujemy w ekrany 1920px@125% = 1536px */
+      .dpr-125 .lg\:hidden {
+        display: none !important;
+      }
+      .dpr-125 .hidden.lg\:flex {
+        display: flex !important;
+      }
+    }
+
+    /* Poprawki dla skalowania 150% na ekranach fizycznie szerokich */
+    @media (min-width: 1280px) { /* Celujemy w ekrany 1920px@150% = 1280px */
+      .dpr-150 .lg\:hidden {
+        display: none !important;
+      }
+      .dpr-150 .hidden.lg\:flex {
+        display: flex !important;
+      }
+    }
+  
     </style>
 
     <style>

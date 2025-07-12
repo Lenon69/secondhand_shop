@@ -1,4 +1,38 @@
 /**
+ * Wykrywa skalowanie systemowe i dodaje klasę do body,
+ * aby umożliwić specyficzne poprawki w CSS.
+ */
+function handleScreenScaling() {
+  // window.devicePixelRatio informuje nas o poziomie skalowania.
+  // 1.0 = 100%, 1.25 = 125%, 1.5 = 150% itd.
+  const dpr = window.devicePixelRatio || 1;
+  const body = document.body;
+
+  // Usuń poprzednie klasy, aby uniknąć konfliktów
+  body.classList.remove("dpr-100", "dpr-125", "dpr-150", "dpr-gt-150");
+
+  if (dpr <= 1.1) {
+    body.classList.add("dpr-100"); // Standardowe skalowanie
+  } else if (dpr > 1.1 && dpr <= 1.35) {
+    body.classList.add("dpr-125"); // Skalowanie 125%
+  } else if (dpr > 1.35 && dpr <= 1.6) {
+    body.classList.add("dpr-150"); // Skalowanie 150%
+  } else {
+    body.classList.add("dpr-gt-150"); // Skalowanie powyżej 150%
+  }
+
+  console.log(
+    `[Skalowanie] Wykryto devicePixelRatio: ${dpr}. Dodano klasę: ${body.classList[body.classList.length - 1]}`,
+  );
+}
+
+// Wywołaj funkcję przy ładowaniu strony
+document.addEventListener("DOMContentLoaded", handleScreenScaling);
+
+// Wywołaj ponownie przy zmianie rozmiaru okna (użyteczne przy przenoszeniu okna między monitorami)
+window.addEventListener("resize", handleScreenScaling);
+
+/**
  * Główny plik JavaScript aplikacji MEG JONI
  * Wersja zrefaktoryzowana, zoptymalizowana i poprawiona.
  *

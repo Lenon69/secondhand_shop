@@ -7,6 +7,7 @@ use axum::routing::{delete, get, post};
 use axum_server::tls_rustls::RustlsConfig;
 use dotenvy::dotenv;
 use maud::Markup;
+use models::{Product, ProductStatus};
 use moka::future::Cache;
 use reqwest::StatusCode;
 use sqlx::postgres::PgPoolOptions;
@@ -108,54 +109,70 @@ async fn main() {
         }
     };
 
-    async fn warm_static_cache(state: Arc<AppState>) {
-        tracing::info!("Rozpoczynanie rozgrzewania cache'u dla stron statycznych...");
-
+    // [ZMIANA] Funkcja zwraca teraz liczbę przetworzonych elementów
+    async fn warm_static_cache(state: Arc<AppState>) -> u64 {
+        tracing::info!(
+            "[Cache Warm-up] Rozpoczynanie rozgrzewania cache'u dla stron statycznych..."
+        );
         type StaticPageRenderer = fn() -> Markup;
-
         use crate::htmx_handlers::{
             render_about_us_content, render_contact_page, render_faq_page,
             render_privacy_policy_content, render_shipping_returns_page, render_terms_of_service,
         };
 
-        // Użyj zdefiniowanego typu w wektorze
         let pages_to_cache: Vec<(&str, StaticPageRenderer)> = vec![
-            (
-                "about_us_cache_key",
-                render_about_us_content as StaticPageRenderer,
-            ),
-            (
-                "privacy_policy_cache_key",
-                render_privacy_policy_content as StaticPageRenderer,
-            ),
-            (
-                "terms_of_policy_cache_key",
-                render_terms_of_service as StaticPageRenderer,
-            ),
-            (
-                "contact_page_cache_key",
-                render_contact_page as StaticPageRenderer,
-            ),
-            ("faq_page_cache_key", render_faq_page as StaticPageRenderer),
-            (
-                "shipping_returns_cache_key",
-                render_shipping_returns_page as StaticPageRenderer,
-            ),
+            ("about_us_cache_key", render_about_us_content),
+            ("privacy_policy_cache_key", render_privacy_policy_content),
+            ("terms_of_service_cache_key", render_terms_of_service),
+            ("contact_page_cache_key", render_contact_page),
+            ("faq_page_cache_key", render_faq_page),
+            ("shipping_returns_cache_key", render_shipping_returns_page),
         ];
 
+        let mut count = 0;
         for (key, renderer) in pages_to_cache {
-            // Teraz `renderer` jest wskaźnikiem, więc wywołujemy go normalnie
             let content_html = renderer();
             let content_str = content_html.into_string();
             state
                 .static_html_cache
                 .insert(key.to_string(), content_str)
                 .await;
+            count += 1;
         }
-        tracing::info!(
-            "Zakończono rozgrzewanie cache'u dla {} stron statycznych.",
-            state.static_html_cache.entry_count()
-        );
+        count
+    }
+
+    // [ZMIANA] Funkcja zwraca teraz liczbę przetworzonych elementów
+    async fn warm_product_cache(state: Arc<AppState>) -> u64 {
+        tracing::info!("[Cache Warm-up] Rozpoczynanie rozgrzewania cache'u dla produktów...");
+        let products_to_cache = sqlx::query_as::<_, Product>(r#"
+            WITH RankedProducts AS (
+                SELECT *, ROW_NUMBER() OVER(PARTITION BY category ORDER BY created_at DESC) as rn
+                FROM products WHERE status = $1
+            )
+            SELECT id, name, description, price, gender, condition, category, status, on_sale, images, created_at, updated_at
+            FROM RankedProducts WHERE rn <= 5 ORDER BY created_at DESC LIMIT 100;
+        "#)
+        .bind(ProductStatus::Available)
+        .fetch_all(&state.db_pool)
+        .await;
+
+        match products_to_cache {
+            Ok(products) => {
+                let count = products.len() as u64;
+                for product in products {
+                    state.product_cache.insert(product.id, product).await;
+                }
+                count
+            }
+            Err(e) => {
+                tracing::error!(
+                    "[Cache Warm-up] Błąd podczas rozgrzewania cache'u produktów: {}",
+                    e
+                );
+                0
+            }
+        }
     }
 
     // --- Konfiguracja Cloudinary ---
@@ -207,11 +224,33 @@ async fn main() {
         static_html_cache,
         category_list_cache,
     });
+    // [ZMIANA] Nowa, poprawna sekcja rozgrzewania cache'u
+    tracing::info!("Uruchamianie zadań rozgrzewania pamięci podręcznej...");
+    let static_warmup_handle = tokio::spawn(warm_static_cache(app_state.clone()));
+    let product_warmup_handle = tokio::spawn(warm_product_cache(app_state.clone()));
 
-    let state_for_warming = app_state.clone();
-    tokio::spawn(async move {
-        warm_static_cache(state_for_warming).await;
-    });
+    // Czekaj na zakończenie obu zadań i pobierz ich wyniki
+    let static_count_result = static_warmup_handle.await;
+    let product_count_result = product_warmup_handle.await;
+
+    // Loguj wyniki po zakończeniu
+    match static_count_result {
+        Ok(count) => tracing::info!(
+            "[Cache Warm-up] Zakończono: Rozgrzano {} stron statycznych.",
+            count
+        ),
+        Err(e) => tracing::error!(
+            "[Cache Warm-up] Zadanie rozgrzewania stron statycznych zakończyło się błędem: {:?}",
+            e
+        ),
+    }
+    match product_count_result {
+        Ok(count) => tracing::info!("[Cache Warm-up] Zakończono: Rozgrzano {} produktów.", count),
+        Err(e) => tracing::error!(
+            "[Cache Warm-up] Zadanie rozgrzewania produktów zakończyło się błędem: {:?}",
+            e
+        ),
+    }
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
