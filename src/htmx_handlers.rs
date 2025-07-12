@@ -271,7 +271,7 @@ pub async fn get_product_detail_htmx_handler(
     let thumbnail_urls: Vec<String> = product
         .images
         .iter()
-        .map(|url| transform_cloudinary_url(url, "w_150,h_150,c_fill,f_auto,q_auto"))
+        .map(|url| transform_cloudinary_url(url, "w_150,h_150,c_fill,f_auto,q_auto:good"))
         .collect();
 
     // Początkowy główny obrazek (pierwszy z listy dużych)
@@ -1078,10 +1078,10 @@ fn render_product_grid_maud(
                         @let hover_image_raw = product.images.get(1).cloned().unwrap_or_default();
 
                         @let initial_image_transformed = transform_cloudinary_url(
-                            &initial_image_raw, "w_400,h_400,c_fill,g_auto,f_auto,q_auto"
+                            &initial_image_raw, "w_400,h_400,c_fill,g_auto,f_auto,q_auto:best"
                         );
                         @let hover_image_transformed = if !hover_image_raw.is_empty() {
-                            transform_cloudinary_url(&hover_image_raw, "w_400,h_400,c_fill,g_auto,f_auto,q_auto")
+                            transform_cloudinary_url(&hover_image_raw, "w_400,h_400,c_fill,g_auto,f_auto,q_auto:best")
                         } else {
                             String::new()
                         };
@@ -1405,7 +1405,7 @@ pub fn render_privacy_policy_content() -> Markup {
     let company_nip = "123-456-78-90";
     let company_regon = "123456789";
     let contact_email_privacy = "contact@messvintage.com";
-    let link_do_polityki_cookies = "/htmx/page/polityka-cookies";
+    let link_do_polityki_cookies = "/polityka-cookies";
 
     // Definicje tekstów jako zmienne Rusta
     let heading_main_text = format!("Polityka Prywatności {}", shop_name);
@@ -1487,13 +1487,12 @@ pub fn render_privacy_policy_content() -> Markup {
     );
 
     let cookies_heading_text = "8. Pliki Cookies";
-    let cookies_paragraph1_text = format!(
-        "Nasz Sklep wykorzystuje pliki cookies (ciasteczka). Są to małe pliki tekstowe przechowywane na Twoim urządzeniu \
+    let cookies_paragraph1_text = "
+        Nasz Sklep wykorzystuje pliki cookies (ciasteczka). Są to małe pliki tekstowe przechowywane na Twoim urządzeniu \
         końcowym. Używamy ich m.in. do zapewnienia prawidłowego działania Sklepu, zapamiętywania Twoich preferencji, \
         analizy ruchu oraz w celach marketingowych. Szczegółowe informacje na temat plików cookies oraz możliwości \
-        zarządzania nimi znajdziesz w naszej [LINK DO POLITYKI COOKIES - jeśli masz osobną, lub rozwiń ten punkt, np. {}].",
-        link_do_polityki_cookies // Przykładowe użycie linku
-    );
+        zarządzania nimi znajdziesz w naszej [LINK DO POLITYKI COOKIES - TODO].";
+
     let cookies_paragraph2_text =
         "Możesz zarządzać ustawieniami cookies z poziomu swojej przeglądarki internetowej.";
 
@@ -1507,7 +1506,7 @@ pub fn render_privacy_policy_content() -> Markup {
     let contact_text_final_paragraph = format!(
         // Poprawiono problematyczny string
         "W przypadku pytań dotyczących niniejszej Polityki Prywatności lub przetwarzania Twoich danych osobowych, {} \
-        prosimy o kontakt pod adresem e-mail: {} lub listownie na adres naszej siedziby podany w punkcie 2.",
+        prosimy o kontakt pod adresem e-mail: {}",
         "", // Pusty string, jeśli nie ma nic do dodania na początku, lub dodaj jakiś tekst.
         contact_email_privacy
     );
@@ -1963,8 +1962,9 @@ pub fn render_contact_page() -> Markup {
     );
 
     let email_heading_text = "Napisz do nas";
-    let email_description_text =
-        format!("Najlepszym sposobem na kontakt jest wysłanie wiadomości e-mail na adres:");
+    let email_description_text = format!(
+        "Najlepszym i najszybszym sposobem na kontakt jest wysłanie wiadomości przez Whatsapp, ale można się z nami skontaktować również mailowo:"
+    );
 
     let phone_heading_text = "Zadzwoń do nas";
     let phone_description_text = if contact_phone.is_some() {
@@ -2073,7 +2073,7 @@ pub fn render_faq_page() -> Markup {
         },
         FaqItem {
             question: "Jakie są koszty i opcje dostawy?".to_string(),
-            answer: "Oferujemy dostawę za pośrednictwem Paczkomatów InPost oraz Poczta Polska. Koszt dostawy jest widoczny podczas składania zamówienia i zależy od wybranej opcji. Dla zamówień powyżej 250 zł dostawa jest darmowa!".to_string(),
+            answer: "Oferujemy dostawę za pośrednictwem Paczkomatów InPost oraz Poczta Polska. Koszt dostawy jest widoczny podczas składania zamówienia i zależy od wybranej opcji. Dla zamówień powyżej 200 zł dostawa jest darmowa!".to_string(),
         },
         FaqItem {
             question: "Czy wysyłacie za granicę?".to_string(),
@@ -2161,7 +2161,7 @@ pub fn faq_items() -> Vec<FaqItem> {
         },
         FaqItem {
             question: "Jakie są koszty i opcje dostawy?".to_string(),
-            answer: "Oferujemy dostawę za pośrednictwem Paczkomatów InPost oraz Poczta Polska. Koszt dostawy jest widoczny podczas składania zamówienia i zależy od wybranej opcji. Dla zamówień powyżej 250 zł dostawa jest darmowa!".to_string(),
+            answer: "Oferujemy dostawę za pośrednictwem Paczkomatów InPost oraz Poczta Polska. Koszt dostawy jest widoczny podczas składania zamówienia i zależy od wybranej opcji. Dla zamówień powyżej 200 zł dostawa jest darmowa!".to_string(),
         },
         FaqItem {
             question: "Czy wysyłacie za granicę?".to_string(),
@@ -2231,8 +2231,8 @@ pub fn render_shipping_returns_page() -> Markup {
     let shop_name = "mess - all that vintage";
     let processing_time = "1-2 dni robocze";
     let delivery_time = "1-2 dni robocze";
-    let free_shipping_threshold = "250 zł";
-    let contact_email_returns = "sklep@messvintage.com";
+    let free_shipping_threshold = "200 zł";
+    let contact_email_returns = "contact@messvintage.com";
     let return_address_line1 = "mess - all that vintage - Zwroty";
     let return_address_line2 = "ul. Magazynowa 5";
     let return_address_line3 = "00-002 Miasto";
@@ -2578,8 +2578,8 @@ fn render_product_form_maud(product_opt: Option<&Product>) -> Result<Markup, App
                     input id="on_sale" name="on_sale" type="checkbox" checked[product.on_sale] class="h-4 w-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500";
                 }
                 div class="ml-3 text-sm leading-6" {
-                    label for="on_sale" class="font-medium text-gray-700" { "Produkt na wyprzedaży" }
-                    p class="text-xs text-gray-500" { "Zaznacz, jeśli produkt ma być częścią wyprzedaży." }
+                    label for="on_sale" class="font-medium text-gray-700" { "Okazja" }
+                    p class="text-xs text-gray-500" { "Zaznacz, jeśli produkt ma być częścią okazji." }
                 }
             }
         }
@@ -3194,12 +3194,12 @@ pub async fn checkout_page_handler(
                                 subtotal: {}, 
                                 selectedShippingCost: 0,
                                 selectedShippingKeyInternal: '',
-                                FREE_SHIPPING_THRESHOLD: 25000,
+                                FREE_SHIPPING_THRESHOLD: 20000,
 
                                 shippingOptions: [
                                     {{ id: 'inpost', name: 'Paczkomat InPost 24/7', cost: 1199, displayCost: '11,99 zł' }},
                                     {{ id: 'poczta', name: 'Poczta Polska S.A.', cost: 1799, displayCost: '17,99 zł' }},
-                                    {{ id: 'darmowa', name: 'Darmowa dostawa (od 250,00 zł)', cost: 0, displayCost: '0,00 zł' }}
+                                    {{ id: 'darmowa', name: 'Darmowa dostawa (od 200,00 zł)', cost: 0, displayCost: '0,00 zł' }}
                                 ],
 
                                 isFreeShippingEligible() {{
@@ -6129,7 +6129,7 @@ fn render_free_shipping_banner_maud() -> Markup {
             // Tekst - dodajemy większą wagę czcionki
             div {
                 p class="font-semibold whitespace-nowrap text-base sm:text-lg" {
-                    "Darmowa dostawa od 250 zł!"
+                    "Darmowa dostawa od 200 zł!"
                 }
             }
         }
