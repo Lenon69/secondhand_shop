@@ -1,0 +1,1 @@
+ALTER TABLE shopping_carts DROP CONSTRAINT shopping_carts_user_id_key;

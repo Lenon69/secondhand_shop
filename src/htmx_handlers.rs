@@ -11,6 +11,7 @@ use crate::{
     response::PageBuilder,
     seo::{SchemaBrand, SchemaOffer, SchemaProduct},
 };
+use argon2::Error;
 use axum::response::Response;
 #[allow(unused_imports)]
 use axum::{
@@ -5667,49 +5668,68 @@ pub async fn toggle_cart_item_htmx_handler(
     let mut tx = app_state.db_pool.begin().await?;
     let mut headers = HeaderMap::new();
     let mut new_guest_cart_id_to_set: Option<Uuid> = None;
+    let mut cart_opt: Option<ShoppingCart> = None;
 
-    // --- Krok 1: Znajdź lub utwórz koszyk (logika skopiowana z poprzednich handlerów) ---
-    let cart_opt = if let Ok(claims) = user_claims_result {
+    if let Ok(claims) = user_claims_result {
         // Użytkownik zalogowany
-        match sqlx::query_as("SELECT * FROM shopping_carts WHERE user_id = $1 FOR UPDATE")
-            .bind(claims.sub)
-            .fetch_optional(&mut *tx)
-            .await?
-        {
-            Some(cart) => Some(cart),
-            None => sqlx::query_as("INSERT INTO shopping_carts (user_id) VALUES ($1) RETURNING *")
+        cart_opt =
+            match sqlx::query_as("SELECT * FROM shopping_carts WHERE user_id = $1 FOR UPDATE")
                 .bind(claims.sub)
-                .fetch_one(&mut *tx)
-                .await
-                .ok(),
-        }
+                .fetch_optional(&mut *tx)
+                .await?
+            {
+                Some(cart) => Some(cart),
+                None => Some(
+                    sqlx::query_as("INSERT INTO shopping_carts (user_id) VALUES ($1) RETURNING *")
+                        .bind(claims.sub)
+                        .fetch_one(&mut *tx)
+                        .await?,
+                ),
+            };
     } else {
         // Gość
         if let Some(TypedHeader(XGuestCartId(guest_id))) = guest_cart_id_header {
             new_guest_cart_id_to_set = Some(guest_id);
-            sqlx::query_as("SELECT * FROM shopping_carts WHERE guest_session_id = $1 FOR UPDATE")
-                .bind(guest_id)
-                .fetch_optional(&mut *tx)
-                .await?
-        } else {
-            let new_id = Uuid::new_v4();
+            cart_opt = sqlx::query_as(
+                "SELECT * FROM shopping_carts WHERE guest_session_id = $1 FOR UPDATE",
+            )
+            .bind(guest_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+        }
+
+        if cart_opt.is_none() {
+            // Ta logika uruchomi się, jeśli gość nie ma ID lub jego koszyk nie został znaleziony
+            let new_id = if let Some(id) = new_guest_cart_id_to_set {
+                id
+            } else {
+                Uuid::new_v4()
+            };
             new_guest_cart_id_to_set = Some(new_id);
-            let guest_cookie = Cookie::build(("guest_cart_id", new_id.to_string()))
-                .path("/")
-                .http_only(true)
-                .secure(true)
-                .same_site(SameSite::Lax)
-                .max_age(time::Duration::days(365))
-                .build();
-            headers.insert(
-                axum::http::header::SET_COOKIE,
-                guest_cookie.to_string().parse().unwrap(),
-            );
-            sqlx::query_as("INSERT INTO shopping_carts (guest_session_id) VALUES ($1) RETURNING *")
+
+            // Ustaw ciasteczko, jeśli tworzymy zupełnie nową sesję
+            if guest_cart_id_header.is_none() {
+                let guest_cookie = Cookie::build(("guest_cart_id", new_id.to_string()))
+                    .path("/")
+                    .http_only(true)
+                    .secure(true)
+                    .same_site(SameSite::Lax)
+                    .max_age(time::Duration::days(365))
+                    .build();
+                headers.insert(
+                    axum::http::header::SET_COOKIE,
+                    guest_cookie.to_string().parse().unwrap(),
+                );
+            }
+
+            cart_opt = Some(
+                sqlx::query_as(
+                    "INSERT INTO shopping_carts (guest_session_id) VALUES ($1) RETURNING *",
+                )
                 .bind(new_id)
                 .fetch_one(&mut *tx)
-                .await
-                .ok()
+                .await?,
+            );
         }
     };
 
