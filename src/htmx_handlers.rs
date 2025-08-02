@@ -6008,20 +6008,18 @@ pub async fn home_page_handler(
 /// Renderuje sekcję "hero" z nagłówkiem H1 dla strony głównej.
 fn render_home_page_hero() -> Markup {
     // KROK 1: Wklej tutaj URL do swojego obrazka tła z Cloudinary
-    let original_hero_url =
+    let _original_hero_url =
         "https://res.cloudinary.com/dvndapjpc/image/upload/v1754091645/dpf1xb0grl4gtl56gepn.avif";
 
     html! {
-    div class="
-            relative        // Pozycja dla ewentualnych napisów wewnątrz
-            bg-cover        // Obrazek ma pokrywać cały div
-            bg-center       // Obrazek jest centrowany
-            aspect-[3/1]    // Zachowuje proporcje obrazka
-            rounded-2xl     // Zaokrągla rogi kontenera
-            overflow-hidden // Ukrywa to, co wystaje poza zaokrąglenie
-        "
-        style=(format!("background-image: url('{}')", original_hero_url)) {
-        }
+        // 1. Kontener definiuje kształt, proporcje i zaokrąglenie
+        div class="relative aspect-[3/1] rounded-2xl overflow-hidden mb-8" {
+            // 2. Obrazek wypełnia ten kontener
+            img
+                src="https://res.cloudinary.com/dvndapjpc/image/upload/v1754091645/dpf1xb0grl4gtl56gepn.avif"
+                alt="Vintage & More Banner"
+                class="absolute w-full h-full object-cover";
+                }
     }
 }
 
