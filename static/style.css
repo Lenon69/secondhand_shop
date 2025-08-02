@@ -150,3 +150,7 @@ form.htmx-request .search-button-text {
 #sm-banner .banner-box {
   box-shadow: none !important;
 }
+
+footer {
+  background-color: #ffece4;
+}

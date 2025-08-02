@@ -29,7 +29,9 @@ module.exports = {
       // => @media (min-width: 1600px) { ... }
     },
     extend: {
-      // Tutaj możesz dodać inne rozszerzenia motywu, np. kolory
+      colors: {
+        "custom-footer-bg": "#ffece4",
+      },
     },
   },
   plugins: [],
