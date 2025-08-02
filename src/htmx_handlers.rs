@@ -6009,27 +6009,18 @@ pub async fn home_page_handler(
 fn render_home_page_hero() -> Markup {
     // KROK 1: Wklej tutaj URL do swojego obrazka tła z Cloudinary
     let original_hero_url =
-        "https://res.cloudinary.com/dvndapjpc/image/upload/v1750778105/dpf1xb0grl4gtl56gepn.jpg";
-    let transformed_hero_url =
-        transform_cloudinary_url(original_hero_url, "w_1200,c_fill,g_auto,f_auto,q_auto:good");
+        "https://res.cloudinary.com/dvndapjpc/image/upload/v1754091645/dpf1xb0grl4gtl56gepn.avif";
 
     html! {
-        div class="relative text-center py-20 sm:py-28 bg-cover bg-center rounded-xl shadow-lg border border-gray-300 mb-8 overflow-hidden"
-            style=(format!("background-image: url('{}')", transformed_hero_url)) {
-
-            div class="absolute inset-0 bg-black/60" {}
-
-            div class="relative z-10 px-4" {
-                h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white drop-shadow-md" {
-                    "Wyjątkowa "
-                    span class="text-pink-600" { "odzież vintage" }
-                    " online"
-                }
-                p class="mt-4 max_w-2xl mx-auto text-lg text-gray-100 drop-shadow-md" {
-
-                    "Odkryj unikalne perełki z duszą. Ręcznie selekcjonowana odzież dla Niej i dla Niego."
-                }
-            }
+    div class="
+            relative        // Pozycja dla ewentualnych napisów wewnątrz
+            bg-cover        // Obrazek ma pokrywać cały div
+            bg-center       // Obrazek jest centrowany
+            aspect-[3/1]    // Zachowuje proporcje obrazka
+            rounded-2xl     // Zaokrągla rogi kontenera
+            overflow-hidden // Ukrywa to, co wystaje poza zaokrąglenie
+        "
+        style=(format!("background-image: url('{}')", original_hero_url)) {
         }
     }
 }
