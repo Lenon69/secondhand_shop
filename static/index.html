@@ -386,7 +386,7 @@
                           name="search"
                           id="live-search-input"
                           placeholder="Szukaj perełek..."
-                          class="w-full px-4 py-2 border border-gray-300 rounded-l-full focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-shadow text-sm"
+                          class="w-full px-4 py-2 border border-gray-300 rounded-l-full focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-transparent transition-shadow text-sm"
                           aria-label="Wyszukaj produkty"
                           autocomplete="off"
 
@@ -422,14 +422,14 @@
             hx-target="#content" hx-swap="innerHTML"
             x-bind:hx-push-url="isAuthenticated ? '/moje-konto' : '/logowanie'"
             @click="currentMobilePage = isAuthenticated ? 'moje-konto' : 'logowanie'"
-            class="flex items-center space-x-1 text-gray-700 hover:text-pink-600 transition-colors"
+            class="flex items-center space-x-1 text-gray-700 hover:text-rose-400 transition-colors"
             aria-label="Moje konto">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>
             <span class="text-sm" x-text="isAuthenticated ? 'Moje konto' : 'Zaloguj się'"></span>
         </a>                        
     <button
         @click="cartOpen = true; $el.dispatchEvent(new CustomEvent('cartOpened', {bubbles: true, composed: true}))"
-        class="relative flex items-center space-x-1 text-gray-700 hover:text-pink-600 transition-colors transform hover:scale-105 focus:outline-none"
+        class="relative flex items-center space-x-1 text-gray-700 hover:text-rose-400 transition-colors transform hover:scale-105 focus:outline-none"
         aria-label="Otwórz koszyk"
     >
         <svg
@@ -451,12 +451,12 @@
             x-text="cartItemCount"
             x-show="cartItemCount > 0"
             x-cloak
-            class="absolute -top-2 -right-2 bg-pink-600 text-white text-xs font-semibold rounded-full w-5 h-5 flex items-center justify-center ring-2 ring-white"
+            class="absolute -top-2 -right-2 bg-rose-400 text-white text-xs font-semibold rounded-full w-5 h-5 flex items-center justify-center ring-2 ring-white"
         ></span>
     </button>
 </div>            <button
               @click="cartOpen = true; $el.dispatchEvent(new CustomEvent('cartOpened', {bubbles: true, composed: true}))"
-              class="lg:hidden relative p-1 text-gray-700 hover:text-pink-600 transition-colors transform hover:scale-105 focus:outline-none"
+              class="lg:hidden relative p-1 text-gray-700 hover:text-rose-400 transition-colors transform hover:scale-105 focus:outline-none"
               aria-label="Otwórz koszyk"
             >
               <svg
@@ -476,14 +476,14 @@
                 x-text="cartItemCount"
                 x-show="cartItemCount > 0"
                 x-cloak
-                class="absolute -top-1.5 -right-1.5 bg-pink-600 text-white text-[0.6rem] font-semibold rounded-full w-4 h-4 flex items-center justify-center ring-1 ring-white"
+                class="absolute -top-1.5 -right-1.5 bg-rose-400 text-white text-[0.6rem] font-semibold rounded-full w-4 h-4 flex items-center justify-center ring-1 ring-white"
               ></span>
             </button>
             <div class="flex items-center lg:hidden">
               <button
                 @click="isMobileMenuOpen = !isMobileMenuOpen"
                 aria-label="Menu"
-                class="p-2 rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-pink-500"
+                class="p-2 rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-rose-400"
               >
                 <svg
                   x-show="!isMobileMenuOpen"
@@ -530,7 +530,7 @@
               hx-push-url="/dla-niej"
               hx-swap="innerHTML"
               @click="currentMobilePage='damska'; isCategorySidebarOpen = false"
-              class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
+              class="text-gray-700 hover:text-rose-400 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-rose-50"
               >Dla niej</a
             >
             <a
@@ -540,7 +540,7 @@
               hx-push-url="/dla-niego"
               hx-swap="innerHTML"
               @click="currentMobilePage='meska'; isCategorySidebarOpen = false"
-              class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
+              class="text-gray-700 hover:text-rose-400 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-rose-50"
               >Dla niego</a
             >
             <a
@@ -550,7 +550,7 @@
               hx-push-url="/nowosci"
               hx-swap="innerHTML"
               @click="currentMobilePage='nowosci'"
-              class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
+              class="text-gray-700 hover:text-rose-400 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-rose-50"
               >Nowości</a
             >
             <a
@@ -560,7 +560,7 @@
               hx-push-url="/okazje"
               hx-swap="innerHTML"
               @click="currentMobilePage='okazje'"
-              class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
+              class="text-gray-700 hover:text-rose-400 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-rose-50"
               >Okazje</a
             >
             <a
@@ -570,7 +570,7 @@
               hx-push-url="/o-nas"
               hx-swap="innerHTML"
               @click="currentMobilePage='o-nas'"
-              class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
+              class="text-gray-700 hover:text-rose-400 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-rose-50"
               >O nas</a
             >
             <a
@@ -580,7 +580,7 @@
               hx-push-url="/kontakt"
               hx-swap="innerHTML"
               @click="currentMobilePage='kontakt'"
-              class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
+              class="text-gray-700 hover:text-rose-400 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-rose-50"
               >Kontakt</a
             >
           </div>
@@ -613,7 +613,7 @@
               >
                   <input
                       id="mobile-search-input"
-                      class="block w-full rounded-md border border-gray-300 text-center bg-white py-2 pl-10 pr-4 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition-shadow sm:text-sm sm:leading-6"
+                      class="block w-full rounded-md border border-gray-300 text-center bg-white py-2 pl-10 pr-4 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400 transition-shadow sm:text-sm sm:leading-6"
                       placeholder="Szukaj..."
                       type="search"
                       name="search"
@@ -650,7 +650,7 @@
             hx-push-url="/dla-niej"
             @click="isMobileMenuOpen = false; currentMobilePage='damska'; isCategorySidebarOpen = false"
             :class="{'mobile-nav-active': currentMobilePage === 'damska'}"
-            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-700 text-center"
+            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-rose-50 hover:text-rose-700 text-center"
             >Dla niej</a
           >
           <a
@@ -661,7 +661,7 @@
             hx-push-url="/dla-niego"
             @click="isMobileMenuOpen = false; currentMobilePage='meska'; isCategorySidebarOpen = false"
             :class="{'mobile-nav-active': currentMobilePage === 'meska'}"
-            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-700 text-center"
+            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-rose-50 hover:text-rose-700 text-center"
             >Dla niego</a
           >
           <a
@@ -672,7 +672,7 @@
             hx-push-url="/nowosci"
             @click="isMobileMenuOpen = false; currentMobilePage='nowosci'"
             :class="{'mobile-nav-active': currentMobilePage === 'nowosci'}"
-            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-700 text-center"
+            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-rose-50 hover:text-rose-700 text-center"
             >Nowości</a
           >
           <a
@@ -683,7 +683,7 @@
             hx-push-url="/okazje"
             @click="isMobileMenuOpen = false; currentMobilePage='okazje'"
             :class="{'mobile-nav-active': currentMobilePage === 'okazje'}"
-            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-700 text-center"
+            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-rose-50 hover:text-rose-700 text-center"
             >Okazje</a
           >
           <a
@@ -694,7 +694,7 @@
             hx-push-url="/o-nas"
             @click="isMobileMenuOpen = false; currentMobilePage='o-nas'"
             :class="{'mobile-nav-active': currentMobilePage === 'o-nas'}"
-            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-700 text-center"
+            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-rose-50 hover:text-rose-700 text-center"
             >O nas</a
           >
           <a
@@ -705,7 +705,7 @@
             hx-push-url="/kontakt"
             @click="isMobileMenuOpen = false; currentMobilePage='kontakt'"
             :class="{'mobile-nav-active': currentMobilePage === 'kontakt'}"
-            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-700 text-center"
+            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-rose-50 hover:text-rose-700 text-center"
             >Kontakt</a
           >
             <div class="pt-4 pb-3 border-t border-gray-200">
@@ -716,7 +716,7 @@
                         hx-swap="innerHTML"
                         x-bind:hx-push-url="isAuthenticated ? '/moje-konto' : '/logowanie'"
                         @click="isMobileMenuOpen = false; currentMobilePage = isAuthenticated ? 'moje-konto' : 'logowanie'"
-                        class="flex items-center justify-center text-base font-medium text-gray-700 hover:text-pink-700 w-full">
+                        class="flex items-center justify-center text-base font-medium text-gray-700 hover:text-rose-700 w-full">
                         <svg class="w-6 h-6 mr-2 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"></path></svg>
                         <span x-text="isAuthenticated ? 'Moje Konto' : 'Zaloguj / Zarejestruj się'"></span>
                     </a>
@@ -791,7 +791,7 @@
                   hx-get="/htmx/page/kontakt"
                   hx-target="#content"
                   hx-push-url="/kontakt"
-                  class="hover:underline hover:text-pink-600 transition-colors"
+                  class="hover:underline hover:text-rose-400 transition-colors"
                   >Kontakt</a
                 >
               </li>
@@ -801,7 +801,7 @@
                   hx-get="/htmx/page/wysylka-i-zwroty"
                   hx-target="#content"
                   hx-push-url="/wysylka-i-zwroty"
-                  class="hover:underline hover:text-pink-600 transition-colors"
+                  class="hover:underline hover:text-rose-400 transition-colors"
                   >Wysyłka i zwroty</a
                 >
               </li>
@@ -811,7 +811,7 @@
                   hx-get="/htmx/page/faq"
                   hx-target="#content"
                   hx-push-url="/faq"
-                  class="hover:underline hover:text-pink-600 transition-colors"
+                  class="hover:underline hover:text-rose-400 transition-colors"
                   >FAQ</a
                 >
               </li>
@@ -830,7 +830,7 @@
                   hx-get="/htmx/page/o-nas"
                   hx-target="#content"
                   hx-push-url="/o-nas"
-                  class="hover:underline hover:text-pink-600 transition-colors"
+                  class="hover:underline hover:text-rose-400 transition-colors"
                   >O nas</a
                 >
               </li>
@@ -840,7 +840,7 @@
                   hx-get="/htmx/page/polityka-prywatnosci"
                   hx-target="#content"
                   hx-push-url="/polityka-prywatnosci"
-                  class="hover:underline hover:text-pink-600 transition-colors"
+                  class="hover:underline hover:text-rose-400 transition-colors"
                   >Polityka prywatności</a
                 >
               </li>
@@ -850,7 +850,7 @@
                   hx-get="/htmx/page/regulamin"
                   hx-target="#content"
                   hx-push-url="/regulamin"
-                  class="hover:underline hover:text-pink-600 transition-colors"
+                  class="hover:underline hover:text-rose-400 transition-colors"
                   >Regulamin sklepu</a
                 >
               </li>
@@ -869,7 +869,7 @@
                   hx-get="/dla-niej"
                   hx-target="#content"
                   hx-push-url="/dla-niej"
-                  class="hover:underline hover:text-pink-600 transition-colors"
+                  class="hover:underline hover:text-rose-400 transition-colors"
                   >Dla niej</a
                 >
               </li>
@@ -879,7 +879,7 @@
                   hx-get="/dla-niego"
                   hx-target="#content"
                   hx-push-url="/dla-niego"
-                  class="hover:underline hover:text-pink-600 transition-colors"
+                  class="hover:underline hover:text-rose-400 transition-colors"
                   >Dla niego</a
                 >
               </li>
@@ -889,7 +889,7 @@
                   hx-get="/htmx/products?sort_by=created_at&amp;order=desc"
                   hx-target="#content"
                   hx-push-url="/nowosci"
-                  class="hover:underline hover:text-pink-600 transition-colors"
+                  class="hover:underline hover:text-rose-400 transition-colors"
                   >Nowości</a
                 >
               </li>
@@ -952,7 +952,7 @@
                hx-target="#content"
                hx-swap="innerHTML"
                hx-push-url="/admin"
-               class="font-medium hover:text-pink-600 transition-colors"
+               class="font-medium hover:text-rose-400 transition-colors"
                title="Przejdź do Panelu Admina"
             >mess - all that vintage.</a>
           </template>
@@ -997,7 +997,7 @@
           <button
             @click="cartOpen = false"
             type="button"
-            class="-mr-2 p-2 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-pink-500"
+            class="-mr-2 p-2 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-rose-400"
             aria-label="Zamknij koszyk"
           >
             <svg

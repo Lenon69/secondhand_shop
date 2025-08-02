@@ -334,8 +334,8 @@ pub async fn get_product_detail_htmx_handler(
                             template x-for="(thumbnailUrl, index) in allThumbnails" x-bind:key="index" {
                                 button type="button"
                                     "@click"="currentMainImage = allLargeImages[index]; $nextTick(() => window.scrollTo({ top: 0, behavior: 'auto' }))"
-                                    "x-bind:class"="currentMainImage === allLargeImages[index] ? 'border-pink-500 ring-2 ring-pink-500' : 'border-gray-200 hover:border-pink-400'"
-                                    class="aspect-square block border-2 rounded-md overflow-hidden focus:outline-none focus:border-pink-500 transition-all duration-150 bg-gray-50" {
+                                    "x-bind:class"="currentMainImage === allLargeImages[index] ? 'border-rose-400 ring-2 ring-rose-400' : 'border-gray-200 hover:border-rose-400'"
+                                    class="aspect-square block border-2 rounded-md overflow-hidden focus:outline-none focus:border-rose-400 transition-all duration-150 bg-gray-50" {
                                     img "x-bind:src"="thumbnailUrl"
                                         x-bind:alt="'Miniaturka ' + (index + 1)"
                                         class="w-full h-full object-cover object-center"
@@ -356,7 +356,7 @@ pub async fn get_product_detail_htmx_handler(
                 // --- Kolumna z informacjami o produkcie ---
                 div ."flex flex-col" {
                     h1 ."text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-gray-900 mb-2" { (product.name) }
-                    p ."text-3xl font-semibold text-pink-600 mb-5" { (formatted_price) }
+                    p ."text-3xl font-semibold text-rose-400 mb-5" { (formatted_price) }
 
                     div ."space-y-2 text-sm text-gray-700 mb-5" {
                         p { strong ."font-medium text-gray-900" { "Rodzaj:" } " " (product.gender.to_string()) }
@@ -406,7 +406,7 @@ pub async fn get_product_detail_htmx_handler(
                                    hx-target=(query_params.return_target.as_deref().unwrap_or("#content"))
                                    hx-swap="innerHTML"
                                    hx-push-url=(url.replace("/htmx", ""))
-                                   class="js-back-to-list-link inline-flex items-center px-4 py-2 border border-pink-200 rounded-md shadow-sm text-sm font-medium text-pink-700 bg-pink-100 hover:bg-pink-200 hover:border-pink-300 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2" {
+                                   class="js-back-to-list-link inline-flex items-center px-4 py-2 border border-rose-200 rounded-md shadow-sm text-sm font-medium text-rose-700 bg-rose-100 hover:bg-rose-200 hover:border-rose-300 transition-colors focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-offset-2" {
                                    svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2" {
                                        path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3";
                                    }
@@ -442,7 +442,7 @@ pub async fn get_product_detail_htmx_handler(
                                            hx-target="#content"
                                            hx-swap="innerHTML"
                                            hx-push-url="true"
-                                           class="js-back-to-list-link inline-flex items-center px-4 py-2 border border-pink-200 rounded-md shadow-sm text-sm font-medium text-pink-700 bg-pink-100 hover:bg-pink-200 hover:border-pink-300 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2" {
+                                           class="js-back-to-list-link inline-flex items-center px-4 py-2 border border-rose-200 rounded-md shadow-sm text-sm font-medium text-rose-700 bg-rose-100 hover:bg-rose-200 hover:border-rose-300 transition-colors focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-offset-2" {
                                             svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2" {
                                                 path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3";
                                             }
@@ -457,7 +457,7 @@ pub async fn get_product_detail_htmx_handler(
                                         ("/dla-niego", "Męskie")
                                     };
                                     a href=(return_path) hx-get=(format!("/htmx{}", return_path)) hx-target="#content" hx-swap="innerHTML" hx-push-url=(return_path)
-                                       class="js-back-to-list-link inline-flex items-center px-4 py-2 border border-pink-200 rounded-md shadow-sm text-sm font-medium text-pink-700 bg-pink-100 hover:bg-pink-200 hover:border-pink-300 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2" {
+                                       class="js-back-to-list-link inline-flex items-center px-4 py-2 border border-rose-200 rounded-md shadow-sm text-sm font-medium text-rose-700 bg-rose-100 hover:bg-rose-200 hover:border-rose-300 transition-colors focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-offset-2" {
                                         svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2" {
                                             path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3";
                                         }
@@ -624,7 +624,7 @@ pub async fn get_cart_details_htmx_handler(
                                    hx-swap="innerHTML"
                                    hx-push-url=(format!("/produkty/{}", item.product.id))
                                    "@click"="if(typeof cartOpen !== 'undefined') cartOpen = false" // Zamknij koszyk (Alpine.js)
-                                  class="hover:text-pink-600 transition-colors group-hover:underline" {
+                                  class="hover:text-rose-400 transition-colors group-hover:underline" {
                                     (item.product.name)
                                 }
                             }
@@ -638,7 +638,7 @@ pub async fn get_cart_details_htmx_handler(
                                 hx-post=(format!("/htmx/cart/remove/{}", item.product.id))
                                 hx-target="#cart-content-target"
                                 hx-swap="innerHTML"
-                                class="text-sm font-medium text-pink-600 px-3 py-1 rounded-md hover:bg-pink-100 hover:text-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-opacity-50 transition-all duration-150 ease-in-out" {
+                                class="text-sm font-medium text-rose-400 px-3 py-1 rounded-md hover:bg-rose-100 hover:text-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-opacity-50 transition-all duration-150 ease-in-out" {
                                 "Usuń"
                             }
                         }
@@ -999,7 +999,7 @@ pub async fn remove_item_from_cart_htmx_handler(
                                                hx-swap="innerHTML"
                                                hx-push-url=(format!("/produkty/{}", item.product.id))
                                                "@click"="if(typeof cartOpen !== 'undefined') cartOpen = false"
-                                               class="hover:text-pink-600 transition-colors group-hover:underline" {
+                                               class="hover:text-rose-400 transition-colors group-hover:underline" {
                                                 (item.product.name)
                                             }
                                         }
@@ -1012,7 +1012,7 @@ pub async fn remove_item_from_cart_htmx_handler(
                                             hx-post=(format!("/htmx/cart/remove/{}", item.product.id))
                                             hx-target="#cart-content-target"
                                             hx-swap="innerHTML"
-                                            class="text-sm font-medium text-pink-600 px-3 py-1 rounded-md hover:bg-pink-100 hover:text-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-opacity-50 transition-all duration-150 ease-in-out" {
+                                            class="text-sm font-medium text-rose-400 px-3 py-1 rounded-md hover:bg-rose-100 hover:text-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-opacity-50 transition-all duration-150 ease-in-out" {
                                             "Usuń"
                                         }
                                     }
@@ -1129,7 +1129,7 @@ fn render_product_grid_maud(
                                 }
                             }
                             div ."flex-grow" {
-                                h2 ."text-lg font-semibold mb-1 text-gray-800 group-hover:text-pink-600 transition-colors duration-200" {
+                                h2 ."text-lg font-semibold mb-1 text-gray-800 group-hover:text-rose-600 transition-colors duration-200" {
                                     a href=(format!("/produkty/{}", product.id))
                                        hx-get=(format!("/htmx/produkt/{}?return_params={}", product.id, urlencoding::encode(&current_listing_params_qs)))
                                        hx-target="#content" hx-swap="innerHTML"
@@ -1172,7 +1172,7 @@ fn render_product_grid_maud(
                                    hx-target="#products-grid-container"
                                    hx-swap="outerHTML"
                                    hx-scroll="window:top"
-                                   class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500" {
+                                   class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-rose-400" {
                                 "Poprzednia"
                             }
                         } @else {
@@ -1189,7 +1189,7 @@ fn render_product_grid_maud(
                                 PaginationItem::Page(page_num) => {
                                     @if page_num == current_page {
                                         // --- Aktywna (bieżąca) strona ---
-                                        span class="z-10 px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-white bg-pink-600" aria-current="page" {
+                                        span class="z-10 px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-white bg-rose-400" aria-current="page" {
                                             (page_num)
                                         }
                                     } @else {
@@ -1204,7 +1204,7 @@ fn render_product_grid_maud(
                                                hx-target="#products-grid-container"
                                                hx-swap="outerHTML"
                                                hx-scroll="window:top"
-                                               class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500" {
+                                               class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-rose-400" {
                                             (page_num)
                                         }
                                     }
@@ -1228,7 +1228,7 @@ fn render_product_grid_maud(
                                    hx-target="#products-grid-container"
                                    hx-swap="outerHTML"
                                    hx-scroll="window:top"
-                                   class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500" {
+                                   class="px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-rose-400" {
                                 "Następna"
                             }
                         } @else {
@@ -1324,7 +1324,7 @@ pub fn render_about_us_content() -> Markup {
                 // Użycie prose-lg i prose-xl dla lepszej czytelności większych bloków tekstu
                 // space-y-6 dla odstępów między paragrafami
 
-                p ."text-xl font-semibold text-pink-600" { // Lekkie wyróżnienie pierwszego zdania
+                p ."text-xl font-semibold text-rose-400" { // Lekkie wyróżnienie pierwszego zdania
                     "Witaj w świecie mess - all that vintage!"
                 }
                 p {
@@ -1339,14 +1339,14 @@ pub fn render_about_us_content() -> Markup {
                 }
                 */
 
-                h2 ."text-2xl sm:text-3xl font-semibold text-gray-800 mt-10 mb-4 border-b-2 border-pink-500 pb-2" {
+                h2 ."text-2xl sm:text-3xl font-semibold text-gray-800 mt-10 mb-4 border-b-2 border-rose-400 pb-2" {
                     "Miłość do Vintage i Zrównoważonego Stylu"
                 }
                 p {
                     "Naszą największą inspiracją jest moda z duszą – starannie wyszukane perełki vintage i odzież z drugiej ręki, która niesie ze sobą niepowtarzalne historie i ponadczasową jakość. Wierzymy, że moda powinna być zrównoważona, a dawanie ubraniom drugiego życia to najpiękniejszy sposób na dbanie o naszą planetę i podkreślanie własnej indywidualności. Przeszukujemy niezliczone miejsca, aby znaleźć te wyjątkowe egzemplarze, które wniosą do Twojej szafy niepowtarzalny charakter."
                 }
 
-                h2 ."text-2xl sm:text-3xl font-semibold text-gray-800 mt-10 mb-4 border-b-2 border-pink-500 pb-2" {
+                h2 ."text-2xl sm:text-3xl font-semibold text-gray-800 mt-10 mb-4 border-b-2 border-rose-400 pb-2" {
                     "Misja mess - all that vintage"
                 }
                 p {
@@ -1354,13 +1354,13 @@ pub fn render_about_us_content() -> Markup {
                 }
 
                 // Sekcja z wyróżnionym cytatem lub wartościami
-                div ."my-10 p-6 bg-pink-50 rounded-xl shadow-md border-l-4 border-pink-500" {
-                    p ."text-lg italic text-pink-700 leading-relaxed" {
+                div ."my-10 p-6 bg-pink-50 rounded-xl shadow-md border-l-4 border-rose-400" {
+                    p ."text-lg italic text-rose-700 leading-relaxed" {
                         "„Moda przemija, styl pozostaje. W mess - all that vintage celebrujemy ten ponadczasowy styl, dając drugie życie wyjątkowym ubraniom.”"
                     }
                 }
 
-                h2 ."text-2xl sm:text-3xl font-semibold text-gray-800 mt-10 mb-4 border-b-2 border-pink-500 pb-2" {
+                h2 ."text-2xl sm:text-3xl font-semibold text-gray-800 mt-10 mb-4 border-b-2 border-rose-400 pb-2" {
                     "Co u nas znajdziesz?"
                 }
                 p {
@@ -1373,7 +1373,7 @@ pub fn render_about_us_content() -> Markup {
                         "Dziękujemy, że jesteś z nami! Rozejrzyj się, zainspiruj i znajdź coś, co idealnie odda Twój styl."
                     }
                     a href="/" hx-get="/" hx-target="#content" hx-swap="innerHTML" hx-push-url="/"
-                       class="inline-block bg-pink-600 text-white font-semibold py-3 px-8 rounded-lg shadow-md hover:bg-pink-700 transition-all duration-200 ease-in-out text-lg" {
+                       class="inline-block bg-rose-400 text-white font-semibold py-3 px-8 rounded-lg shadow-md hover:bg-pink-700 transition-all duration-200 ease-in-out text-lg" {
                         "Odkrywaj nasze kolekcje"
                     }
                 }
@@ -1908,7 +1908,7 @@ pub fn render_terms_of_service() -> Markup {
 
                 h2 { (s7_title) }
                 p {
-                    (PreEscaped(s7_p1.replace("[LINK DO POLITYKI PRYWATNOŚCI]", &format!("<a href=\"/htmx/page/polityka-prywatnosci\" class=\"text-pink-600 hover:underline\">{}</a>", "Polityce Prywatności"))))
+                    (PreEscaped(s7_p1.replace("[LINK DO POLITYKI PRYWATNOŚCI]", &format!("<a href=\"/htmx/page/polityka-prywatnosci\" class=\"text-rose-400 hover:underline\">{}</a>", "Polityce Prywatności"))))
                 }
 
                 h2 { (s8_title) }
@@ -1992,7 +1992,7 @@ pub fn render_contact_page() -> Markup {
             div ."space-y-10" {
                 // Sekcja Email
                 section ."p-6 bg-white rounded-lg shadow-lg border border-gray-200" {
-                    h2 ."text-2xl font-semibold text-pink-600 mb-3" { (email_heading_text) }
+                    h2 ."text-2xl font-semibold text-rose-400 mb-3" { (email_heading_text) }
                     p ."text-gray-700 mb-2" { (email_description_text) }
                     a href=(format!("mailto:{}", contact_email)) class="text-lg text-gray-900 font-medium hover:underline break-all" { (contact_email) }
                 }
@@ -2000,7 +2000,7 @@ pub fn render_contact_page() -> Markup {
                 // Sekcja Telefon (opcjonalna)
                 @if let Some(phone) = contact_phone {
                     section ."p-6 bg-white rounded-lg shadow-lg border border-gray-200" {
-                        h2 ."text-2xl font-semibold text-pink-600 mb-3" { (phone_heading_text) }
+                        h2 ."text-2xl font-semibold text-rose-400 mb-3" { (phone_heading_text) }
                         @if !phone_description_text.is_empty() {
                             p ."text-gray-700 mb-2" { (phone_description_text) }
                         }
@@ -2011,7 +2011,7 @@ pub fn render_contact_page() -> Markup {
 
                 // // Sekcja Adres Korespondencyjny
                 // section ."p-6 bg-white rounded-lg shadow-lg border border-gray-200" {
-                //     h2 ."text-2xl font-semibold text-pink-600 mb-3" { (address_heading_text) }
+                //     h2 ."text-2xl font-semibold text-rose-400 mb-3" { (address_heading_text) }
                 //     p ."text-gray-700 leading-relaxed" {
                 //         (company_full_name) br;
                 //         (company_address_line1) br;
@@ -2025,7 +2025,7 @@ pub fn render_contact_page() -> Markup {
                 // Sekcja Media Społecznościowe (opcjonalna)
                 @if social_facebook_url.is_some() || social_instagram_url.is_some() {
                     section ."p-6 bg-white rounded-lg shadow-lg border border-gray-200" {
-                        h2 ."text-2xl font-semibold text-pink-600 mb-4" { (social_media_heading_text) }
+                        h2 ."text-2xl font-semibold text-rose-400 mb-4" { (social_media_heading_text) }
                         div ."flex space-x-6" {
                             @if let Some(fb_url) = social_facebook_url {
                                 a href=(fb_url) target="_blank" rel="noopener noreferrer" class="text-gray-600 hover:text-blue-600 transition-colors" {
@@ -2312,7 +2312,7 @@ pub fn render_shipping_returns_page() -> Markup {
                     // Sekcja Wysyłka
                     div "x-data"="{ open: true }" ."bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden" {
                         button type="button" "@click"="open = !open" class="w-full flex justify-between items-center p-5 sm:p-6 text-left hover:bg-gray-50 focus:outline-none" {
-                            h2 ."text-2xl sm:text-3xl font-semibold text-pink-600" { (shipping_section_title) }
+                            h2 ."text-2xl sm:text-3xl font-semibold text-rose-400" { (shipping_section_title) }
                             svg ."w-6 h-6 text-pink-500 transform transition-transform duration-200" "x-bind:class"="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
                                 path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
                             }
@@ -2347,7 +2347,7 @@ pub fn render_shipping_returns_page() -> Markup {
                     // Sekcja Zwroty
                     div "x-data"="{ open: false }" ."bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden" {
                         button type="button" "@click"="open = !open" class="w-full flex justify-between items-center p-5 sm:p-6 text-left hover:bg-gray-50 focus:outline-none" {
-                            h2 ."text-2xl sm:text-3xl font-semibold text-pink-600" { (returns_section_title) }
+                            h2 ."text-2xl sm:text-3xl font-semibold text-rose-400" { (returns_section_title) }
                             svg ."w-6 h-6 text-pink-500 transform transition-transform duration-200" "x-bind:class"="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
                                 path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
                             }
@@ -2378,13 +2378,13 @@ pub fn render_shipping_returns_page() -> Markup {
 
                     // Sekcja Reklamacje
                     div ."p-6 bg-white rounded-lg shadow-lg border border-gray-200" {
-                        h2 ."text-2xl sm:text-3xl font-semibold text-pink-600 mb-3" { (complaints_section_title) }
+                        h2 ."text-2xl sm:text-3xl font-semibold text-rose-400 mb-3" { (complaints_section_title) }
 
                         // ZMIANA: Budujemy paragraf i link bezpośrednio w maud
                         p ."text-gray-700 leading-relaxed" {
                             (complaints_text_part1)
                             a href=(link_to_terms)
-                               class="text-pink-600 hover:text-pink-700 hover:underline"
+                               class="text-rose-400 hover:text-rose-700 hover:underline"
                                hx-get=(link_to_terms)
                                hx-target="#content"
                                hx-swap="innerHTML"
@@ -2447,7 +2447,7 @@ pub async fn my_account_page_handler(
                                        hx-target="#my-account-content"
                                        hx-swap="innerHTML"
                                        hx-push-url=(push_url)
-                                       class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-pink-500 text-center" {
+                                       class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-rose-400 transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-rose-400 text-center" {
                                         (label)
                                     }
                                 }
@@ -2471,7 +2471,7 @@ pub async fn my_account_page_handler(
                      hx-swap="innerHTML"
                      hx-push-url="true" {
                     div #my-account-content-spinner .flex.justify-center.items-center.h-40 {
-                        svg class="animate-spin h-8 w-8 text-pink-600" xmlns="http://www.w3.org/2000/svg" fill="none" "viewBox"="0 0 24 24" {
+                        svg class="animate-spin h-8 w-8 text-rose-400" xmlns="http://www.w3.org/2000/svg" fill="none" "viewBox"="0 0 24 24" {
                             circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" "stroke-width"="4";
                             path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z";
                         }
@@ -2575,7 +2575,7 @@ fn render_product_form_maud(product_opt: Option<&Product>) -> Result<Markup, App
              h3 ."text-xl font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-200" { "Opcje Sprzedaży" }
             div class="relative flex items-start" {
                 div class="flex h-6 items-center" {
-                    input id="on_sale" name="on_sale" type="checkbox" checked[product.on_sale] class="h-4 w-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500";
+                    input id="on_sale" name="on_sale" type="checkbox" checked[product.on_sale] class="h-4 w-4 rounded border-gray-300 text-rose-400 focus:ring-rose-400";
                 }
                 div class="ml-3 text-sm leading-6" {
                     label for="on_sale" class="font-medium text-gray-700" { "Okazja" }
@@ -2594,9 +2594,9 @@ fn render_product_form_maud(product_opt: Option<&Product>) -> Result<Markup, App
                     @let slot_input_id = format!("product_image_file_slot_{}", i);
                     @let input_name = format!("image_file_{}", i + 1);
 
-                    div class="relative aspect-square border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-400 hover:border-pink-400 transition-colors group"
+                    div class="relative aspect-square border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-400 hover:border-rose-400 transition-colors group"
                         x-bind:class="{
-                            '!border-solid !border-pink-500 shadow-lg': isSlotFilled(@(i)),
+                            '!border-solid !border-rose-400 shadow-lg': isSlotFilled(@(i)),
                             '!border-red-400 !border-solid bg-red-50': isMarkedForDeletion(@(i))
                         }" {
 
@@ -2643,7 +2643,7 @@ fn render_product_form_maud(product_opt: Option<&Product>) -> Result<Markup, App
                                     path d="M9.25 13.25a.75.75 0 001.5 0V4.793l2.97 2.97a.75.75 0 001.06-1.06l-4.25-4.25a.75.75 0 00-1.06 0L5.22 6.704a.75.75 0 001.06 1.06L9.25 4.793v8.457z" {}
                                     path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" {}
                                 }
-                                div ."text-xs mt-1 text-gray-500 group-hover:text-pink-600 transition-colors" {
+                                div ."text-xs mt-1 text-gray-500 group-hover:text-rose-600 transition-colors" {
                                      @if i == 0 { "Dodaj główne *" } @else { "Dodaj zdjęcie" }
                                 }
                             }
@@ -2669,7 +2669,7 @@ fn render_product_form_maud(product_opt: Option<&Product>) -> Result<Markup, App
                     "Anuluj"
                 }
                 button type="submit"
-                       class="w-full sm:w-auto inline-flex justify-center items-center px-8 py-2.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-transform transform hover:scale-105" {
+                       class="w-full sm:w-auto inline-flex justify-center items-center px-8 py-2.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-rose-400 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-400 transition-transform transform hover:scale-105" {
                     span { "Zapisz" }
                 }
             }
@@ -2681,10 +2681,10 @@ fn render_product_form_maud(product_opt: Option<&Product>) -> Result<Markup, App
             div ."max-w-4xl mx-auto" {
                 div ."flex justify-between items-center mb-6 pb-3 border-b border-gray-300" {
                     h2 ."text-2xl sm:text-3xl font-semibold text-gray-800" { (form_title)
-                        @if !is_new { ": " span."text-pink-600"{(product.name)} }
+                        @if !is_new { ": " span."text-rose-400"{(product.name)} }
                     }
                     a href="/htmx/admin/products" hx-get="/htmx/admin/products" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
-                       class="text-sm text-pink-600 hover:text-pink-700 hover:underline font-medium transition-colors" {
+                       class="text-sm text-rose-400 hover:text-rose-700 hover:underline font-medium transition-colors" {
                         "← Wróć do listy"
                     }
                 }
@@ -2804,7 +2804,7 @@ pub async fn login_page_htmx_handler(headers: HeaderMap) -> Result<Response, App
                                 div ."mt-1" {
                                     input #email name="email" type="email" autocomplete="email" required
                                            class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400
-                                              focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 
+                                              focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-rose-400 
                                               transition duration-150 ease-in-out sm:text-sm";
                                 }
                             }
@@ -2814,7 +2814,7 @@ pub async fn login_page_htmx_handler(headers: HeaderMap) -> Result<Response, App
                                 div ."mt-1" {
                                     input #password name="password" type="password" autocomplete="current-password" required
                                            class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400
-                                              focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 
+                                              focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-rose-400 
                                               transition duration-150 ease-in-out sm:text-sm";
                                 }
                             }
@@ -2822,7 +2822,7 @@ pub async fn login_page_htmx_handler(headers: HeaderMap) -> Result<Response, App
                             div {
                                 button type="submit"
                                        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white
-                                          bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 
+                                          bg-rose-400 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-400 
                                           transition-all duration-150 ease-in-out transform hover:scale-105" {
                                     "Zaloguj się"
                                 }
@@ -2838,7 +2838,7 @@ pub async fn login_page_htmx_handler(headers: HeaderMap) -> Result<Response, App
                                        hx-target="#content"
                                        hx-swap="innerHTML"
                                        hx-push-url=(registration_url)
-                                       class="font-medium text-pink-600 hover:text-pink-500 hover:underline" {
+                                       class="font-medium text-rose-400 hover:text-pink-500 hover:underline" {
                                         "Zarejestruj się"
                                     }
                                 }
@@ -2849,7 +2849,7 @@ pub async fn login_page_htmx_handler(headers: HeaderMap) -> Result<Response, App
                                hx-target="#content"
                                hx-swap="innerHTML"
                                hx-push-url="/zapomnialem-hasla"
-                               class="text-xs text-gray-500 hover:text-pink-600 hover:underline" {
+                               class="text-xs text-gray-500 hover:text-rose-400 hover:underline" {
                                 "Zapomniałeś hasła?"
                             }
                         }
@@ -3024,7 +3024,7 @@ pub async fn my_orders_htmx_handler(
                         div ."border border-gray-200 rounded-lg p-4 sm:p-6 hover:shadow-lg transition-shadow duration-200 ease-in-out bg-white" {
                             div ."flex flex-col sm:flex-row justify-between sm:items-center mb-3 pb-3 border-b border-gray-100" {
                                 div {
-                                    h3 ."text-lg font-semibold text-pink-600" {
+                                    h3 ."text-lg font-semibold text-rose-400" {
                                         "Zamówienie #" (order_id_display)
                                     }
                                     p ."text-sm text-gray-500" { "Data złożenia: " (order_date_display) }
@@ -3050,7 +3050,7 @@ pub async fn my_orders_htmx_handler(
                                        hx-target="#my-account-content" // Celuje w główny obszar treści "Moje Konto"
                                        hx-swap="innerHTML"
                                        hx-push-url=(format!("/moje-konto/zamowienia/{}", order_item.id))
-                                       class="text-sm text-pink-600 hover:text-pink-700 hover:underline font-medium py-2 px-3 rounded-md hover:bg-pink-50 transition-colors" {
+                                       class="text-sm text-rose-400 hover:text-rose-700 hover:underline font-medium py-2 px-3 rounded-md hover:bg-pink-50 transition-colors" {
                                         "Zobacz szczegóły"
                                     }
                                 }
@@ -3175,7 +3175,7 @@ pub async fn checkout_page_handler(
                        hx-target="#content"
                        hx-swap="innerHTML"
                        hx-push-url="/"
-                       class="inline-block bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200" {
+                       class="inline-block bg-rose-400 hover:bg-pink-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200" {
                         "Wróć do sklepu"
                     }
                 }
@@ -3296,7 +3296,7 @@ pub async fn checkout_page_handler(
                                                        type="radio"
                                                        x-on:click="selectShippingOption(option)" // Wywołaj nową funkcję
                                                        x-bind:checked="selectedShippingKeyInternal === option.id"
-                                                       class="h-4 w-4 text-pink-600 border-gray-300 focus:ring-pink-500";
+                                                       class="h-4 w-4 text-rose-400 border-gray-300 focus:ring-rose-400";
                                                 label x-bind:for="option.id + '_shipping_option'" class="ml-3 block text-sm text-gray-700 hover:cursor-pointer" {
                                                     span x-text="option.name" {};
                                                     " - "
@@ -3321,7 +3321,7 @@ pub async fn checkout_page_handler(
                                 }
                                 div class="flex justify-between border-t border-gray-200 pt-3" {
                                     span class="text-base font-semibold text-gray-900" { "Do zapłaty" }
-                                    span class="text-base font-semibold text-pink-600" id="checkout-grand-total"
+                                    span class="text-base font-semibold text-rose-400" id="checkout-grand-total"
                                           x-text="formatPrice(grandTotal)" {}
                                 }
                             }
@@ -3330,10 +3330,10 @@ pub async fn checkout_page_handler(
                                 p class="text-xs text-gray-500" {
                                     "Klikając „Złóż zamówienie i zapłać”, akceptujesz "
                                     a href="/regulamin" hx-get="/htmx/page/regulamin" hx-target="#content" hx-swap="innerHTML" hx-push-url="/regulamin"
-                                       class="text-pink-600 hover:underline" { "Regulamin sklepu" }
+                                       class="text-rose-400 hover:underline" { "Regulamin sklepu" }
                                     " oraz "
                                     a href="/polityka-prywatnosci" hx-get="/htmx/page/polityka-prywatnosci" hx-target="#content" hx-swap="innerHTML" hx-push-url="/polityka-prywatnosci"
-                                       class="text-pink-600 hover:underline" { "Politykę prywatności" }
+                                       class="text-rose-400 hover:underline" { "Politykę prywatności" }
                                     "."
                                 }
                             }
@@ -3362,7 +3362,7 @@ pub async fn checkout_page_handler(
                                     label for="guest_checkout_email" class="block text-sm font-medium text-gray-700 mb-1" { "Twój adres email *" }
                                     input type="email" id="guest_checkout_email" name="guest_checkout_email" required
                                            placeholder="email@example.com"
-                                           class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                           class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-rose-400 focus:border-rose-400";
                                     p ."mt-1 text-xs text-gray-500" { "Potrzebny do potwierdzenia zamówienia, jeśli kupujesz jako gość." }
                                 }
                             }
@@ -3377,44 +3377,44 @@ pub async fn checkout_page_handler(
                                         label for="shipping_first_name" class="block text-sm font-medium text-gray-700 mb-1" { "Imię *" }
                                         input type="text" id="shipping_first_name" name="shipping_first_name" required
                                                value=[user_shipping_data_for_form.shipping_first_name.as_deref()]
-                                               class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                               class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-rose-400 focus:border-rose-400";
                                     }
                                     div {
                                         label for="shipping_last_name" class="block text-sm font-medium text-gray-700 mb-1" { "Nazwisko *" }
                                         input type="text" id="shipping_last_name" name="shipping_last_name" required
                                                value=[user_shipping_data_for_form.shipping_last_name.as_deref()]
-                                               class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                               class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-rose-400 focus:border-rose-400";
                                     }
                                 }
                                 div ."mt-4" {
                                     label for="shipping_address_line1" class="block text-sm font-medium text-gray-700 mb-1" { "Adres (ulica i numer) *" }
                                     input type="text" id="shipping_address_line1" name="shipping_address_line1" required
                                            value=[user_shipping_data_for_form.shipping_address_line1.as_deref()]
-                                           class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                           class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-rose-400 focus:border-rose-400";
                                 }
                                 div ."mt-4" {
                                     label for="shipping_address_line2" class="block text-sm font-medium text-gray-700 mb-1" { "Adres cd. (opcjonalnie)" }
                                     input type="text" id="shipping_address_line2" name="shipping_address_line2"
                                            value=[user_shipping_data_for_form.shipping_address_line2.as_deref()]
-                                           class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                           class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-rose-400 focus:border-rose-400";
                                 }
                                 div ."grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4" {
                                     div {
                                         label for="shipping_city" class="block text-sm font-medium text-gray-700 mb-1" { "Miasto *" }
                                         input type="text" id="shipping_city" name="shipping_city" required
                                                value=[user_shipping_data_for_form.shipping_city.as_deref()]
-                                               class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                               class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-rose-400 focus:border-rose-400";
                                     }
                                     div {
                                         label for="shipping_postal_code" class="block text-sm font-medium text-gray-700 mb-1" { "Kod pocztowy *" }
                                         input type="text" id="shipping_postal_code" name="shipping_postal_code" required
                                                value=[user_shipping_data_for_form.shipping_postal_code.as_deref()]
-                                               class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                               class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-rose-400 focus:border-rose-400";
                                     }
                                     div {
                                         label for="shipping_country" class="block text-sm font-medium text-gray-700 mb-1" { "Kraj *" }
                                         select id="shipping_country" name="shipping_country" required
-                                                class="w-full px-4 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500" {
+                                                class="w-full px-4 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-rose-400 focus:border-rose-400" {
                                             option value="" disabled[user_shipping_data_for_form.shipping_country.is_none()] selected[user_shipping_data_for_form.shipping_country.is_none()] { "Wybierz kraj..." }
                                             @for country_name_str_slice in &countries {
                                                 option value=(country_name_str_slice)
@@ -3435,7 +3435,7 @@ pub async fn checkout_page_handler(
                                     label for="shipping_phone" class="block text-sm font-medium text-gray-700 mb-1" { "Telefon *" }
                                     input type="tel" id="shipping_phone" name="shipping_phone" required
                                            value=[user_shipping_data_for_form.shipping_phone.as_deref()]
-                                           class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                                           class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-rose-400 focus:border-rose-400";
                                 }
                             } // koniec fieldset dane dostawy
 
@@ -3444,7 +3444,7 @@ pub async fn checkout_page_handler(
                             //     legend ."text-lg font-semibold text-gray-800 px-2" { "Dane do faktury" }
                             //     div ."flex items-center mb-4" {
                             //         input type="checkbox" id="billing_same_as_shipping" name="billing_same_as_shipping" checked
-                            //                class="h-4 w-4 text-pink-600 focus:ring-pink-500 border-gray-300 rounded"
+                            //                class="h-4 w-4 text-rose-400 focus:ring-rose-400 border-gray-300 rounded"
                             //                "@click"="document.getElementById('billing-fields').classList.toggle('hidden')";
                             //         label for="billing_same_as_shipping" class="ml-2 block text-sm text-gray-700" {
                             //             "Takie same jak dane dostawy"
@@ -3455,39 +3455,39 @@ pub async fn checkout_page_handler(
                             //             div {
                             //                 label for="billing_first_name" class="block text-sm font-medium text-gray-700 mb-1" { "Imię" }
                             //                 input type="text" id="billing_first_name" name="billing_first_name"
-                            //                        class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                            //                        class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-rose-400 focus:border-rose-400";
                             //             }
                             //             div {
                             //                 label for="billing_last_name" class="block text-sm font-medium text-gray-700 mb-1" { "Nazwisko" }
                             //                 input type="text" id="billing_last_name" name="billing_last_name"
-                            //                        class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                            //                        class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-rose-400 focus:border-rose-400";
                             //             }
                             //         }
                             //         div { // Usunięto mt-4
                             //             label for="billing_address_line1" class="block text-sm font-medium text-gray-700 mb-1" { "Adres (ulica i numer)" }
                             //             input type="text" id="billing_address_line1" name="billing_address_line1"
-                            //                    class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                            //                    class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-rose-400 focus:border-rose-400";
                             //         }
                             //         div { // Usunięto mt-4
                             //             label for="billing_address_line2" class="block text-sm font-medium text-gray-700 mb-1" { "Adres cd. (opcjonalnie)" }
                             //             input type="text" id="billing_address_line2" name="billing_address_line2"
-                            //                    class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                            //                    class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-rose-400 focus:border-rose-400";
                             //         }
                             //         div ."grid grid-cols-1 sm:grid-cols-3 gap-4" { // Usunięto mt-4
                             //             div {
                             //                 label for="billing_city" class="block text-sm font-medium text-gray-700 mb-1" { "Miasto" }
                             //                 input type="text" id="billing_city" name="billing_city"
-                            //                        class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                            //                        class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-rose-400 focus:border-rose-400";
                             //             }
                             //             div {
                             //                 label for="billing_postal_code" class="block text-sm font-medium text-gray-700 mb-1" { "Kod pocztowy" }
                             //                 input type="text" id="billing_postal_code" name="billing_postal_code"
-                            //                        class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500";
+                            //                        class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-rose-400 focus:border-rose-400";
                             //             }
                             //             div {
                             //                 label for="billing_country" class="block text-sm font-medium text-gray-700 mb-1" { "Kraj" }
                             //                 select id="billing_country" name="billing_country"
-                            //                         class="w-full px-4 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500" {
+                            //                         class="w-full px-4 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-rose-400 focus:border-rose-400" {
                             //                     @for country_name_str_slice in &countries { // Używamy tej samej listy krajów
                             //                         option value=(country_name_str_slice) selected[country_name_str_slice == &"Polska"] { // Domyślnie Polska
                             //                             (country_name_str_slice)
@@ -3505,7 +3505,7 @@ pub async fn checkout_page_handler(
                                 div ."space-y-4 mt-4" {
                                     div ."flex items-center" {
                                         input type="radio" id="payment_blik" name="payment_method" value="blik" checked
-                                               class="h-4 w-4 text-pink-600 focus:ring-pink-500 border-gray-300";
+                                               class="h-4 w-4 text-rose-400 focus:ring-rose-400 border-gray-300";
                                         label for="payment_blik" class="ml-3 block text-sm font-medium text-gray-700" {
                                             "BLIK"
                                             span class="text-xs text-gray-500 ml-1" { "(Zalecane)" }
@@ -3513,7 +3513,7 @@ pub async fn checkout_page_handler(
                                     }
                                     div ."flex items-center" {
                                         input type="radio" id="payment_transfer" name="payment_method" value="transfer"
-                                               class="h-4 w-4 text-pink-600 focus:ring-pink-500 border-gray-300";
+                                               class="h-4 w-4 text-rose-400 focus:ring-rose-400 border-gray-300";
                                         label for="payment_transfer" class="ml-3 block text-sm font-medium text-gray-700" {
                                             "Przelew tradycyjny"
                                         }
@@ -3525,11 +3525,11 @@ pub async fn checkout_page_handler(
                         // Przyciski akcji (Czerwone Pole)
                         div ."mt-8 flex flex-col sm:flex-row-reverse justify-between items-center gap-4" {
                             button type="submit" form="checkout-form" // Atrybut 'form' wskazuje na ID formularza
-                                   class="w-full sm:w-auto px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-all duration-200 transform hover:scale-105" {
+                                   class="w-full sm:w-auto px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-rose-400 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-400 transition-all duration-200 transform hover:scale-105" {
                                 "Złóż zamówienie i zapłać"
                             }
                             a href="/" hx-get="/htmx/products?limit=8" hx-target="#content" hx-swap="innerHTML" hx-push-url="/"
-                               class="w-full sm:w-auto px-6 py-3 border border-gray-300 rounded-md shadow-sm text-base font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 text-center" {
+                               class="w-full sm:w-auto px-6 py-3 border border-gray-300 rounded-md shadow-sm text-base font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-400 text-center" {
                                 "Wróć do sklepu"
                             }
                         }
@@ -3595,7 +3595,7 @@ pub async fn my_account_data_htmx_handler(
                     input type="text" name="shipping_first_name" id="shipping_first_name"
                            value=[details.shipping_first_name.as_deref()]
                            maxlength="100"
-                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-rose-400 focus:border-rose-400 sm:text-sm";
                 }
 
                 // --- Nazwisko ---
@@ -3604,7 +3604,7 @@ pub async fn my_account_data_htmx_handler(
                     input type="text" name="shipping_last_name" id="shipping_last_name"
                            value=[details.shipping_last_name.as_deref()]
                            maxlength="100"
-                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-rose-400 focus:border-rose-400 sm:text-sm";
                 }
 
                 // --- Adres linia 1 ---
@@ -3613,7 +3613,7 @@ pub async fn my_account_data_htmx_handler(
                     input type="text" name="shipping_address_line1" id="shipping_address_line1"
                            value=[details.shipping_address_line1.as_deref()]
                            maxlength="255"
-                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-rose-400 focus:border-rose-400 sm:text-sm";
                 }
 
                 // --- Adres linia 2 (opcjonalnie) ---
@@ -3622,7 +3622,7 @@ pub async fn my_account_data_htmx_handler(
                     input type="text" name="shipping_address_line2" id="shipping_address_line2"
                            value=[details.shipping_address_line2.as_deref()]
                            maxlength="255"
-                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-rose-400 focus:border-rose-400 sm:text-sm";
                 }
 
                 // --- Miasto i Kod pocztowy (w jednym rzędzie na większych ekranach) ---
@@ -3632,14 +3632,14 @@ pub async fn my_account_data_htmx_handler(
                         input type="text" name="shipping_city" id="shipping_city"
                                value=[details.shipping_city.as_deref()]
                                maxlength="100"
-                               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-rose-400 focus:border-rose-400 sm:text-sm";
                     }
                     div {
                         label for="shipping_postal_code" ."block text-sm font-medium text-gray-700 mb-1" { "Kod pocztowy" }
                         input type="text" name="shipping_postal_code" id="shipping_postal_code"
                                value=[details.shipping_postal_code.as_deref()]
                                maxlength="20"
-                               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-rose-400 focus:border-rose-400 sm:text-sm";
                     }
                 }
 
@@ -3647,7 +3647,7 @@ pub async fn my_account_data_htmx_handler(
                 div {
                     label for="shipping_country" ."block text-sm font-medium text-gray-700 mb-1" { "Kraj" }
                     select name="shipping_country" id="shipping_country"
-                           class="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm" {
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-rose-400 focus:border-rose-400 sm:text-sm" {
                         // Dla opcji "Wybierz kraj", chcemy ją wybrać i zablokować, jeśli żaden kraj nie jest jeszcze zapisany.
                         option value=""
                                disabled[details.shipping_country.is_none()]
@@ -3675,14 +3675,14 @@ pub async fn my_account_data_htmx_handler(
                     input type="tel" name="shipping_phone" id="shipping_phone"
                            value=[details.shipping_phone.as_deref()]
                            maxlength="30"
-                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 sm:text-sm";
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-rose-400 focus:border-rose-400 sm:text-sm";
                 }
 
                 // --- Przycisk Zapisz ---
                 div ."pt-4" {
                     button type="submit"
 
-                           class="w-full sm:w-auto inline-flex justify-center items-center px-6 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-colors" {
+                           class="w-full sm:w-auto inline-flex justify-center items-center px-6 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-rose-400 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-400 transition-colors" {
                         span { "Zapisz zmiany" }
                         // Opcjonalny spinner dla przycisku (jeśli chcesz)
                         // span class="htmx-indicator ml-2" { /* SVG spinnera */ }
@@ -3828,7 +3828,7 @@ pub async fn my_order_details_htmx_handler(
                    hx-target="#my-account-content"
                    hx-swap="innerHTML"
                    hx-push-url="/moje-konto/zamowienia"
-                   class="text-sm text-pink-600 hover:text-pink-700 hover:underline" {
+                   class="text-sm text-rose-400 hover:text-rose-700 hover:underline" {
                     "← Wróć do listy zamówień"
                 }
             }
@@ -3915,7 +3915,7 @@ pub async fn my_order_details_htmx_handler(
                                    hx-target="#my-account-content"
                                    hx-swap="innerHTML"
                                    hx-push-url=(format!("/produkty/{}", item_detail.product.id))
-                                   class="text-sm font-medium text-pink-600 hover:text-pink-700 hover:underline block truncate" {
+                                   class="text-sm font-medium text-rose-400 hover:text-rose-700 hover:underline block truncate" {
                                     (item_detail.product.name)
                                 }
                                 p ."text-xs text-gray-500" { "Kategoria: " (item_detail.product.category.to_string()) }
@@ -4038,7 +4038,7 @@ pub async fn admin_products_list_htmx_handler(
                    hx-target="#admin-content"
                    hx-swap="innerHTML"
                    hx-push-url="true"
-                   class="bg-pink-600 hover:bg-pink-700 text-white font-semibold py-2 px-5 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out text-sm inline-flex items-center" {
+                   class="bg-rose-400 hover:bg-pink-700 text-white font-semibold py-2 px-5 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out text-sm inline-flex items-center" {
                     svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 mr-2"{
                         path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" {}
                     }
@@ -4258,7 +4258,7 @@ fn sort_link(
            hx-get=(hx_get_url)
            hx-target="#admin-product-list-container" // Odświeża cały kontener listy
            hx-swap="outerHTML" // Zastępuje kontener nową zawartością
-           class="flex items-center space-x-1 hover:text-pink-600" {
+           class="flex items-center space-x-1 hover:text-rose-400" {
             span { (display_name) }
             span class="text-xs" { (PreEscaped(icon)) } // Używamy PreEscaped dla strzałek
         }
@@ -4428,7 +4428,7 @@ fn order_sort_link(
            hx-target="#admin-orders-list-container" // Celuje w kontener listy zamówień
            hx-swap="outerHTML"
            hx-push-url="true"
-           class="flex items-center space-x-1 hover:text-pink-600" {
+           class="flex items-center space-x-1 hover:text-rose-400" {
             span { (display_name) }
             span class="text-xs" { (PreEscaped(icon)) }
         }
@@ -4525,7 +4525,7 @@ pub async fn admin_orders_list_htmx_handler(
                         input type="search" name="search" id="search_order" value=[params.search.as_deref()] placeholder="ID, Nazwisko, Email..." class="admin-filter-input";
                     }
                     div ."flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 items-end pt-2 sm:pt-0" {
-                        button type="submit" class="admin-filter-button bg-pink-600 hover:bg-pink-700 text-white w-full sm:w-auto" { "Filtruj" }
+                        button type="submit" class="admin-filter-button bg-rose-400 hover:bg-pink-700 text-white w-full sm:w-auto" { "Filtruj" }
                         a href="/htmx/admin/orders" // Link do resetowania filtrów (ładuje stronę z domyślnymi parametrami)
                            hx-get="/htmx/admin/orders" // Upewnij się, że ten GET nie przekazuje starych params, jeśli to reset
                            hx-target="#admin-orders-list-container" hx-swap="outerHTML" hx-push-url="true"
@@ -4576,7 +4576,7 @@ pub async fn admin_orders_list_htmx_handler(
                                                     }
                                                 })
                                                hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
-                                               class="hover:text-pink-600 hover:underline" {                                            (order.id.to_string().chars().take(8).collect::<String>()) "..."
+                                               class="hover:text-rose-400 hover:underline" {                                            (order.id.to_string().chars().take(8).collect::<String>()) "..."
                                         }
                                     }
                                     td class="admin-td" {
@@ -4598,7 +4598,7 @@ pub async fn admin_orders_list_htmx_handler(
                                         select name="status"
                                             hx-patch=(format!("/api/orders/{}", order.id))
                                             hx-trigger="change"
-                                            class="block w-full pl-3 pr-8 py-1.5 text-xs border-gray-300 focus:outline-none focus:ring-pink-500 focus:border-pink-500 rounded-md shadow-sm appearance-none"
+                                            class="block w-full pl-3 pr-8 py-1.5 text-xs border-gray-300 focus:outline-none focus:ring-rose-400 focus:border-rose-400 rounded-md shadow-sm appearance-none"
                                             aria-label="Zmień status zamówienia" {
                                             @for status_option in OrderStatus::iter() {
                                                 option value=(status_option.to_form_value()) selected[order.status == status_option] { (status_option.to_string()) }
@@ -4780,7 +4780,7 @@ pub async fn admin_order_details_htmx_handler(
                    hx-swap="innerHTML"
                    hx-push-url="true"
                    // hx-push-url=(format!("/admin/zamowienia?{}", back_to_list_query_string)) // Opcjonalnie
-                   class="text-sm text-pink-600 hover:text-pink-700 hover:underline" {
+                   class="text-sm text-rose-400 hover:text-rose-700 hover:underline" {
                     "← Wróć do listy zamówień"
                 }
             }
@@ -4792,7 +4792,7 @@ pub async fn admin_order_details_htmx_handler(
                     div {
                         p ."text-gray-600" { "ID Zamówienia: " strong ."text-gray-900" { (order.id) } }
                         p ."text-gray-600" { "Data złożenia: " strong ."text-gray-900" { (order_date_display) } }
-                        p ."text-gray-600" { "Suma zamówienia: " strong ."text-pink-600 font-semibold" { (format_price_maud(order.total_price)) } }
+                        p ."text-gray-600" { "Suma zamówienia: " strong ."text-rose-400 font-semibold" { (format_price_maud(order.total_price)) } }
                         p ."text-gray-600" { "Metoda płatności: "
                             strong ."text-gray-900" {
                                 @if let Some(pm) = &order.payment_method { (pm.to_string()) } @else { "Nieokreślona" }
@@ -4808,7 +4808,7 @@ pub async fn admin_order_details_htmx_handler(
                             select name="status" id="order_status_details"
                                    hx-patch=(format!("/api/orders/{}", order.id))
                                    hx-trigger="change"
-                                   class="block w-full max-w-[200px] pl-3 pr-8 py-1.5 text-xs border-gray-300 focus:outline-none focus:ring-pink-500 focus:border-pink-500 rounded-md shadow-sm appearance-none" {
+                                   class="block w-full max-w-[200px] pl-3 pr-8 py-1.5 text-xs border-gray-300 focus:outline-none focus:ring-rose-400 focus:border-rose-400 rounded-md shadow-sm appearance-none" {
                                 @for status_opt in OrderStatus::iter() {
                                     option value=(status_opt.to_form_value()) selected[order.status == status_opt] { (status_opt.to_string()) }
                                 }
@@ -4880,7 +4880,7 @@ pub async fn admin_order_details_htmx_handler(
                                        hx-target="#admin-content"
                                        hx-swap="innerHTML"
                                        hx-push-url=(format!("/produkty/{}", item_detail.product.id))
-                                       class="text-sm font-medium text-pink-600 hover:text-pink-700 hover:underline block truncate" {
+                                       class="text-sm font-medium text-rose-400 hover:text-rose-700 hover:underline block truncate" {
                                         (item_detail.product.name)
                                     }
                                     p ."text-xs text-gray-500 mt-1" { "Kategoria: " (item_detail.product.category.to_string()) }
@@ -5204,7 +5204,7 @@ pub async fn payment_finalization_page_handler(
                              p { "Produkty: " span class="font-medium w-24 inline-block" { (format_price_maud(items_details.iter().map(|i| i.price_at_purchase).sum())) } }
                              p { "Dostawa (" (shipping_name) "): " span class="font-medium w-24 inline-block" { (format_price_maud(shipping_cost)) } }
                         }
-                         p class="text-lg border-t pt-2 mt-2" { "Suma: " span class="font-bold text-pink-600 w-24 inline-block" { (format_price_maud(order.total_price)) } }
+                         p class="text-lg border-t pt-2 mt-2" { "Suma: " span class="font-bold text-rose-400 w-24 inline-block" { (format_price_maud(order.total_price)) } }
                     }
                 }
 
@@ -5228,7 +5228,7 @@ pub async fn payment_finalization_page_handler(
                        hx-target="#content"
                        hx-swap="innerHTML"
                        hx-push-url="/"
-                       class="inline-block bg-pink-600 hover:bg-pink-700 text-white font-medium py-3 px-8 rounded-lg shadow-md hover:shadow-lg transition-all duration-200" {
+                       class="inline-block bg-rose-400 hover:bg-pink-700 text-white font-medium py-3 px-8 rounded-lg shadow-md hover:shadow-lg transition-all duration-200" {
                         "Wróć do sklepu"
                     }
 
@@ -5272,7 +5272,7 @@ pub fn render_checkout_error_page_maud(product_name: &str) -> Markup {
                     // Przycisk "Wróć do koszyka" - otwiera panel boczny
                     button type="button"
                            "@click"="if(typeof cartOpen !== 'undefined') cartOpen = true"
-                           class="w-full sm:w-auto px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-colors" {
+                           class="w-full sm:w-auto px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-rose-400 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-400 transition-colors" {
                         "Pokaż koszyk, aby usunąć produkt"
                     }
 
@@ -5282,7 +5282,7 @@ pub fn render_checkout_error_page_maud(product_name: &str) -> Markup {
                        hx-target="#content"
                        hx-swap="innerHTML"
                        hx-push-url="/"
-                       class="w-full sm:w-auto px-6 py-3 border border-gray-300 rounded-md shadow-sm text-base font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500" {
+                       class="w-full sm:w-auto px-6 py-3 border border-gray-300 rounded-md shadow-sm text-base font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-400" {
                         "Wróć do sklepu"
                     }
                 }
@@ -5365,7 +5365,7 @@ pub fn render_thank_you_page_maud(
                              p { "Produkty: " span class="font-medium w-24 inline-block" { (format_price_maud(items_details.iter().map(|i| i.price_at_purchase).sum())) } }
                              p { "Dostawa (" (shipping_name) "): " span class="font-medium w-24 inline-block" { (format_price_maud(shipping_cost)) } }
                         }
-                         p class="text-lg border-t pt-2 mt-2" { "Suma: " span class="font-bold text-pink-600 w-24 inline-block" { (format_price_maud(order.total_price)) } }
+                         p class="text-lg border-t pt-2 mt-2" { "Suma: " span class="font-bold text-rose-400 w-24 inline-block" { (format_price_maud(order.total_price)) } }
                     }
                 }
 
@@ -5389,7 +5389,7 @@ pub fn render_thank_you_page_maud(
                        hx-target="#content"
                        hx-swap="innerHTML"
                        hx-push-url="/"
-                       class="inline-block bg-pink-600 hover:bg-pink-700 text-white font-medium py-3 px-8 rounded-lg shadow-md hover:shadow-lg transition-all duration-200" {
+                       class="inline-block bg-rose-400 hover:bg-pink-700 text-white font-medium py-3 px-8 rounded-lg shadow-md hover:shadow-lg transition-all duration-200" {
                         "Wróć do sklepu"
                     }
 
@@ -5424,7 +5424,7 @@ pub async fn handler_404(headers: HeaderMap) -> impl IntoResponse {
                        hx-target="#content"
                        hx-swap="innerHTML"
                        hx-push-url="/"
-                       class="inline-block px-6 py-3 bg-pink-600 text-white font-semibold rounded-lg shadow-md hover:bg-pink-700 transition-all duration-200 ease-in-out" {
+                       class="inline-block px-6 py-3 bg-rose-400 text-white font-semibold rounded-lg shadow-md hover:bg-pink-700 transition-all duration-200 ease-in-out" {
                         "Powrót na stronę główną"
                     }
                 }
@@ -5462,11 +5462,11 @@ pub async fn forgot_password_form_handler(headers: HeaderMap) -> Result<Response
                     div {
                         label for="email" ."block text-sm font-medium text-gray-700" { "Adres e-mail" }
                         input #email name="email" type="email" autocomplete="email" required
-                               class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-pink-500";
+                               class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-rose-400";
                     }
                     div {
                         button type="submit"
-                               class="w-full flex justify-center py-3 px-4 border rounded-lg text-sm font-medium text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-transform hover:scale-105" {
+                               class="w-full flex justify-center py-3 px-4 border rounded-lg text-sm font-medium text-white bg-rose-400 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-400 transition-transform hover:scale-105" {
                             "Wyślij link do resetu hasła"
                         }
                     }
@@ -5528,7 +5528,7 @@ pub async fn reset_password_form_handler(
                                     label for="confirm_password" ."block text-sm font-medium" { "Potwierdź nowe hasło" }
                                     input #confirm_password name="confirm_password" type="password" required class="mt-1 block w-full px-3 py-2 border rounded-md";
                                 }
-                                button type="submit" class="w-full py-3 px-4 border rounded-lg text-white bg-pink-600 hover:bg-pink-700" { "Zmień hasło" }
+                                button type="submit" class="w-full py-3 px-4 border rounded-lg text-white bg-rose-400 hover:bg-pink-700" { "Zmień hasło" }
                             }
                         }
                     }
@@ -5574,7 +5574,7 @@ pub fn render_admin_product_list_row_maud(
                 a href=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
                    hx-get=(format!("/htmx/admin/products/{}/edit?{}", product.id, params_for_edit_links))
                    hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true"
-                   class="hover:text-pink-700 hover:underline" {
+                   class="hover:text-rose-700 hover:underline" {
                     (product.name)
                 }
             }
@@ -5619,7 +5619,7 @@ fn render_add_to_cart_button(product_id: Uuid) -> Markup {
                hx-post=(format!("/htmx/cart/toggle/{}", product_id)) // ZMIANA: Nowy endpoint
                hx-target=(format!("#product-cart-button-{}", product_id))
                hx-swap="outerHTML"
-               class="w-full text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 ease-in-out inline-flex items-center justify-center bg-pink-600 hover:bg-pink-700"
+               class="w-full text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 ease-in-out inline-flex items-center justify-center bg-rose-400 hover:bg-pink-700"
         {
             div class="flex items-center" {
                 svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 mr-2" {
@@ -5907,7 +5907,7 @@ pub async fn search_page_handler(
         div ."mb-8" {
             h1 ."text-2xl sm:text-3xl font-bold text-gray-800" {
                 "Wyniki wyszukiwania dla: "
-                span ."text-pink-600" { (search_term) }
+                span ."text-rose-400" { (search_term) }
             }
         }
         // render_product_listing_view zwróci nam gotową siatkę produktów z paginacją
@@ -6116,7 +6116,7 @@ fn highlight_keyword(text: &str, keyword: &str) -> Markup {
         let end = &text[index + keyword.len()..];
         html! {
             (start)
-            span class="text-pink-600" { (highlighted) }
+            span class="text-rose-400" { (highlighted) }
             (end)
         }
     } else {
@@ -6128,7 +6128,7 @@ fn highlight_keyword(text: &str, keyword: &str) -> Markup {
 /// Renderuje ostylowany baner "Darmowa dostawa".
 fn render_free_shipping_banner_maud() -> Markup {
     html! {
-        div class="p-3 sm:p-4 bg-pink-50 border border-pink-200 rounded-xl shadow-sm text-pink-800 flex items-center justify-center gap-x-3 sm:gap-x-4 h-full lg:max-w-2xl mx-auto" {
+        div class="p-3 sm:p-4 bg-pink-50 border border-rose-200 rounded-xl shadow-sm text-pink-800 flex items-center justify-center gap-x-3 sm:gap-x-4 h-full lg:max-w-2xl mx-auto" {
             div class="flex-shrink-0" {
                 svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 sm:w-7 sm:h-7" {
                   path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12";
@@ -6190,8 +6190,8 @@ fn render_category_sidebar_maud(
                 nav {
                     ul ."space-y-1" {
                         // Definicje klas dla linków dla czystszego kodu
-                        @let active_class = "flex items-center justify-center px-3 py-2 rounded-md transition-colors bg-pink-100 text-pink-700 font-bold";
-                        @let inactive_class = "flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors";
+                        @let active_class = "flex items-center justify-center px-3 py-2 rounded-md transition-colors bg-rose-100 text-rose-700 font-bold";
+                        @let inactive_class = "flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-rose-400 transition-colors";
 
                         // --- Link "Wszystkie" ---
                         li {
