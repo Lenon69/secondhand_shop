@@ -1093,7 +1093,7 @@ fn render_product_grid_maud(
                         );
                         @let class_binding_hover = "{ 'opacity-100': isHovering }";
 
-                            div class="border rounded-lg p-4 shadow-lg flex flex-col bg-white transition-all duration-300 ease-in-out hover:shadow-pink-400/30 hover:ring-2 hover:ring-pink-300/80 hover:-translate-y-1"
+                        div class="border border-gray-200 rounded-lg p-4 flex flex-col bg-white transition-all duration-200 ease-in-out hover:border-gray-300 hover:-translate-y-1"
                             x-data="{ isHovering: false }"
                             "@mouseenter"="isHovering = true"
                             "@mouseleave"="isHovering = false" {
