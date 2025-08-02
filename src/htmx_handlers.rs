@@ -11,7 +11,6 @@ use crate::{
     response::PageBuilder,
     seo::{SchemaBrand, SchemaOffer, SchemaProduct},
 };
-use argon2::Error;
 use axum::response::Response;
 #[allow(unused_imports)]
 use axum::{
@@ -367,7 +366,7 @@ pub async fn get_product_detail_htmx_handler(
                             strong ."font-medium text-gray-900" { "Status:" } " "
                             @let status_str = product.status.to_string();
                             @if status_str == "Dostępny" {
-                                span ."px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800" { "Dostępny" }
+                                span ."px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-lime-300 text-black" { "Dostępny" }
                             } @else if status_str == "Zarezerwowany" {
                                 span ."px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800" { "Zarezerwowany" }
                             } @else if status_str == "Sprzedany" {
@@ -5958,7 +5957,7 @@ pub async fn home_page_handler(
         type_of: "Organization",
         name: "mess - all that vintage",
         url: "https://messvintage.com",
-        logo: "https://messvintage.com/static/main-logo.png",
+        logo: "https://messvintage.com/static/main-logo.avif",
         address: SchemaAddress {
             type_of: "PostalAddress",
             street_address: "Piotrkowska 104",
