@@ -1354,8 +1354,8 @@ pub fn render_about_us_content() -> Markup {
                 }
 
                 // Sekcja z wyróżnionym cytatem lub wartościami
-                div ."my-10 p-6 bg-pink-50 rounded-xl shadow-md border-l-4 border-pink-500" {
-                    p ."text-lg italic text-pink-700 leading-relaxed" {
+                div ."my-10 p-6 bg-peachy rounded-xl border-l-4 border-rosey" {
+                        p ."text-lg italic text-pink-700 leading-relaxed" {
                         "„Moda przemija, styl pozostaje. W mess - all that vintage celebrujemy ten ponadczasowy styl, dając drugie życie wyjątkowym ubraniom.”"
                     }
                 }
@@ -1991,7 +1991,7 @@ pub fn render_contact_page() -> Markup {
 
             div ."space-y-10" {
                 // Sekcja Email
-                section ."p-6 bg-white rounded-lg shadow-lg border border-gray-200" {
+                section ."p-6 bg-white rounded-lg border border-gray-200" {
                     h2 ."text-2xl font-semibold text-pink-600 mb-3" { (email_heading_text) }
                     p ."text-gray-700 mb-2" { (email_description_text) }
                     a href=(format!("mailto:{}", contact_email)) class="text-lg text-gray-900 font-medium hover:underline break-all" { (contact_email) }
@@ -1999,7 +1999,7 @@ pub fn render_contact_page() -> Markup {
 
                 // Sekcja Telefon (opcjonalna)
                 @if let Some(phone) = contact_phone {
-                    section ."p-6 bg-white rounded-lg shadow-lg border border-gray-200" {
+                    section ."p-6 bg-white rounded-lg border border-gray-200" {
                         h2 ."text-2xl font-semibold text-pink-600 mb-3" { (phone_heading_text) }
                         @if !phone_description_text.is_empty() {
                             p ."text-gray-700 mb-2" { (phone_description_text) }
@@ -2009,22 +2009,9 @@ pub fn render_contact_page() -> Markup {
                     }
                 }
 
-                // // Sekcja Adres Korespondencyjny
-                // section ."p-6 bg-white rounded-lg shadow-lg border border-gray-200" {
-                //     h2 ."text-2xl font-semibold text-pink-600 mb-3" { (address_heading_text) }
-                //     p ."text-gray-700 leading-relaxed" {
-                //         (company_full_name) br;
-                //         (company_address_line1) br;
-                //         (company_address_line2)
-                //     }
-                //     // @if let Some(note) = address_note_text {
-                //     //     p ."text-sm text-gray-500 mt-2" { (note) }
-                //     // }
-                // }
-
                 // Sekcja Media Społecznościowe (opcjonalna)
                 @if social_facebook_url.is_some() || social_instagram_url.is_some() {
-                    section ."p-6 bg-white rounded-lg shadow-lg border border-gray-200" {
+                    section ."p-6 bg-white rounded-lg border border-gray-200" {
                         h2 ."text-2xl font-semibold text-pink-600 mb-4" { (social_media_heading_text) }
                         div ."flex space-x-6" {
                             @if let Some(fb_url) = social_facebook_url {

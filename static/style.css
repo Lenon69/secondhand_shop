@@ -94,7 +94,7 @@
 }
 
 #global-loading-spinner svg {
-  color: #e91e63;
+  color: #f88c8c;
   filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.3));
 }
 
@@ -149,4 +149,22 @@ form.htmx-request .search-button-text {
 /* Usuwa cień z banerów w środkowej części strony */
 #sm-banner .banner-box {
   box-shadow: none !important;
+}
+
+/*
+ * Plik: static/style.css
+ * Zmiany dotyczące usunięcia cieni i dodania obramowań
+ */
+
+/* Usuwa cień i dodaje ramkę do sekcji na stronie kontaktowej */
+.contact-section {
+  box-shadow: none !important; /* Wyłącza cień */
+  border: 1px solid #e5e7eb; /* Dodaje delikatne, szare obramowanie */
+}
+
+/* Usuwa cień i dodaje ramkę do sekcji z cytatem */
+.quote-section {
+  box-shadow: none !important; /* Wyłącza cień */
+  border-left: 3px solid #f472b6; /* Dodaje akcent kolorystyczny z lewej strony */
+  background-color: #fdf2f8 !important; /* Zmienia tło na delikatny róż */
 }
