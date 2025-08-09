@@ -1991,7 +1991,7 @@ pub fn render_contact_page() -> Markup {
             div ."space-y-10" {
                 // Sekcja Email
                 section ."p-6 bg-white rounded-lg border border-gray-200" {
-                    h2 ."text-2xl font-semibold text-pink-600 mb-3" { (email_heading_text) }
+                    h2 ."text-2xl font-semibold text-[var(--text-color-primary)] mb-3" { (email_heading_text) }
                     p ."text-gray-700 mb-2" { (email_description_text) }
                     a href=(format!("mailto:{}", contact_email)) class="text-lg text-gray-900 font-medium hover:underline break-all" { (contact_email) }
                 }
@@ -1999,7 +1999,7 @@ pub fn render_contact_page() -> Markup {
                 // Sekcja Telefon (opcjonalna)
                 @if let Some(phone) = contact_phone {
                     section ."p-6 bg-white rounded-lg border border-gray-200" {
-                        h2 ."text-2xl font-semibold text-pink-600 mb-3" { (phone_heading_text) }
+                        h2 ."text-2xl font-semibold text-[var(--text-color-primary)] mb-3" { (phone_heading_text) }
                         @if !phone_description_text.is_empty() {
                             p ."text-gray-700 mb-2" { (phone_description_text) }
                         }
@@ -2011,7 +2011,7 @@ pub fn render_contact_page() -> Markup {
                 // Sekcja Media Społecznościowe (opcjonalna)
                 @if social_facebook_url.is_some() || social_instagram_url.is_some() {
                     section ."p-6 bg-white rounded-lg border border-gray-200" {
-                        h2 ."text-2xl font-semibold text-pink-600 mb-4" { (social_media_heading_text) }
+                        h2 ."text-2xl font-semibold text-[var(--text-color-primary)] mb-4" { (social_media_heading_text) }
                         div ."flex space-x-6" {
                             @if let Some(fb_url) = social_facebook_url {
                                 a href=(fb_url) target="_blank" rel="noopener noreferrer" class="text-gray-600 hover:text-blue-600 transition-colors" {
@@ -2296,10 +2296,10 @@ pub fn render_shipping_returns_page() -> Markup {
 
                 div ."space-y-8" {
                     // Sekcja Wysyłka
-                    div "x-data"="{ open: true }" ."bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden" {
+                    div "x-data"="{ open: true }" ."bg-white rounded-xl border border-gray-200 overflow-hidden" {
                         button type="button" "@click"="open = !open" class="w-full flex justify-between items-center p-5 sm:p-6 text-left hover:bg-gray-50 focus:outline-none" {
-                            h2 ."text-2xl sm:text-3xl font-semibold text-pink-600" { (shipping_section_title) }
-                            svg ."w-6 h-6 text-pink-500 transform transition-transform duration-200" "x-bind:class"="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
+                            h2 ."text-2xl sm:text-3xl font-semibold text-[var(--text-color-primary)]" { (shipping_section_title) }
+                            svg ."w-6 h-6 text-[var(--text-color-primary)] transform transition-transform duration-200" "x-bind:class"="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
                                 path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
                             }
                         }
@@ -2331,10 +2331,10 @@ pub fn render_shipping_returns_page() -> Markup {
                     }
 
                     // Sekcja Zwroty
-                    div "x-data"="{ open: false }" ."bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden" {
+                    div "x-data"="{ open: false }" ."bg-white rounded-xl border border-gray-200 overflow-hidden" {
                         button type="button" "@click"="open = !open" class="w-full flex justify-between items-center p-5 sm:p-6 text-left hover:bg-gray-50 focus:outline-none" {
-                            h2 ."text-2xl sm:text-3xl font-semibold text-pink-600" { (returns_section_title) }
-                            svg ."w-6 h-6 text-pink-500 transform transition-transform duration-200" "x-bind:class"="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
+                            h2 ."text-2xl sm:text-3xl font-semibold text-[var(--text-color-primary)]" { (returns_section_title) }
+                            svg ."w-6 h-6 text-[var(--text-color-primary)] transform transition-transform duration-200" "x-bind:class"="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" "viewBox"="0 0 24 24" "xmlns"="http://www.w3.org/2000/svg" {
                                 path "stroke-linecap"="round" "stroke-linejoin"="round" "stroke-width"="2" d="M19 9l-7 7-7-7";
                             }
                         }
@@ -2363,14 +2363,14 @@ pub fn render_shipping_returns_page() -> Markup {
                     }
 
                     // Sekcja Reklamacje
-                    div ."p-6 bg-white rounded-lg shadow-lg border border-gray-200" {
-                        h2 ."text-2xl sm:text-3xl font-semibold text-pink-600 mb-3" { (complaints_section_title) }
+                    div ."p-6 bg-white rounded-lg border border-gray-200" {
+                        h2 ."text-2xl sm:text-3xl font-semibold text-[var(--text-color-primary)] mb-3" { (complaints_section_title) }
 
                         // ZMIANA: Budujemy paragraf i link bezpośrednio w maud
                         p ."text-gray-700 leading-relaxed" {
                             (complaints_text_part1)
                             a href=(link_to_terms)
-                               class="text-pink-600 hover:text-pink-700 hover:underline"
+                               class="text-[var(--text-color-primary)] hover:text-[var(--text-color-primary-hover)] hover:underline"
                                hx-get=(link_to_terms)
                                hx-target="#content"
                                hx-swap="innerHTML"
@@ -3811,7 +3811,7 @@ pub async fn my_order_details_htmx_handler(
                    hx-target="#my-account-content"
                    hx-swap="innerHTML"
                    hx-push-url="/moje-konto/zamowienia"
-                   class="text-sm text-pink-600 hover:text-pink-700 hover:underline" {
+                   class="text-sm text-[var(--text-color-primary)] hover:text-[var(--text-color-primary-hover)] hover:underline" {
                     "← Wróć do listy zamówień"
                 }
             }
@@ -3825,7 +3825,7 @@ pub async fn my_order_details_htmx_handler(
                             (order_status_display)
                         }
                     }
-                    p ."text-sm text-gray-600" { "Suma zamówienia:" strong ."text-gray-900 ml-1" { (order_total_display) } }
+                    p ."text-sm text-gray-600" { "Suma zamówienia:" strong ."text-[var(--text-color-primary)] font-semibold ml-1" { (order_total_display) } }
                     p ."text-sm text-gray-600" { "Forma płatności:"
                         strong ."text-gray-900 ml-1" {
                             @if let Some(pm) = &order.payment_method {
@@ -3898,7 +3898,7 @@ pub async fn my_order_details_htmx_handler(
                                    hx-target="#my-account-content"
                                    hx-swap="innerHTML"
                                    hx-push-url=(format!("/produkty/{}", item_detail.product.id))
-                                   class="text-sm font-medium text-pink-600 hover:text-pink-700 hover:underline block truncate" {
+                                   class="text-sm font-medium text-[var(--text-color-primary)] hover:text-[var(--text-color-primary-hover)] hover:underline block truncate" {
                                     (item_detail.product.name)
                                 }
                                 p ."text-xs text-gray-500" { "Kategoria: " (item_detail.product.category.to_string()) }
