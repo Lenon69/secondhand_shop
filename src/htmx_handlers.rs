@@ -2433,7 +2433,7 @@ pub async fn my_account_page_handler(
                                        hx-target="#my-account-content"
                                        hx-swap="innerHTML"
                                        hx-push-url=(push_url)
-                                       class="block px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-pink-500 text-center" {
+                                       class="block px-3 py-2 rounded-md text-gray-700 hover:bg-[var(--color-secondary)] hover:text-[var(--text-color-primary)] transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] text-center" {
                                         (label)
                                     }
                                 }
@@ -2444,7 +2444,7 @@ pub async fn my_account_page_handler(
                                     hx-post="/api/auth/logout"
                                     hx-swap="none"
                                    "@click"="clientSideLogout()" // Wywołuje funkcję z Alpine.js
-                                   class="w-full text-center block px-3 py-2 rounded-md text-red-600 hover:bg-red-50 hover:text-red-700 font-medium transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-red-500" {
+                                   class="w-full text-center block px-3 py-2 rounded-md text-[var(--text-color-primary)] hover:bg-[var(--color-secondary)] hover:text-[var(--text-color-primary-hover)] font-medium transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]" {
                                     "Wyloguj"
                                 }
                             }
@@ -2457,7 +2457,7 @@ pub async fn my_account_page_handler(
                      hx-swap="innerHTML"
                      hx-push-url="true" {
                     div #my-account-content-spinner .flex.justify-center.items-center.h-40 {
-                        svg class="animate-spin h-8 w-8 text-pink-600" xmlns="http://www.w3.org/2000/svg" fill="none" "viewBox"="0 0 24 24" {
+                        svg class="animate-spin h-8 w-8 text-[var(--text-color-primary)]" xmlns="http://www.w3.org/2000/svg" fill="none" "viewBox"="0 0 24 24" {
                             circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" "stroke-width"="4";
                             path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z";
                         }
@@ -3007,7 +3007,7 @@ pub async fn my_orders_htmx_handler(
                         div ."border border-gray-200 rounded-lg p-4 sm:p-6 hover:shadow-lg transition-shadow duration-200 ease-in-out bg-white" {
                             div ."flex flex-col sm:flex-row justify-between sm:items-center mb-3 pb-3 border-b border-gray-100" {
                                 div {
-                                    h3 ."text-lg font-semibold text-pink-600" {
+                                    h3 ."text-lg font-semibold text-[var(--text-color-primary)]" {
                                         "Zamówienie #" (order_id_display)
                                     }
                                     p ."text-sm text-gray-500" { "Data złożenia: " (order_date_display) }
@@ -3033,7 +3033,7 @@ pub async fn my_orders_htmx_handler(
                                        hx-target="#my-account-content" // Celuje w główny obszar treści "Moje Konto"
                                        hx-swap="innerHTML"
                                        hx-push-url=(format!("/moje-konto/zamowienia/{}", order_item.id))
-                                       class="text-sm text-pink-600 hover:text-pink-700 hover:underline font-medium py-2 px-3 rounded-md hover:bg-pink-50 transition-colors" {
+                                       class="text-sm text-[var(--text-color-primary)] hover:text-[var(--text-color-primary-hover)] hover:underline font-medium py-2 px-3 rounded-md hover:bg-[var(--color-secondary)] transition-colors" {
                                         "Zobacz szczegóły"
                                     }
                                 }

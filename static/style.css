@@ -15,7 +15,7 @@
   opacity: 1;
 }
 .mobile-nav-active {
-  @apply bg-pink-50 text-pink-700 font-semibold;
+  @apply bg-[var(--color-secondary)] text-[var(--text-color-primary)] font-semibold;
 }
 #category-sidebar::-webkit-scrollbar {
   width: 8px;
@@ -195,3 +195,4 @@ form.htmx-request .search-button-text {
 .shadow-inner {
   box-shadow: none !important;
 }
+

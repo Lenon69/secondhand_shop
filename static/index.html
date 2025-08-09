@@ -495,14 +495,14 @@
                 x-text="cartItemCount"
                 x-show="cartItemCount > 0"
                 x-cloak
-                class="absolute -top-1.5 -right-1.5 bg-pink-600 text-white text-[0.6rem] font-semibold rounded-full w-4 h-4 flex items-center justify-center ring-1 ring-white"
+                class="absolute -top-1.5 -right-1.5 bg-[var(--color-primary)] text-[var(--color-primary-text)] text-[0.6rem] font-semibold rounded-full w-4 h-4 flex items-center justify-center ring-1 ring-white"
               ></span>
             </button>
             <div class="flex items-center lg:hidden">
               <button
                 @click="isMobileMenuOpen = !isMobileMenuOpen"
                 aria-label="Menu"
-                class="p-2 rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-pink-500"
+                class="p-2 rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--color-primary)]"
               >
                 <svg
                   x-show="!isMobileMenuOpen"
@@ -632,7 +632,7 @@
               >
                   <input
                       id="mobile-search-input"
-                      class="block w-full rounded-md border border-gray-300 text-center bg-white py-2 pl-10 pr-4 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition-shadow sm:text-sm sm:leading-6"
+                      class="block w-full rounded-md border border-gray-300 text-center bg-white py-2 pl-10 pr-4 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-shadow sm:text-sm sm:leading-6"
                       placeholder="Szukaj..."
                       type="search"
                       name="search"
@@ -669,7 +669,7 @@
             hx-push-url="/dla-niej"
             @click="isMobileMenuOpen = false; currentMobilePage='damska'; isCategorySidebarOpen = false"
             :class="{'mobile-nav-active': currentMobilePage === 'damska'}"
-            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-700 text-center"
+            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-[var(--color-secondary)] hover:text-[var(--text-color-primary)] text-center"
             >Dla niej</a
           >
           <a
@@ -680,7 +680,7 @@
             hx-push-url="/dla-niego"
             @click="isMobileMenuOpen = false; currentMobilePage='meska'; isCategorySidebarOpen = false"
             :class="{'mobile-nav-active': currentMobilePage === 'meska'}"
-            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-700 text-center"
+            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-[var(--color-secondary)] hover:text-[var(--text-color-primary)] text-center"
             >Dla niego</a
           >
           <a
@@ -691,7 +691,7 @@
             hx-push-url="/nowosci"
             @click="isMobileMenuOpen = false; currentMobilePage='nowosci'"
             :class="{'mobile-nav-active': currentMobilePage === 'nowosci'}"
-            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-700 text-center"
+            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-[var(--color-secondary)] hover:text-[var(--text-color-primary)] text-center"
             >Nowości</a
           >
           <a
@@ -702,7 +702,7 @@
             hx-push-url="/okazje"
             @click="isMobileMenuOpen = false; currentMobilePage='okazje'"
             :class="{'mobile-nav-active': currentMobilePage === 'okazje'}"
-            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-700 text-center"
+            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-[var(--color-secondary)] hover:text-[var(--text-color-primary)] text-center"
             >Okazje</a
           >
           <a
@@ -713,7 +713,7 @@
             hx-push-url="/o-nas"
             @click="isMobileMenuOpen = false; currentMobilePage='o-nas'"
             :class="{'mobile-nav-active': currentMobilePage === 'o-nas'}"
-            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-700 text-center"
+            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-[var(--color-secondary)] hover:text-[var(--text-color-primary)] text-center"
             >O nas</a
           >
           <a
@@ -724,7 +724,7 @@
             hx-push-url="/kontakt"
             @click="isMobileMenuOpen = false; currentMobilePage='kontakt'"
             :class="{'mobile-nav-active': currentMobilePage === 'kontakt'}"
-            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-pink-50 hover:text-pink-700 text-center"
+            class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-[var(--color-secondary)] hover:text-[var(--text-color-primary)] text-center"
             >Kontakt</a
           >
             <div class="pt-4 pb-3 border-t border-gray-200">
