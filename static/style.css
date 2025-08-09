@@ -184,3 +184,14 @@ form.htmx-request .search-button-text {
   border-left: 3px solid var(--color-primary); /* Użycie zmiennej */
   background-color: var(--color-secondary) !important; /* Użycie zmiennej */
 }
+
+/* Globalne usunięcie cieni z layoutu */
+.shadow-sm,
+.shadow,
+.shadow-md,
+.shadow-lg,
+.shadow-xl,
+.shadow-2xl,
+.shadow-inner {
+  box-shadow: none !important;
+}

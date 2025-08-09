@@ -1322,10 +1322,8 @@ pub fn render_about_us_content() -> Markup {
 
             // Sekcja wprowadzająca
             div ."prose prose-lg lg:prose-xl max-w-none text-gray-700 leading-relaxed space-y-6" {
-                // Użycie prose-lg i prose-xl dla lepszej czytelności większych bloków tekstu
-                // space-y-6 dla odstępów między paragrafami
 
-                p ."text-xl font-semibold text-pink-600" { // Lekkie wyróżnienie pierwszego zdania
+                p ."text-xl font-semibold text-[var(--text-color-primary)]" { // Lekkie wyróżnienie pierwszego zdania
                     "Witaj w świecie mess - all that vintage!"
                 }
                 p {
@@ -1340,14 +1338,14 @@ pub fn render_about_us_content() -> Markup {
                 }
                 */
 
-                h2 ."text-2xl sm:text-3xl font-semibold text-gray-800 mt-10 mb-4 border-b-2 border-pink-500 pb-2" {
+                h2 ."text-2xl sm:text-3xl font-semibold text-gray-800 mt-10 mb-4 border-b-2 border-[var(--color-primary)] pb-2" {
                     "Miłość do Vintage i Zrównoważonego Stylu"
                 }
                 p {
                     "Naszą największą inspiracją jest moda z duszą – starannie wyszukane perełki vintage i odzież z drugiej ręki, która niesie ze sobą niepowtarzalne historie i ponadczasową jakość. Wierzymy, że moda powinna być zrównoważona, a dawanie ubraniom drugiego życia to najpiękniejszy sposób na dbanie o naszą planetę i podkreślanie własnej indywidualności. Przeszukujemy niezliczone miejsca, aby znaleźć te wyjątkowe egzemplarze, które wniosą do Twojej szafy niepowtarzalny charakter."
                 }
 
-                h2 ."text-2xl sm:text-3xl font-semibold text-gray-800 mt-10 mb-4 border-b-2 border-pink-500 pb-2" {
+                h2 ."text-2xl sm:text-3xl font-semibold text-gray-800 mt-10 mb-4 border-b-2 border-[var(--color-primary)] pb-2" {
                     "Misja mess - all that vintage"
                 }
                 p {
@@ -1355,13 +1353,13 @@ pub fn render_about_us_content() -> Markup {
                 }
 
                 // Sekcja z wyróżnionym cytatem lub wartościami
-                div ."my-10 p-6 bg-peachy rounded-xl border-l-4 border-rosey" {
-                        p ."text-lg italic text-pink-700 leading-relaxed" {
+                div ."my-10 p-6 bg-[var(--color-secondary)] rounded-xl border-l-4 border-[var(--color-primary)]" {
+                        p ."text-lg italic text-[var(--text-color-primary-hover)] leading-relaxed" {
                         "„Moda przemija, styl pozostaje. W mess - all that vintage celebrujemy ten ponadczasowy styl, dając drugie życie wyjątkowym ubraniom.”"
                     }
                 }
 
-                h2 ."text-2xl sm:text-3xl font-semibold text-gray-800 mt-10 mb-4 border-b-2 border-pink-500 pb-2" {
+                h2 ."text-2xl sm:text-3xl font-semibold text-gray-800 mt-10 mb-4 border-b-2 border-[var(--color-primary)] pb-2" {
                     "Co u nas znajdziesz?"
                 }
                 p {
@@ -1374,7 +1372,7 @@ pub fn render_about_us_content() -> Markup {
                         "Dziękujemy, że jesteś z nami! Rozejrzyj się, zainspiruj i znajdź coś, co idealnie odda Twój styl."
                     }
                     a href="/" hx-get="/" hx-target="#content" hx-swap="innerHTML" hx-push-url="/"
-                       class="inline-block bg-pink-600 text-white font-semibold py-3 px-8 rounded-lg shadow-md hover:bg-pink-700 transition-all duration-200 ease-in-out text-lg" {
+                       class="inline-block bg-[var(--color-primary)] text-[var(--color-primary-text)] font-semibold py-3 px-8 rounded-lg shadow-md hover:bg-[var(--color-primary-hover)] transition-all duration-200 ease-in-out text-lg" {
                         "Odkrywaj nasze kolekcje"
                     }
                 }
@@ -3306,7 +3304,7 @@ pub async fn checkout_page_handler(
                                 }
                                 div class="flex justify-between border-t border-gray-200 pt-3" {
                                     span class="text-base font-semibold text-gray-900" { "Do zapłaty" }
-                                    span class="text-base font-semibold text-pink-600" id="checkout-grand-total"
+                                    span class="text-base font-semibold text-[var(--text-color-primary)]" id="checkout-grand-total"
                                           x-text="formatPrice(grandTotal)" {}
                                 }
                             }
@@ -3315,10 +3313,10 @@ pub async fn checkout_page_handler(
                                 p class="text-xs text-gray-500" {
                                     "Klikając „Złóż zamówienie i zapłać”, akceptujesz "
                                     a href="/regulamin" hx-get="/htmx/page/regulamin" hx-target="#content" hx-swap="innerHTML" hx-push-url="/regulamin"
-                                       class="text-pink-600 hover:underline" { "Regulamin sklepu" }
+                                       class="text-[var(--text-color-primary)] hover:text-[var(--text-color-primary-hover)] hover:underline" { "Regulamin sklepu" }
                                     " oraz "
                                     a href="/polityka-prywatnosci" hx-get="/htmx/page/polityka-prywatnosci" hx-target="#content" hx-swap="innerHTML" hx-push-url="/polityka-prywatnosci"
-                                       class="text-pink-600 hover:underline" { "Politykę prywatności" }
+                                       class="text-[var(--text-color-primary)] hover:text-[var(--text-color-primary-hover)] hover:underline" { "Politykę prywatności" }
                                     "."
                                 }
                             }
@@ -3510,7 +3508,7 @@ pub async fn checkout_page_handler(
                         // Przyciski akcji (Czerwone Pole)
                         div ."mt-8 flex flex-col sm:flex-row-reverse justify-between items-center gap-4" {
                             button type="submit" form="checkout-form" // Atrybut 'form' wskazuje na ID formularza
-                                   class="w-full sm:w-auto px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-all duration-200 transform hover:scale-105" {
+                                   class="w-full sm:w-auto px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-primary)] transition-all duration-200 transform hover:scale-105" {
                                 "Złóż zamówienie i zapłać"
                             }
                             a href="/" hx-get="/htmx/products?limit=8" hx-target="#content" hx-swap="innerHTML" hx-push-url="/"
