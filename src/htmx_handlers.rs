@@ -406,7 +406,7 @@ pub async fn get_product_detail_htmx_handler(
                                    hx-target=(query_params.return_target.as_deref().unwrap_or("#content"))
                                    hx-swap="innerHTML"
                                    hx-push-url=(url.replace("/htmx", ""))
-                                   class="js-back-to-list-link inline-flex items-center px-4 py-2 border border-pink-200 rounded-md shadow-sm text-sm font-medium text-pink-700 bg-pink-100 hover:bg-pink-200 hover:border-pink-300 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2" {
+                                   class="js-back-to-list-link inline-flex items-center px-4 py-2 border border-[var(--color-secondary)] rounded-md shadow-sm text-sm font-medium text-pink-700 bg-pink-100 hover:bg-pink-200 hover:border-pink-300 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2" {
                                    svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2" {
                                        path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3";
                                    }
@@ -999,7 +999,7 @@ pub async fn remove_item_from_cart_htmx_handler(
                                                hx-swap="innerHTML"
                                                hx-push-url=(format!("/produkty/{}", item.product.id))
                                                "@click"="if(typeof cartOpen !== 'undefined') cartOpen = false"
-                                               class="hover:text-pink-600 transition-colors group-hover:underline" {
+                                               class="hover:text-[var(--text-color-primary)] transition-colors group-hover:underline" {
                                                 (item.product.name)
                                             }
                                         }
@@ -1012,7 +1012,7 @@ pub async fn remove_item_from_cart_htmx_handler(
                                             hx-post=(format!("/htmx/cart/remove/{}", item.product.id))
                                             hx-target="#cart-content-target"
                                             hx-swap="innerHTML"
-                                            class="text-sm font-medium text-pink-600 px-3 py-1 rounded-md hover:bg-pink-100 hover:text-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-opacity-50 transition-all duration-150 ease-in-out" {
+                                            class="text-sm font-medium text-[var(--text-color-primary)] px-3 py-1 rounded-md hover:bg-[var(--color-secondary)] hover:text-[var(--text-color-primary-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:ring-opacity-50 transition-all duration-150 ease-in-out" {
                                             "Usuń"
                                         }
                                     }
@@ -2791,9 +2791,7 @@ pub async fn login_page_htmx_handler(headers: HeaderMap) -> Result<Response, App
                                 label for="email" ."block text-sm font-medium text-gray-700" { "Adres e-mail" }
                                 div ."mt-1" {
                                     input #email name="email" type="email" autocomplete="email" required
-                                           class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400
-                                              focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 
-                                              transition duration-150 ease-in-out sm:text-sm";
+                                       class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] transition duration-150 ease-in-out sm:text-sm";
                                 }
                             }
 
@@ -2802,15 +2800,14 @@ pub async fn login_page_htmx_handler(headers: HeaderMap) -> Result<Response, App
                                 div ."mt-1" {
                                     input #password name="password" type="password" autocomplete="current-password" required
                                            class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400
-                                              focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 
-                                              transition duration-150 ease-in-out sm:text-sm";
+                                              focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] transition duration-150 ease-in-out sm:text-sm";
                                 }
                             }
 
                             div {
                                 button type="submit"
                                        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white
-                                          bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 
+                                          bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-primary)] 
                                           transition-all duration-150 ease-in-out transform hover:scale-105" {
                                     "Zaloguj się"
                                 }
@@ -2826,7 +2823,7 @@ pub async fn login_page_htmx_handler(headers: HeaderMap) -> Result<Response, App
                                        hx-target="#content"
                                        hx-swap="innerHTML"
                                        hx-push-url=(registration_url)
-                                       class="font-medium text-pink-600 hover:text-pink-500 hover:underline" {
+                                       class="font-medium text-[var(--text-color-primary)] hover:text-[var(--text-color-primary-hover)] hover:underline" {
                                         "Zarejestruj się"
                                     }
                                 }
@@ -6104,7 +6101,7 @@ fn highlight_keyword(text: &str, keyword: &str) -> Markup {
         let end = &text[index + keyword.len()..];
         html! {
             (start)
-            span class="text-pink-600" { (highlighted) }
+            span class="text-[var(--text-color-primary)]" { (highlighted) }
             (end)
         }
     } else {
@@ -6116,7 +6113,7 @@ fn highlight_keyword(text: &str, keyword: &str) -> Markup {
 /// Renderuje ostylowany baner "Darmowa dostawa".
 fn render_free_shipping_banner_maud() -> Markup {
     html! {
-        div class="p-3 sm:p-4 bg-pink-50 border border-pink-200 rounded-xl shadow-sm text-pink-800 flex items-center justify-center gap-x-3 sm:gap-x-4 h-full lg:max-w-2xl mx-auto" {
+        div class="p-3 sm:p-4 bg-[var(--color-secondary)] border border-[var(--color-primary)] rounded-xl text-[var(--text-color-primary-hover)] shadow-sm text-pink-800 flex items-center justify-center gap-x-3 sm:gap-x-4 h-full lg:max-w-2xl mx-auto" {
             div class="flex-shrink-0" {
                 svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 sm:w-7 sm:h-7" {
                   path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12";
@@ -6178,8 +6175,8 @@ fn render_category_sidebar_maud(
                 nav {
                     ul ."space-y-1" {
                         // Definicje klas dla linków dla czystszego kodu
-                        @let active_class = "flex items-center justify-center px-3 py-2 rounded-md transition-colors bg-pink-100 text-pink-700 font-bold";
-                        @let inactive_class = "flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors";
+                        @let active_class = "flex items-center justify-center px-3 py-2 rounded-md transition-colors bg-[var(--color-secondary)] text-[var(--text-color-primary)] font-bold";
+                        @let inactive_class = "flex items-center justify-center px-3 py-2 rounded-md text-gray-700 hover:bg-[var(--color-secondary)] hover:text-[var(--text-color-primary)] transition-colors";
 
                         // --- Link "Wszystkie" ---
                         li {
