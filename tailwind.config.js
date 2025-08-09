@@ -21,6 +21,7 @@ module.exports = {
         "custom-footer-bg": "#ffece4",
         rosey: "#f88c8c",
         peachy: "#ffdcd4",
+        footer: "var(--footer-color-bg)",
       },
     },
   },
