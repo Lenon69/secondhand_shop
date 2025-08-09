@@ -334,7 +334,7 @@ pub async fn get_product_detail_htmx_handler(
                             template x-for="(thumbnailUrl, index) in allThumbnails" x-bind:key="index" {
                                 button type="button"
                                     "@click"="currentMainImage = allLargeImages[index]; $nextTick(() => window.scrollTo({ top: 0, behavior: 'auto' }))"
-                                    "x-bind:class"="currentMainImage === allLargeImages[index] ? 'border-pink-500 ring-2 ring-pink-500' : 'border-gray-200 hover:border-pink-400'"
+                                    "x-bind:class"="currentMainImage === allLargeImages[index] ? 'border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]' : 'border-gray-200 hover:border-[var(--color-primary)]'"
                                     class="aspect-square block border-2 rounded-md overflow-hidden focus:outline-none focus:border-pink-500 transition-all duration-150 bg-gray-50" {
                                     img "x-bind:src"="thumbnailUrl"
                                         x-bind:alt="'Miniaturka ' + (index + 1)"
@@ -356,7 +356,7 @@ pub async fn get_product_detail_htmx_handler(
                 // --- Kolumna z informacjami o produkcie ---
                 div ."flex flex-col" {
                     h1 ."text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-gray-900 mb-2" { (product.name) }
-                    p ."text-3xl font-semibold text-pink-600 mb-5" { (formatted_price) }
+                        p ."text-3xl font-semibold text-[var(--text-color-primary)] mb-5" { (formatted_price) }
 
                     div ."space-y-2 text-sm text-gray-700 mb-5" {
                         p { strong ."font-medium text-gray-900" { "Rodzaj:" } " " (product.gender.to_string()) }
@@ -366,7 +366,7 @@ pub async fn get_product_detail_htmx_handler(
                             strong ."font-medium text-gray-900" { "Status:" } " "
                             @let status_str = product.status.to_string();
                             @if status_str == "Dostępny" {
-                                span ."px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-lime-300 text-black" { "Dostępny" }
+                                span ."px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-[#b0d4ac] text-green-900" { "Dostępny" }
                             } @else if status_str == "Zarezerwowany" {
                                 span ."px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800" { "Zarezerwowany" }
                             } @else if status_str == "Sprzedany" {
@@ -638,7 +638,7 @@ pub async fn get_cart_details_htmx_handler(
                                 hx-post=(format!("/htmx/cart/remove/{}", item.product.id))
                                 hx-target="#cart-content-target"
                                 hx-swap="innerHTML"
-                                class="text-sm font-medium text-pink-600 px-3 py-1 rounded-md hover:bg-pink-100 hover:text-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-opacity-50 transition-all duration-150 ease-in-out" {
+                                class="text-sm font-medium text-[var(--text-color-primary)] px-3 py-1 rounded-md hover:bg-[var(--color-secondary)] hover:text-[var(--text-color-primary-hover)]" {
                                 "Usuń"
                             }
                         }
@@ -1189,7 +1189,8 @@ fn render_product_grid_maud(
                                 PaginationItem::Page(page_num) => {
                                     @if page_num == current_page {
                                         // --- Aktywna (bieżąca) strona ---
-                                        span class="z-10 px-3 sm:px-4 py-2 border rounded-md text-sm font-medium text-white bg-pink-600" aria-current="page" {
+                                        span class="z-10 px-3 sm:px-4 py-2 border border-[var(--color-primary)] rounded-md text-sm font-medium text-[var(--color-primary-text)] bg-[var(--color-primary)]"
+                                        aria-current="page" {
                                             (page_num)
                                         }
                                     } @else {
@@ -5606,7 +5607,7 @@ fn render_add_to_cart_button(product_id: Uuid) -> Markup {
                hx-post=(format!("/htmx/cart/toggle/{}", product_id)) // ZMIANA: Nowy endpoint
                hx-target=(format!("#product-cart-button-{}", product_id))
                hx-swap="outerHTML"
-               class="w-full text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 ease-in-out inline-flex items-center justify-center bg-pink-600 hover:bg-pink-700"
+                class="w-full text-[var(--color-primary-text)] font-medium py-2 px-4 rounded-lg ... bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)]"
         {
             div class="flex items-center" {
                 svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 mr-2" {
@@ -5627,7 +5628,7 @@ fn render_added_to_cart_button(product_id: Uuid) -> Markup {
                hx-post=(format!("/htmx/cart/toggle/{}", product_id)) // ZMIANA: Ten sam endpoint co wyżej
                hx-target=(format!("#product-cart-button-{}", product_id))
                hx-swap="outerHTML"
-               class="w-full text-white font-semibold py-2 px-4 rounded-lg transition-all inline-flex items-center justify-center bg-green-600 hover:bg-green-700 cursor-pointer"
+                class="w-full text-[var(--color-primary-text)] font-medium py-2 px-4 rounded-lg bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)]"
                title="Kliknij, aby usunąć z koszyka"
         {
             div class="flex items-center" {

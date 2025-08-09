@@ -9,6 +9,24 @@
       content="Odkryj unikalną odzież vintage w mess - all that vintage. Najlepsze perełki z drugiej ręki dla niej i dla niego."
     />
     <title>mess - all that vintage - Sklep Vintage Online</title>
+    
+    <style>
+      :root {
+        --color-primary: #f88c8c;
+        --color-primary-hover: #e07a7a; /* Nieco ciemniejszy do hover */
+        --color-primary-text: #ffffff; /* Tekst na głównym kolorze */
+        
+        --color-secondary: #ffdcd4;
+        --color-secondary-hover: #f5cdc4; /* Nieco ciemniejszy do hover */
+        
+        --text-color-primary: #f88c8c; /* Kolor tekstu */
+        --text-color-primary-hover: #e07a7a; /* Kolor tekstu po najechaniu */
+
+        --status-available-bg: #b0d4ac; /* Twój nowy kolor statusu */
+      }
+    </style>
+    
+    
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script
       src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"
@@ -386,7 +404,7 @@
                           name="search"
                           id="live-search-input"
                           placeholder="Szukaj perełek..."
-                          class="w-full px-4 py-2 border border-gray-300 rounded-l-full focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-shadow text-sm"
+                          class="w-full px-4 py-2 border border-gray-300 rounded-l-full focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-shadow text-sm"
                           aria-label="Wyszukaj produkty"
                           autocomplete="off"
 
@@ -422,14 +440,14 @@
             hx-target="#content" hx-swap="innerHTML"
             x-bind:hx-push-url="isAuthenticated ? '/moje-konto' : '/logowanie'"
             @click="currentMobilePage = isAuthenticated ? 'moje-konto' : 'logowanie'"
-            class="flex items-center space-x-1 text-gray-700 hover:text-pink-600 transition-colors"
+            class="flex items-center space-x-1 text-gray-700 hover:text-[var(--text-color-primary)] transition-colors"
             aria-label="Moje konto">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>
             <span class="text-sm" x-text="isAuthenticated ? 'Moje konto' : 'Zaloguj się'"></span>
         </a>                        
     <button
         @click="cartOpen = true; $el.dispatchEvent(new CustomEvent('cartOpened', {bubbles: true, composed: true}))"
-        class="relative flex items-center space-x-1 text-gray-700 hover:text-pink-600 transition-colors transform hover:scale-105 focus:outline-none"
+        class="relative flex items-center space-x-1 text-gray-700 hover:text-[var(--text-color-primary)] transition-colors"
         aria-label="Otwórz koszyk"
     >
         <svg
@@ -451,12 +469,12 @@
             x-text="cartItemCount"
             x-show="cartItemCount > 0"
             x-cloak
-            class="absolute -top-2 -right-2 bg-pink-600 text-white text-xs font-semibold rounded-full w-5 h-5 flex items-center justify-center ring-2 ring-white"
+            class="absolute -top-2 -right-2 bg-[var(--color-primary)] text-[var(--color-primary-text)] text-xs font-semibold rounded-full w-5 h-5 flex items-center justify-center ring-2 ring-white"
         ></span>
     </button>
 </div>            <button
               @click="cartOpen = true; $el.dispatchEvent(new CustomEvent('cartOpened', {bubbles: true, composed: true}))"
-              class="lg:hidden relative p-1 text-gray-700 hover:text-pink-600 transition-colors transform hover:scale-105 focus:outline-none"
+              class="lg:hidden relative p-1 text-gray-700 hover:[var(--text-color-primary)] transition-colors transform hover:scale-105 focus:outline-none "
               aria-label="Otwórz koszyk"
             >
               <svg
@@ -530,7 +548,7 @@
               hx-push-url="/dla-niej"
               hx-swap="innerHTML"
               @click="currentMobilePage='damska'; isCategorySidebarOpen = false"
-              class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
+              class="text-gray-700 hover:text-[var(--text-color-primary)] px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
               >Dla niej</a
             >
             <a
@@ -540,7 +558,7 @@
               hx-push-url="/dla-niego"
               hx-swap="innerHTML"
               @click="currentMobilePage='meska'; isCategorySidebarOpen = false"
-              class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
+              class="text-gray-700 hover:text-[var(--text-color-primary)] px-3 py-2 rounded-md  transition-all duration-200 ease-out hover:bg-pink-50"
               >Dla niego</a
             >
             <a
@@ -550,7 +568,7 @@
               hx-push-url="/nowosci"
               hx-swap="innerHTML"
               @click="currentMobilePage='nowosci'"
-              class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
+              class="text-gray-700 hover:text-[var(--text-color-primary)] px-3 py-2 rounded-md  transition-all duration-200 ease-out hover:bg-pink-50"
               >Nowości</a
             >
             <a
@@ -560,7 +578,7 @@
               hx-push-url="/okazje"
               hx-swap="innerHTML"
               @click="currentMobilePage='okazje'"
-              class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
+              class="text-gray-700 hover:text-[var(--text-color-primary)] px-3 py-2 rounded-md  transition-all duration-200 ease-out hover:bg-pink-50"
               >Okazje</a
             >
             <a
@@ -570,7 +588,7 @@
               hx-push-url="/o-nas"
               hx-swap="innerHTML"
               @click="currentMobilePage='o-nas'"
-              class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
+              class="text-gray-700 hover:text-[var(--text-color-primary)] px-3 py-2 rounded-md  transition-all duration-200 ease-out hover:bg-pink-50"
               >O nas</a
             >
             <a
@@ -580,7 +598,7 @@
               hx-push-url="/kontakt"
               hx-swap="innerHTML"
               @click="currentMobilePage='kontakt'"
-              class="text-gray-700 hover:text-pink-600 px-3 py-2 rounded-md transition-all duration-200 ease-out hover:bg-pink-50"
+              class="text-gray-700 hover:text-[var(--text-color-primary)] px-3 py-2 rounded-md  transition-all duration-200 ease-out hover:bg-pink-50"
               >Kontakt</a
             >
           </div>
@@ -748,7 +766,7 @@
 
     <div class="flex justify-center items-center min-h-[60vh]">
           <svg
-            class="animate-spin h-12 w-12 text-pink-600"
+            class="animate-spin h-12 w-12 text-[var(--text-color-primary)]"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
@@ -791,7 +809,7 @@
                   hx-get="/htmx/page/kontakt"
                   hx-target="#content"
                   hx-push-url="/kontakt"
-                  class="hover:underline hover:text-pink-600 transition-colors"
+                  class="hover:underline hover:[var(--text-color-primary)] transition-colors"
                   >Kontakt</a
                 >
               </li>
@@ -801,7 +819,7 @@
                   hx-get="/htmx/page/wysylka-i-zwroty"
                   hx-target="#content"
                   hx-push-url="/wysylka-i-zwroty"
-                  class="hover:underline hover:text-pink-600 transition-colors"
+                  class="hover:underline hover:[var(--text-color-primary)] transition-colors"
                   >Wysyłka i zwroty</a
                 >
               </li>
@@ -811,7 +829,7 @@
                   hx-get="/htmx/page/faq"
                   hx-target="#content"
                   hx-push-url="/faq"
-                  class="hover:underline hover:text-pink-600 transition-colors"
+                  class="hover:underline hover:[var(--text-color-primary)] transition-colors"
                   >FAQ</a
                 >
               </li>
@@ -830,7 +848,7 @@
                   hx-get="/htmx/page/o-nas"
                   hx-target="#content"
                   hx-push-url="/o-nas"
-                  class="hover:underline hover:text-pink-600 transition-colors"
+                  class="hover:underline hover:[var(--text-color-primary)] transition-colors"
                   >O nas</a
                 >
               </li>
@@ -840,7 +858,7 @@
                   hx-get="/htmx/page/polityka-prywatnosci"
                   hx-target="#content"
                   hx-push-url="/polityka-prywatnosci"
-                  class="hover:underline hover:text-pink-600 transition-colors"
+                  class="hover:underline hover:[var(--text-color-primary)] transition-colors"
                   >Polityka prywatności</a
                 >
               </li>
@@ -850,7 +868,7 @@
                   hx-get="/htmx/page/regulamin"
                   hx-target="#content"
                   hx-push-url="/regulamin"
-                  class="hover:underline hover:text-pink-600 transition-colors"
+                  class="hover:underline hover:[var(--text-color-primary)] transition-colors"
                   >Regulamin sklepu</a
                 >
               </li>
@@ -869,7 +887,7 @@
                   hx-get="/dla-niej"
                   hx-target="#content"
                   hx-push-url="/dla-niej"
-                  class="hover:underline hover:text-pink-600 transition-colors"
+                  class="hover:underline hover:[var(--text-color-primary)] transition-colors"
                   >Dla niej</a
                 >
               </li>
@@ -879,7 +897,7 @@
                   hx-get="/dla-niego"
                   hx-target="#content"
                   hx-push-url="/dla-niego"
-                  class="hover:underline hover:text-pink-600 transition-colors"
+                  class="hover:underline hover:[var(--text-color-primary)] transition-colors"
                   >Dla niego</a
                 >
               </li>
@@ -889,7 +907,7 @@
                   hx-get="/htmx/products?sort_by=created_at&amp;order=desc"
                   hx-target="#content"
                   hx-push-url="/nowosci"
-                  class="hover:underline hover:text-pink-600 transition-colors"
+                  class="hover:underline hover:[var(--text-color-primary)] transition-colors"
                   >Nowości</a
                 >
               </li>
@@ -952,7 +970,7 @@
                hx-target="#content"
                hx-swap="innerHTML"
                hx-push-url="/admin"
-               class="font-medium hover:text-pink-600 transition-colors"
+               class="font-medium hover:[var(--text-color-primary)] transition-colors"
                title="Przejdź do Panelu Admina"
             >mess - all that vintage.</a>
           </template>
@@ -997,7 +1015,7 @@
           <button
             @click="cartOpen = false"
             type="button"
-            class="-mr-2 p-2 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-pink-500"
+            class="-mr-2 p-2 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-[var(--color-primary)]"
             aria-label="Zamknij koszyk"
           >
             <svg
@@ -1081,7 +1099,7 @@
               <button
                 type="button"
                 @click="cartOpen = false"
-                class="font-medium text-pink-600 hover:text-pink-500"
+                class="font-medium text-[var(--text-color-primary)] hover:text-[var(--text-color-primary-hover)]"
               >
                 Kontynuuj zakupy<span aria-hidden="true"> &rarr;</span>
               </button>
@@ -1182,3 +1200,4 @@
     <div id="body-scripts-placeholder"></div>
   </body>
 </html>
+
