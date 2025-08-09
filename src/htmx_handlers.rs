@@ -5604,7 +5604,7 @@ fn render_add_to_cart_button(product_id: Uuid) -> Markup {
                hx-post=(format!("/htmx/cart/toggle/{}", product_id)) // ZMIANA: Nowy endpoint
                hx-target=(format!("#product-cart-button-{}", product_id))
                hx-swap="outerHTML"
-                class="w-full text-[var(--color-primary-text)] font-medium py-2 px-4 rounded-lg ... bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)]"
+               class="w-full text-[var(--color-primary-text)] font-medium py-2 px-4 rounded-lg transition-all duration-200 ease-in-out inline-flex items-center justify-center bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)]"
         {
             div class="flex items-center" {
                 svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 mr-2" {
@@ -5625,7 +5625,7 @@ fn render_added_to_cart_button(product_id: Uuid) -> Markup {
                hx-post=(format!("/htmx/cart/toggle/{}", product_id)) // ZMIANA: Ten sam endpoint co wyżej
                hx-target=(format!("#product-cart-button-{}", product_id))
                hx-swap="outerHTML"
-                class="w-full text-[var(--color-primary-text)] font-medium py-2 px-4 rounded-lg bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)]"
+                class="w-full text-white font-semibold py-2 px-4 rounded-lg transition-all inline-flex items-center justify-center bg-green-600 hover:bg-green-700 cursor-pointer"
                title="Kliknij, aby usunąć z koszyka"
         {
             div class="flex items-center" {
